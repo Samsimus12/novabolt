@@ -1,0 +1,36 @@
+import 'dart:ui';
+
+import 'package:flame/components.dart';
+
+import 'monster.dart';
+import 'weapon.dart';
+import 'weapon_magic_bolt.dart';
+
+class WeaponRapidFire extends Weapon {
+  WeaponRapidFire() : super(damage: 9, fireRate: 4.0);
+
+  @override
+  String get displayName => 'Rapid Fire';
+
+  @override
+  String get nextUpgradeDescription => 'Fire rate +20%';
+
+  @override
+  void applyUpgrade() {
+    upgradeLevel++;
+    fireRate *= 1.2;
+  }
+
+  @override
+  void fire(Vector2 playerPos, Monster target) {
+    final dir = (target.position - playerPos).normalized();
+    game.world.add(MagicBolt(
+      position: playerPos.clone(),
+      direction: dir,
+      damage: damage,
+      color: const Color(0xFFFF6B35),
+      speed: 350,
+      boltSize: 7,
+    ));
+  }
+}

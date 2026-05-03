@@ -1,30 +1,60 @@
 import 'dart:ui';
 
+import 'package:flame/components.dart';
+
+import 'monster.dart';
 import 'projectile.dart';
+import 'weapon.dart';
+
+// ── Weapon ──────────────────────────────────────────────────────────────────
+
+class WeaponMagicBolt extends Weapon {
+  WeaponMagicBolt() : super(damage: 15, fireRate: 2.0);
+
+  @override
+  String get displayName => 'Magic Bolt';
+
+  @override
+  void fire(Vector2 playerPos, Monster target) {
+    final dir = (target.position - playerPos).normalized();
+    game.world.add(MagicBolt(
+      position: playerPos.clone(),
+      direction: dir,
+      damage: damage,
+    ));
+  }
+}
+
+// ── Projectile ───────────────────────────────────────────────────────────────
 
 class MagicBolt extends Projectile {
-  MagicBolt({required super.position, required super.direction})
-      : super(speed: 300, damage: 15, size: 10);
+  final Color color;
+
+  MagicBolt({
+    required super.position,
+    required super.direction,
+    required double damage,
+    this.color = const Color(0xFF00E5FF),
+    double speed = 300,
+    double boltSize = 10,
+  }) : super(speed: speed, damage: damage, size: boltSize);
 
   @override
   void render(Canvas canvas) {
     final cx = size.x / 2;
     final cy = size.y / 2;
 
-    // Outer glow
     canvas.drawCircle(
       Offset(cx, cy),
       size.x / 2 + 5,
       Paint()
-        ..color = const Color(0x5500E5FF)
+        ..color = color.withAlpha(85)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
     );
-
-    // Core
     canvas.drawCircle(
       Offset(cx, cy),
       size.x / 2,
-      Paint()..color = const Color(0xFF00E5FF),
+      Paint()..color = color,
     );
   }
 }

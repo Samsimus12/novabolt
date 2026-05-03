@@ -5,16 +5,14 @@ import 'package:flame/components.dart';
 
 import '../runebolt_game.dart';
 import 'monster.dart';
+import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
 
 class Player extends PositionComponent
     with HasGameReference<RuneboltGame>, CollisionCallbacks {
-  static const double _maxHp = 100;
-  double currentHp = _maxHp;
-  double get maxHp => _maxHp;
-
-  double _fireTimer = 0;
-  static const double _fireInterval = 0.5;
+  double maxHp = 100;
+  double currentHp = 100;
+  double moveSpeed = 180;
 
   final Set<Monster> _contactMonsters = {};
 
@@ -24,21 +22,26 @@ class Player extends PositionComponent
   @override
   Future<void> onLoad() async {
     add(CircleHitbox()..collisionType = CollisionType.active);
+    add(WeaponMagicBolt());
   }
 
   @override
   void update(double dt) {
     super.update(dt);
 
+    // Movement
+    final delta = game.joystick.relativeDelta;
+    if (delta.length > 0.05) {
+      position += delta * moveSpeed * dt;
+      final r = size.x / 2;
+      position.x = position.x.clamp(r, game.size.x - r);
+      position.y = position.y.clamp(r, game.size.y - r);
+    }
+
+    // Contact damage from monsters
     _contactMonsters.removeWhere((m) => m.isDead || m.parent == null);
     for (final monster in _contactMonsters) {
       takeDamage(monster.stats.contactDamagePerSecond * dt);
-    }
-
-    _fireTimer += dt;
-    if (_fireTimer >= _fireInterval) {
-      _fireTimer = 0;
-      _fire();
     }
   }
 
@@ -57,34 +60,21 @@ class Player extends PositionComponent
 
   void takeDamage(double damage) {
     if (game.isGameOver) return;
-    currentHp = (currentHp - damage).clamp(0, _maxHp);
+    currentHp = (currentHp - damage).clamp(0, maxHp);
     if (currentHp <= 0) game.onPlayerDeath();
   }
 
+  Iterable<Weapon> get activeWeapons => children.whereType<Weapon>();
+
+  bool hasWeapon<T extends Weapon>() => children.whereType<T>().isNotEmpty;
+
   void reset() {
-    currentHp = _maxHp;
-    _fireTimer = 0;
+    maxHp = 100;
+    currentHp = 100;
+    moveSpeed = 180;
     _contactMonsters.clear();
-  }
-
-  void _fire() {
-    final target = _nearestMonster();
-    if (target == null) return;
-    final dir = (target.position - position).normalized();
-    game.world.add(MagicBolt(position: position.clone(), direction: dir));
-  }
-
-  Monster? _nearestMonster() {
-    Monster? nearest;
-    double minDist = double.infinity;
-    for (final m in game.world.children.whereType<Monster>()) {
-      final d = m.position.distanceTo(position);
-      if (d < minDist) {
-        minDist = d;
-        nearest = m;
-      }
-    }
-    return nearest;
+    children.whereType<Weapon>().toList().forEach((w) => w.removeFromParent());
+    add(WeaponMagicBolt());
   }
 
   @override
@@ -93,7 +83,6 @@ class Player extends PositionComponent
     final cy = size.y / 2;
     final r = size.x / 2;
 
-    // Outer glow
     canvas.drawCircle(
       Offset(cx, cy),
       r + 6,
@@ -101,15 +90,12 @@ class Player extends PositionComponent
         ..color = const Color(0x55FFD700)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
-
-    // Body
     canvas.drawCircle(
       Offset(cx, cy),
       r,
       Paint()..color = const Color(0xFFFFD700),
     );
 
-    // Rune cross
     final linePaint = Paint()
       ..color = const Color(0xFF0D0D2B)
       ..strokeWidth = 3.5

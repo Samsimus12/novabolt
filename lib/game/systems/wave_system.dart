@@ -3,10 +3,13 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 
 import '../components/monster_grunt.dart';
+import '../components/monster_speeder.dart';
+import '../components/monster_tank.dart';
 import '../runebolt_game.dart';
 
 class WaveSystem extends Component with HasGameReference<RuneboltGame> {
   double _timer = 0;
+  double _tankTimer = 0;
   final _rng = math.Random();
 
   double get _spawnInterval {
@@ -18,43 +21,67 @@ class WaveSystem extends Component with HasGameReference<RuneboltGame> {
     return 0.7;
   }
 
+  double get _tankSpawnInterval {
+    final lvl = game.xpSystem.currentLevel;
+    if (lvl < 5) return double.infinity;
+    if (lvl < 8) return 15.0;
+    if (lvl < 12) return 10.0;
+    return 7.0;
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
+
     _timer += dt;
     if (_timer >= _spawnInterval) {
       _timer = 0;
-      _spawnGrunt();
+      _spawnRegular();
+    }
+
+    final tankInterval = _tankSpawnInterval;
+    if (tankInterval != double.infinity) {
+      _tankTimer += dt;
+      if (_tankTimer >= tankInterval) {
+        _tankTimer = 0;
+        _spawnAt(MonsterTank(
+          position: _randomEdgePosition(),
+          playerLevel: game.xpSystem.currentLevel,
+        ));
+      }
     }
   }
 
-  void _spawnGrunt() {
+  void _spawnRegular() {
+    final lvl = game.xpSystem.currentLevel;
+    final pos = _randomEdgePosition();
+    if (lvl >= 3 && _rng.nextDouble() < 0.35) {
+      _spawnAt(MonsterSpeeder(position: pos, playerLevel: lvl));
+    } else {
+      _spawnAt(MonsterGrunt(position: pos, playerLevel: lvl));
+    }
+  }
+
+  void _spawnAt(Component monster) {
+    game.world.add(monster);
+  }
+
+  Vector2 _randomEdgePosition() {
     final sz = game.size;
-    double x, y;
     switch (_rng.nextInt(4)) {
       case 0:
-        x = _rng.nextDouble() * sz.x;
-        y = -50;
-        break;
+        return Vector2(_rng.nextDouble() * sz.x, -50);
       case 1:
-        x = sz.x + 50;
-        y = _rng.nextDouble() * sz.y;
-        break;
+        return Vector2(sz.x + 50, _rng.nextDouble() * sz.y);
       case 2:
-        x = _rng.nextDouble() * sz.x;
-        y = sz.y + 50;
-        break;
+        return Vector2(_rng.nextDouble() * sz.x, sz.y + 50);
       default:
-        x = -50;
-        y = _rng.nextDouble() * sz.y;
+        return Vector2(-50, _rng.nextDouble() * sz.y);
     }
-    game.world.add(MonsterGrunt(
-      position: Vector2(x, y),
-      playerLevel: game.xpSystem.currentLevel,
-    ));
   }
 
   void reset() {
     _timer = 0;
+    _tankTimer = 0;
   }
 }

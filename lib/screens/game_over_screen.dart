@@ -4,7 +4,8 @@ import '../game/runebolt_game.dart';
 
 class GameOverScreen extends StatelessWidget {
   final RuneboltGame game;
-  const GameOverScreen({super.key, required this.game});
+  final VoidCallback? onMenu;
+  const GameOverScreen({super.key, required this.game, this.onMenu});
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +44,17 @@ class GameOverScreen extends StatelessWidget {
                     fontSize: 20, fontWeight: FontWeight.bold),
               ),
               child: const Text('PLAY AGAIN'),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: onMenu,
+              child: const Text(
+                'Main Menu',
+                style: TextStyle(
+                  color: Color(0xAAF5F5DC),
+                  fontSize: 16,
+                ),
+              ),
             ),
           ],
         ),

@@ -9,7 +9,7 @@ class Projectile extends PositionComponent
   final Vector2 direction;
   final double speed;
   final double damage;
-  double _lifetime = 0;
+  double lifetime = 0;
 
   Projectile({
     required super.position,
@@ -28,10 +28,10 @@ class Projectile extends PositionComponent
   void update(double dt) {
     super.update(dt);
     position += direction * speed * dt;
-    _lifetime += dt;
+    lifetime += dt;
 
     final gs = game.size;
-    if (_lifetime > 3.0 ||
+    if (lifetime > 3.0 ||
         position.x < -60 ||
         position.x > gs.x + 60 ||
         position.y < -60 ||

@@ -8,6 +8,9 @@ class MonsterGrunt extends Monster {
       : super(stats: gruntStats.scaled(playerLevel));
 
   @override
+  Color get deathColor => const Color(0xFFCC2936);
+
+  @override
   void render(Canvas canvas) {
     final cx = size.x / 2;
     final cy = size.y / 2;
@@ -31,5 +34,6 @@ class MonsterGrunt extends Monster {
     canvas.drawCircle(Offset(cx + r * 0.28, cy - r * 0.15), 1.5, pupilPaint);
 
     renderHpBar(canvas);
+    renderFlash(canvas);
   }
 }

@@ -4,6 +4,9 @@ class MonsterStats {
   final double contactDamagePerSecond;
   final double size;
   final int xpValue;
+  final double hpScaleRate;
+  final double speedScaleRate;
+  final double speedScaleCap;
 
   const MonsterStats({
     required this.maxHp,
@@ -11,16 +14,23 @@ class MonsterStats {
     required this.contactDamagePerSecond,
     required this.size,
     required this.xpValue,
+    this.hpScaleRate = 0.3,
+    this.speedScaleRate = 0.1,
+    this.speedScaleCap = 3.0,
   });
 
   MonsterStats scaled(int playerLevel) {
-    final s = 1.0 + (playerLevel - 1) * 0.3;
+    final hpMult = 1.0 + (playerLevel - 1) * hpScaleRate;
+    final speedMult = (1.0 + (playerLevel - 1) * speedScaleRate).clamp(1.0, speedScaleCap);
     return MonsterStats(
-      maxHp: maxHp * s,
-      speed: (speed * (1.0 + (playerLevel - 1) * 0.1)).clamp(speed, speed * 3),
+      maxHp: maxHp * hpMult,
+      speed: speed * speedMult,
       contactDamagePerSecond: contactDamagePerSecond,
       size: size,
       xpValue: xpValue,
+      hpScaleRate: hpScaleRate,
+      speedScaleRate: speedScaleRate,
+      speedScaleCap: speedScaleCap,
     );
   }
 }
@@ -31,4 +41,26 @@ const gruntStats = MonsterStats(
   contactDamagePerSecond: 15,
   size: 36,
   xpValue: 10,
+);
+
+const tankStats = MonsterStats(
+  maxHp: 160,
+  speed: 45,
+  contactDamagePerSecond: 25,
+  size: 60,
+  xpValue: 30,
+  hpScaleRate: 0.4,
+  speedScaleRate: 0.05,
+  speedScaleCap: 2.0,
+);
+
+const speederStats = MonsterStats(
+  maxHp: 18,
+  speed: 210,
+  contactDamagePerSecond: 10,
+  size: 22,
+  xpValue: 5,
+  hpScaleRate: 0.15,
+  speedScaleRate: 0.12,
+  speedScaleCap: 2.5,
 );

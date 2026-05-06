@@ -1,8 +1,12 @@
 import 'dart:math' as math;
 
 import '../components/weapon.dart';
+import '../components/weapon_explosive_bolt.dart';
+import '../components/weapon_frost_shard.dart';
+import '../components/weapon_homing_bolt.dart';
 import '../components/weapon_rapid_fire.dart';
 import '../components/weapon_spread_shot.dart';
+import '../components/weapon_sword_aura.dart';
 import '../runebolt_game.dart';
 
 abstract class UpgradeCard {
@@ -93,6 +97,34 @@ List<UpgradeCard> generateUpgradeCards(RuneboltGame game) {
       title: 'Rapid Fire',
       description: '4 shots/sec at 60% damage each',
       factory: WeaponRapidFire.new,
+    ));
+  }
+  if (!player.hasWeapon<WeaponHomingBolt>()) {
+    pool.add(NewWeaponCard(
+      title: 'Homing Bolt',
+      description: 'Seeks out the nearest enemy',
+      factory: WeaponHomingBolt.new,
+    ));
+  }
+  if (!player.hasWeapon<WeaponSwordAura>()) {
+    pool.add(NewWeaponCard(
+      title: 'Sword Aura',
+      description: 'Spinning ring that burns nearby enemies',
+      factory: WeaponSwordAura.new,
+    ));
+  }
+  if (!player.hasWeapon<WeaponExplosiveBolt>()) {
+    pool.add(NewWeaponCard(
+      title: 'Explosive Bolt',
+      description: 'Detonates on impact, damaging all nearby enemies',
+      factory: WeaponExplosiveBolt.new,
+    ));
+  }
+  if (!player.hasWeapon<WeaponFrostShard>()) {
+    pool.add(NewWeaponCard(
+      title: 'Frost Shard',
+      description: 'Slows enemies to 40% speed for 2 seconds',
+      factory: WeaponFrostShard.new,
     ));
   }
 

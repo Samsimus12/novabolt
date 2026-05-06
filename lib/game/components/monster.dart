@@ -5,12 +5,16 @@ import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
 import '../runebolt_game.dart';
+import 'death_particles.dart';
 
 abstract class Monster extends PositionComponent
     with HasGameReference<RuneboltGame> {
   final MonsterStats stats;
   late double currentHp;
   bool isDead = false;
+  double slowFactor = 1.0;
+  double _slowTimer = 0;
+  double _flashTimer = 0;
 
   Monster({
     required super.position,
@@ -23,6 +27,8 @@ abstract class Monster extends PositionComponent
     currentHp = stats.maxHp;
   }
 
+  Color get deathColor;
+
   @override
   Future<void> onLoad() async {
     add(CircleHitbox()..collisionType = CollisionType.passive);
@@ -32,20 +38,32 @@ abstract class Monster extends PositionComponent
   void update(double dt) {
     super.update(dt);
     if (isDead) return;
+    if (_flashTimer > 0) _flashTimer -= dt;
+    if (_slowTimer > 0) {
+      _slowTimer -= dt;
+      if (_slowTimer <= 0) slowFactor = 1.0;
+    }
     final dir = game.player.position - position;
     if (dir.length > 1) {
-      position += dir.normalized() * stats.speed * dt;
+      position += dir.normalized() * stats.speed * slowFactor * dt;
     }
+  }
+
+  void applySlow(double factor, double duration) {
+    slowFactor = factor;
+    _slowTimer = duration;
   }
 
   void takeDamage(double damage) {
     if (isDead) return;
     currentHp -= damage;
+    _flashTimer = 0.12;
     if (currentHp <= 0) _die();
   }
 
   void _die() {
     isDead = true;
+    game.world.add(DeathParticles(position: position.clone(), color: deathColor));
     game.onMonsterKilled(stats.xpValue);
     removeFromParent();
   }
@@ -59,5 +77,14 @@ abstract class Monster extends PositionComponent
     final fgRect = Rect.fromLTWH(0, barY, size.x * hpFraction, barH);
     canvas.drawRect(bgRect, Paint()..color = const Color(0xFF444444));
     canvas.drawRect(fgRect, Paint()..color = const Color(0xFFE74C3C));
+  }
+
+  void renderFlash(Canvas canvas) {
+    if (_flashTimer <= 0) return;
+    canvas.drawCircle(
+      Offset(size.x / 2, size.y / 2),
+      size.x / 2,
+      Paint()..color = const Color(0x99FFFFFF),
+    );
   }
 }

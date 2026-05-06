@@ -2,7 +2,7 @@
 
 ## What This Is
 A cross-platform (iOS + Android) arena survival RPG mobile game built with **Flutter + Flame engine**.
-The player moves with a virtual joystick and auto-fires weapons at incoming monsters. Killing monsters
+The player moves with a left virtual joystick and aims/fires with a right joystick. Killing monsters
 earns XP; leveling up pauses the game and shows a 3-card upgrade picker (weapon upgrades, new weapons,
 stat buffs). Monsters scale in HP/speed/spawn rate as the player levels. No save system — fresh run every time.
 
@@ -19,7 +19,8 @@ flutter run -d "iPhone 17 Pro"
 
 ## Tech Stack
 - **Flutter** (Dart, SDK `^3.11.5`) — cross-platform framework
-- **Flame 1.37.0** (resolved from `^1.0.0`) — 2D game engine; provides game loop, collision detection, camera, joystick
+- **Flame 1.37.0** (resolved from `^1.0.0`) — 2D game engine; game loop, collision detection, camera, joystick
+- All visuals are **code-drawn** (Canvas primitives) — no image assets yet
 - **NOT Expo/EAS** — separate ecosystem from other projects
 
 ---
@@ -27,7 +28,8 @@ flutter run -d "iPhone 17 Pro"
 ## Current Status
 - [x] Phase 1 — BG, player, Magic Bolt weapon, Grunt monster, HP/XP, collisions, HUD, game-over screen
 - [x] Phase 2 — Virtual joystick movement, 3-weapon system, level-up card UI, difficulty scaling
-- [ ] Phase 3 — Tank/Speeder/Caster monsters, remaining weapons, particles, SFX/music, main menu
+- [x] Phase 3 — Twin-stick controls, Tank/Speeder monsters, 4 new weapons, hit flash, death particles, main menu
+- [ ] Remaining — Caster monster, sound (flame_audio), real sprite assets
 
 ---
 
@@ -35,81 +37,77 @@ flutter run -d "iPhone 17 Pro"
 
 ```
 lib/
-├── main.dart                          # Entry point; full-screen portrait; registers 'GameOver'/'LevelUp' overlays
+├── main.dart                          # RuneboltApp StatefulWidget — routes between MainMenuScreen and GameWidget
 ├── game/
-│   ├── runebolt_game.dart             # FlameGame root — holds player, joystick, xpSystem, currentCards
+│   ├── runebolt_game.dart             # FlameGame root — player, joystick, aimJoystick, xpSystem, currentCards
 │   ├── components/
-│   │   ├── player.dart                # Gold circle, joystick movement, collision tracking, weapon children
-│   │   ├── weapon.dart                # Abstract Weapon base — timer, nearest-enemy lookup, applyUpgrade()
-│   │   ├── weapon_magic_bolt.dart     # WeaponMagicBolt + MagicBolt projectile (cyan, parameterised color/size)
-│   │   ├── weapon_spread_shot.dart    # WeaponSpreadShot — 3 bolts ±0.35 rad fan (gold #F4A800)
-│   │   ├── weapon_rapid_fire.dart     # WeaponRapidFire — 4/sec, upgrades fire rate not damage (orange #FF6B35)
-│   │   ├── projectile.dart            # Base Projectile — moves, despawns off-screen, hits passive Monster hitboxes
-│   │   ├── monster.dart               # Abstract Monster — moves toward player, passive hitbox, takeDamage/_die
-│   │   ├── monster_grunt.dart         # Red circle with eyes; stats scale with playerLevel
-│   │   ├── background.dart            # 120 stars drifting downward at varying speeds
-│   │   └── hud.dart                   # HP bar (top), XP bar (bottom), level badge (top-right) via TextPaint
+│   │   ├── player.dart                # Gold circle, left-joystick movement, collision tracking, weapon children
+│   │   ├── weapon.dart                # Abstract Weapon — fires only when aimJoystick.relativeDelta is non-zero
+│   │   ├── weapon_magic_bolt.dart     # Starter weapon + MagicBolt projectile (cyan, reused by Spread/Rapid)
+│   │   ├── weapon_spread_shot.dart    # 3 bolts ±0.35 rad fan (gold #F4A800)
+│   │   ├── weapon_rapid_fire.dart     # 4/sec, upgrades fire rate ×1.2 (orange #FF6B35)
+│   │   ├── weapon_homing_bolt.dart    # Steers toward nearest monster at 3 rad/s (purple #9B59B6)
+│   │   ├── weapon_sword_aura.dart     # Spinning ring 70px radius; continuous damage to nearby monsters
+│   │   ├── weapon_explosive_bolt.dart # AoE 80px on impact + AoeBlast visual (gold/orange)
+│   │   ├── weapon_frost_shard.dart    # Slows hit monster to 40% speed for 2s (ice blue #88D8F0)
+│   │   ├── projectile.dart            # Base Projectile — moves, despawns off-screen/after 3s; `lifetime` is public
+│   │   ├── monster.dart               # Abstract Monster — hit flash, slowFactor, death particles, applySlow()
+│   │   ├── monster_grunt.dart         # Red circle with eyes (36px)
+│   │   ├── monster_tank.dart          # Large dark maroon circle (60px), armored ring detail, orange eyes
+│   │   ├── monster_speeder.dart       # Small orange-red circle (22px) with speed glow
+│   │   ├── death_particles.dart       # 10 dots burst outward, fade over 0.45s — spawned by Monster._die()
+│   │   ├── background.dart            # 120 stars drifting downward
+│   │   └── hud.dart                   # HP bar (top), XP bar (bottom), level badge (top-right)
 │   ├── systems/
-│   │   ├── wave_system.dart           # Spawns MonsterGrunt from random edge; interval scales with level
+│   │   ├── wave_system.dart           # Two timers: regular (Grunt/Speeder) + separate tank timer
 │   │   └── xp_system.dart            # XP tracking; threshold × 1.5 per level starting at 50
 │   └── data/
-│       ├── monster_data.dart          # MonsterStats + scaled() helper
-│       ├── weapon_data.dart           # WeaponStats data class (defined but stats live in weapon classes)
-│       └── upgrade_cards.dart         # UpgradeCard types + generateUpgradeCards() pool builder
+│       ├── monster_data.dart          # MonsterStats with per-type hpScaleRate/speedScaleRate/speedScaleCap
+│       ├── weapon_data.dart           # WeaponStats stub (unused — stats are hardcoded in constructors)
+│       └── upgrade_cards.dart         # UpgradeCard pool — 6 unlockable weapons + 4 stat buffs
 ├── screens/
+│   ├── main_menu_screen.dart          # Dark gradient, glowing title, weapon-dot teasers, PLAY button
 │   ├── level_up_screen.dart           # 3-card Flutter overlay; reads game.currentCards
-│   └── game_over_screen.dart          # Shows level reached + Play Again button
+│   └── game_over_screen.dart          # Level reached + Play Again + Main Menu buttons
 ```
 
 ---
 
 ## Implemented Features
 
-### Player
-- 44px gold circle, starts at screen center, priority 3
-- **Joystick movement**: `game.joystick.relativeDelta * moveSpeed * dt`; clamped to screen edges
-- Base `moveSpeed = 180`, base `maxHp = 100` (both mutable — upgrades modify them directly)
-- Weapons are **child components** of Player (not world) — they get `update()` calls automatically
-- Contact damage: Player tracks `Set<Monster> _contactMonsters` via `onCollisionStart`/`onCollisionEnd`; applies `contactDamagePerSecond * dt` each frame
+### Controls
+- **Left joystick** (gold tint) — movement; `game.joystick.relativeDelta * moveSpeed * dt`
+- **Right joystick** (cyan tint) — aim; weapons only fire when `aimJoystick.relativeDelta` is non-zero. When idle, weapons stop firing (true twin-stick behaviour). The timer accumulates while idle so first shot fires instantly on stick engagement.
 
 ### Weapons
-| Weapon | Damage | Rate | Notes |
-|---|---|---|---|
-| Magic Bolt (starter) | 15 | 2/sec | Cyan `#00E5FF`, 300 px/s, upgrades damage ×1.3 |
-| Spread Shot | 10/bolt | 1.5/sec | Gold `#F4A800`, 3 bolts ±0.35 rad, upgrades damage ×1.3 |
-| Rapid Fire | 9 | 4/sec | Orange `#FF6B35`, 350 px/s, upgrades fire rate ×1.2 |
+| Weapon | Damage | Rate | Color | Notes |
+|---|---|---|---|---|
+| Magic Bolt (starter) | 15 | 2/sec | `#00E5FF` | Upgrades damage ×1.3 |
+| Spread Shot | 10/bolt | 1.5/sec | `#F4A800` | 3 bolts ±0.35 rad; upgrades damage ×1.3 |
+| Rapid Fire | 9 | 4/sec | `#FF6B35` | Upgrades fire rate ×1.2 |
+| Homing Bolt | 12 | 1.5/sec | `#9B59B6` | Steers 3 rad/s; 5s lifetime; upgrades damage ×1.3 |
+| Sword Aura | 8/sec | — | `#FFD700` | 70px melee ring; upgrades aura damage ×1.3 |
+| Explosive Bolt | 25 | 0.8/sec | `#FF8C00` | 80px AoE blast; upgrades damage ×1.3 |
+| Frost Shard | 10 | 1.2/sec | `#88D8F0` | Slows to 40% for 2s; upgrades damage ×1.3 |
 
-All weapons: max upgrade level 4, fire at nearest enemy, added as Player children.
+All unlockable via level-up cards except Magic Bolt (starter). Max upgrade level 4.
 
 ### Monsters
-| Monster | HP | Speed | Damage/sec | XP | Size |
-|---|---|---|---|---|---|
-| Grunt | 30 | 80 | 15 | 10 | 36px |
+| Monster | HP | Speed | Damage/sec | XP | Size | Spawns |
+|---|---|---|---|---|---|---|
+| Grunt | 30 | 80 | 15 | 10 | 36px | Always |
+| Speeder | 18 | 210 | 10 | 5 | 22px | Lvl 3+, 35% of regular spawns |
+| Tank | 160 | 45 | 25 | 30 | 60px | Lvl 5+, separate 15s→7s timer |
 
-Stats scale per `playerLevel`: HP ×(1 + 0.3×(lvl−1)), speed ×(1 + 0.1×(lvl−1)) capped at 3×.
+Each monster type has its own `hpScaleRate`/`speedScaleRate`/`speedScaleCap`. Tank scales HP fast, barely speeds up. Speeder barely gets tougher.
 
-### Collision System
-- `RuneboltGame` has `HasCollisionDetection`
-- Monster hitboxes: `CollisionType.passive`
-- Player + Projectile hitboxes: `CollisionType.active`
-- Projectile `onCollisionStart` → damages Monster, removes self
-- Player tracks contact monsters for continuous damage (dt-correct)
+### Monster Polish
+- **Hit flash**: 0.12s white overlay on `takeDamage()` — base class handles timer, subclasses call `renderFlash(canvas)` at end of render
+- **Death particles**: 10 colored dots burst outward from death position, fade over 0.45s. Color comes from abstract `Color get deathColor` on Monster.
+- **Slow**: `monster.applySlow(0.4, 2.0)` sets `slowFactor` and a countdown; movement uses `stats.speed * slowFactor * dt`
 
-### Wave Spawning
-Grunts spawn from a random screen edge. Interval: 3s (lvl 1–2) → 2s (3–4) → 1.5s (5–7) → 1s (8–11) → 0.7s (12+).
-
-### XP / Leveling
-- Thresholds: 50 → 75 → 112 → 168 → ... (×1.5 each level, rounded)
-- On level-up: `generateUpgradeCards()` builds pool (weapon upgrades + new weapons + 4 stat buffs), shuffles, picks 3 → stored in `game.currentCards` → 'LevelUp' overlay shown, engine paused
-
-### Level-Up Card Pool
-- **Purple** `WeaponUpgradeCard` — one per owned weapon below max level; title shows next level
-- **Gold** `NewWeaponCard` — Spread Shot and Rapid Fire if not yet unlocked
-- **Cyan** `StatBuffCard` — always available: +25 Max HP, Swift Feet (+25% speed), Vital Surge (+40 HP now), Arcane Haste (+15% all fire rates)
-
-### HUD
-- HP bar (red `#E74C3C`) top, XP bar (purple `#9B59B6`) bottom, level badge circle top-right
-- Added to `camera.viewport` (screen space), priority 10
+### App Flow
+`RuneboltApp` (StatefulWidget) owns `_inGame` bool. PLAY → `_inGame = true` → `GameWidget` with fresh `RuneboltGame`. Game Over → "Main Menu" button → `_inGame = false` → new `MainMenuScreen`. Each new game is a fresh `RuneboltGame` instance.
 
 ---
 
@@ -117,45 +115,45 @@ Grunts spawn from a random screen edge. Interval: 3s (lvl 1–2) → 2s (3–4) 
 
 1. **Camera origin**: `camera.viewfinder.anchor = Anchor.topLeft` — world coords (0,0) = screen top-left. Don't change this or all spawn positions break.
 
-2. **Weapons as Player children**: Weapons live inside `player.children`, not in `world`. This means `HasGameReference` traverses up through Player → World → Game correctly. Adding to world would work too but this keeps weapon lifecycle tied to the player.
+2. **Weapons as Player children**: Weapons live inside `player.children`. `HasGameReference` traverses up correctly. Weapon `render()` is called with the canvas already transformed to Player's local space — draw at `(player.size.x/2, player.size.y/2)` to hit the player center. `WeaponSwordAura` uses this to draw the aura ring.
 
-3. **`weapon_data.dart` is mostly unused**: `WeaponStats` data class exists but actual weapon stats are hardcoded in each weapon's constructor. It's there for future data-driven upgrades.
+3. **WeaponSwordAura and HomingBolt skip `super.update()`**: Sword Aura skips the parent entirely (no projectile firing). HomingBolt handles its own movement and lifetime — does NOT call `super.update()` because `Projectile.update()` would move the bolt along a fixed direction. Collision detection still works because Flame's `HasCollisionDetection` runs independently of `update()`.
 
-4. **Joystick input**: `JoystickComponent` from `package:flame/components.dart` (re-exported; no need to import `flame/input.dart`). Added to `camera.viewport` with `margin: EdgeInsets.only(left: 56, bottom: 80)`. Access via `game.joystick.relativeDelta`.
+4. **ExplosiveBolt/FrostShard don't call `super.onCollisionStart()`**: They override `onCollisionStart` completely to control the exact damage/effect behaviour without triggering `Projectile`'s default single-target hit-and-remove.
 
-5. **Contact damage is frame-rate dependent risk**: The `_contactMonsters` Set is cleaned each frame with `removeWhere((m) => m.isDead || m.parent == null)` — necessary because `onCollisionEnd` may not fire when a monster is removed mid-frame.
+5. **`Projectile.lifetime` is public** (was `_lifetime`): Renamed so `HomingBolt` can increment it without calling `super.update()`.
 
-6. **Overlay data flow**: `game.currentCards` is populated before `overlays.add('LevelUp')` is called. The Flutter overlay builder reads from `game.currentCards` at render time. Clear it in `resumeFromLevelUp()`.
+6. **`weapon_data.dart` is unused**: `WeaponStats` stub exists for future data-driven upgrades but actual stats live in each weapon's constructor.
 
-7. **`MagicBolt` is the universal projectile**: `WeaponSpreadShot` and `WeaponRapidFire` both instantiate `MagicBolt` with different `color`, `speed`, `boltSize` params rather than having separate projectile classes.
+7. **Contact damage set safety**: `_contactMonsters.removeWhere((m) => m.isDead || m.parent == null)` runs each frame because `onCollisionEnd` may not fire when a monster dies mid-frame.
+
+8. **Overlay data flow**: `game.currentCards` is populated before `overlays.add('LevelUp')`. The Flutter builder reads it at render time. Cleared in `resumeFromLevelUp()`.
 
 ---
 
-## Phase 3 — Next Steps
+## What's Left
 
 | Feature | Notes |
 |---|---|
-| **Tank monster** | Slow, high HP (150+), large sprite, high XP |
-| **Speeder monster** | Fast (200+ speed), low HP (15), swarms |
-| **Explosive Bolt weapon** | AoE on impact — needs blast radius + multi-hit logic |
-| **Frost Shard weapon** | Applies a `slowFactor` multiplier to monster speed on hit |
-| **Homing Bolt weapon** | Projectile adjusts direction each frame toward nearest monster |
-| **Sword Aura weapon** | Spinning `CircleComponent` child of player — melee ring |
-| **Hit flash** | Monster briefly turns white on `takeDamage` |
-| **Death particles** | Simple burst of colored dots on monster death |
-| **Main menu screen** | Simple Flutter widget before game starts |
-| **Sound** | `flame_audio` package; fire SFX, hit SFX, level-up jingle |
+| **Caster monster** | Ranged attacker — fires projectiles at player; needs projectile type that targets player |
+| **Sound** | `flame_audio` package; fire SFX per weapon, hit SFX, death SFX, level-up jingle, BG music loop |
+| **Real sprites** | Replace Canvas drawing with `Sprite`/`SpriteAnimation`; assets go in `assets/images/` |
 
 ## Color Scheme — "Dark Arcane"
 | Element | Hex |
 |---|---|
 | Background | `#0D0D2B` |
 | Player | `#FFD700` |
-| Monsters | `#CC2936` |
+| Grunt | `#CC2936` |
+| Tank | `#8B0000` |
+| Speeder | `#FF4500` |
 | Magic Bolt | `#00E5FF` |
-| Spread Shot bolt | `#F4A800` |
-| Rapid Fire bolt | `#FF6B35` |
+| Spread Shot | `#F4A800` |
+| Rapid Fire | `#FF6B35` |
+| Homing Bolt | `#9B59B6` |
+| Sword Aura | `#FFD700` |
+| Explosive Bolt | `#FF8C00` |
+| Frost Shard | `#88D8F0` |
 | HP bar | `#E74C3C` |
 | XP bar / level badge | `#9B59B6` |
 | UI text | `#F5F5DC` |
-| UI gold accent | `#F4A800` |

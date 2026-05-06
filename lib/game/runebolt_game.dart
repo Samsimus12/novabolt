@@ -16,6 +16,7 @@ import 'systems/xp_system.dart';
 class RuneboltGame extends FlameGame with HasCollisionDetection {
   late Player player;
   late JoystickComponent joystick;
+  late JoystickComponent aimJoystick;
   final XpSystem xpSystem = XpSystem();
   late WaveSystem _waveSystem;
 
@@ -42,6 +43,18 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
       margin: const EdgeInsets.only(left: 56, bottom: 80),
     );
 
+    aimJoystick = JoystickComponent(
+      knob: CircleComponent(
+        radius: 24,
+        paint: Paint()..color = const Color(0x9900E5FF),
+      ),
+      background: CircleComponent(
+        radius: 56,
+        paint: Paint()..color = const Color(0x3300E5FF),
+      ),
+      margin: const EdgeInsets.only(right: 56, bottom: 80),
+    );
+
     player = Player(position: size / 2);
     _waveSystem = WaveSystem();
 
@@ -49,6 +62,7 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
     world.add(player);
     world.add(_waveSystem);
     camera.viewport.add(joystick);
+    camera.viewport.add(aimJoystick);
     camera.viewport.add(Hud());
   }
 

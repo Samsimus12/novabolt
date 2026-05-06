@@ -1,7 +1,6 @@
 import 'package:flame/components.dart';
 
 import '../runebolt_game.dart';
-import 'monster.dart';
 
 abstract class Weapon extends Component with HasGameReference<RuneboltGame> {
   double damage;
@@ -21,29 +20,18 @@ abstract class Weapon extends Component with HasGameReference<RuneboltGame> {
     super.update(dt);
     _timer += dt;
     if (_timer >= fireInterval) {
-      _timer = 0;
-      final target = _nearestMonster();
-      if (target != null) fire(game.player.position, target);
+      final delta = game.aimJoystick.relativeDelta;
+      if (!delta.isZero()) {
+        _timer = 0;
+        fire(game.player.position, delta.normalized());
+      }
     }
   }
 
-  void fire(Vector2 playerPos, Monster target);
+  void fire(Vector2 playerPos, Vector2 direction);
 
   void applyUpgrade() {
     upgradeLevel++;
     damage *= 1.3;
-  }
-
-  Monster? _nearestMonster() {
-    Monster? nearest;
-    double minDist = double.infinity;
-    for (final m in game.world.children.whereType<Monster>()) {
-      final d = m.position.distanceTo(game.player.position);
-      if (d < minDist) {
-        minDist = d;
-        nearest = m;
-      }
-    }
-    return nearest;
   }
 }

@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
-import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
 
@@ -15,11 +14,10 @@ class WeaponMagicBolt extends Weapon {
   String get displayName => 'Magic Bolt';
 
   @override
-  void fire(Vector2 playerPos, Monster target) {
-    final dir = (target.position - playerPos).normalized();
+  void fire(Vector2 playerPos, Vector2 direction) {
     game.world.add(MagicBolt(
       position: playerPos.clone(),
-      direction: dir,
+      direction: direction,
       damage: damage,
     ));
   }

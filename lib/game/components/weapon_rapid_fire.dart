@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
-import 'monster.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
 
@@ -22,11 +21,10 @@ class WeaponRapidFire extends Weapon {
   }
 
   @override
-  void fire(Vector2 playerPos, Monster target) {
-    final dir = (target.position - playerPos).normalized();
+  void fire(Vector2 playerPos, Vector2 direction) {
     game.world.add(MagicBolt(
       position: playerPos.clone(),
-      direction: dir,
+      direction: direction,
       damage: damage,
       color: const Color(0xFFFF6B35),
       speed: 350,

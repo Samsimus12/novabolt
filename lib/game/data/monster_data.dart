@@ -48,7 +48,7 @@ const gruntStats = MonsterStats(
   size: 36,
   xpValue: 10,
   chargeValue: 8,
-  shieldDropChance: 0.15,
+  shieldDropChance: 0.075,
 );
 
 const tankStats = MonsterStats(
@@ -58,7 +58,7 @@ const tankStats = MonsterStats(
   size: 60,
   xpValue: 30,
   chargeValue: 25,
-  shieldDropChance: 0.40,
+  shieldDropChance: 0.20,
   hpScaleRate: 0.4,
   speedScaleRate: 0.05,
   speedScaleCap: 2.0,
@@ -71,7 +71,7 @@ const speederStats = MonsterStats(
   size: 22,
   xpValue: 5,
   chargeValue: 5,
-  shieldDropChance: 0.10,
+  shieldDropChance: 0.05,
   hpScaleRate: 0.15,
   speedScaleRate: 0.12,
   speedScaleCap: 2.5,

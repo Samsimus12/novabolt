@@ -11,7 +11,7 @@ class WeaponMagicBolt extends Weapon {
   WeaponMagicBolt() : super(damage: 15, fireRate: 2.0);
 
   @override
-  String get displayName => 'Magic Bolt';
+  String get displayName => 'Laser Bolt';
 
   @override
   void fire(Vector2 playerPos, Vector2 direction) {

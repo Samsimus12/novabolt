@@ -87,43 +87,43 @@ List<UpgradeCard> generateUpgradeCards(RuneboltGame game) {
   // Unlock new weapons
   if (!player.hasWeapon<WeaponSpreadShot>()) {
     pool.add(NewWeaponCard(
-      title: 'Spread Shot',
-      description: 'Fire 3 bolts in a wide fan',
+      title: 'Scatter Cannon',
+      description: 'Fires 3 laser blasts in a wide arc',
       factory: WeaponSpreadShot.new,
     ));
   }
   if (!player.hasWeapon<WeaponRapidFire>()) {
     pool.add(NewWeaponCard(
-      title: 'Rapid Fire',
-      description: '4 shots/sec at 60% damage each',
+      title: 'Pulse Cannon',
+      description: '4 pulses/sec at 60% power each',
       factory: WeaponRapidFire.new,
     ));
   }
   if (!player.hasWeapon<WeaponHomingBolt>()) {
     pool.add(NewWeaponCard(
-      title: 'Homing Bolt',
-      description: 'Seeks out the nearest enemy',
+      title: 'Homing Missile',
+      description: 'Self-guided missile seeks the nearest target',
       factory: WeaponHomingBolt.new,
     ));
   }
   if (!player.hasWeapon<WeaponSwordAura>()) {
     pool.add(NewWeaponCard(
-      title: 'Sword Aura',
-      description: 'Spinning ring that burns nearby enemies',
+      title: 'Force Field',
+      description: 'Energy ring shreds nearby enemies continuously',
       factory: WeaponSwordAura.new,
     ));
   }
   if (!player.hasWeapon<WeaponExplosiveBolt>()) {
     pool.add(NewWeaponCard(
-      title: 'Explosive Bolt',
-      description: 'Detonates on impact, damaging all nearby enemies',
+      title: 'Plasma Rocket',
+      description: 'Detonates on impact, blasting all nearby enemies',
       factory: WeaponExplosiveBolt.new,
     ));
   }
   if (!player.hasWeapon<WeaponFrostShard>()) {
     pool.add(NewWeaponCard(
-      title: 'Frost Shard',
-      description: 'Slows enemies to 40% speed for 2 seconds',
+      title: 'EMP Burst',
+      description: 'EMP pulse slows targets to 40% speed for 2s',
       factory: WeaponFrostShard.new,
     ));
   }
@@ -131,29 +131,29 @@ List<UpgradeCard> generateUpgradeCards(RuneboltGame game) {
   // Stat buffs — always available
   final statBuffs = [
     StatBuffCard(
-      title: '+25 Max HP',
-      description: 'Permanently gain 25 max HP',
+      title: '+25 Hull Plating',
+      description: 'Reinforce hull for +25 max HP',
       apply: (g) {
         g.player.maxHp += 25;
         g.player.currentHp = (g.player.currentHp + 25).clamp(0, g.player.maxHp);
       },
     ),
     StatBuffCard(
-      title: 'Swift Feet',
-      description: 'Move speed +25%',
+      title: 'Afterburner',
+      description: 'Thrust upgrade — move speed +25%',
       apply: (g) => g.player.moveSpeed *= 1.25,
     ),
     StatBuffCard(
-      title: 'Vital Surge',
-      description: 'Restore 40 HP now',
+      title: 'Repair Drones',
+      description: 'Emergency repair restores 40 HP',
       apply: (g) {
         g.player.currentHp =
             (g.player.currentHp + 40).clamp(0, g.player.maxHp);
       },
     ),
     StatBuffCard(
-      title: 'Arcane Haste',
-      description: 'All weapon fire rates +15%',
+      title: 'Overcharge',
+      description: 'Overclock all weapon systems — fire rate +15%',
       apply: (g) {
         for (final w in g.player.activeWeapons) {
           w.fireRate *= 1.15;

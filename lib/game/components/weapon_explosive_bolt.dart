@@ -10,7 +10,7 @@ class WeaponExplosiveBolt extends Weapon {
   WeaponExplosiveBolt() : super(damage: 25, fireRate: 0.8);
 
   @override
-  String get displayName => 'Explosive Bolt';
+  String get displayName => 'Plasma Rocket';
 
   @override
   String get nextUpgradeDescription => 'Blast damage +30%';

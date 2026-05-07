@@ -14,10 +14,10 @@ class WeaponSwordAura extends Weapon {
   WeaponSwordAura() : super(damage: 8, fireRate: 1.0);
 
   @override
-  String get displayName => 'Sword Aura';
+  String get displayName => 'Force Field';
 
   @override
-  String get nextUpgradeDescription => 'Aura damage +30%';
+  String get nextUpgradeDescription => 'Field damage +30%';
 
   @override
   void update(double dt) {

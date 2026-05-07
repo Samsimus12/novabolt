@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
@@ -14,41 +15,112 @@ class MonsterTank extends Monster {
   void render(Canvas canvas) {
     final cx = size.x / 2;
     final cy = size.y / 2;
-    final r = size.x / 2;
 
-    // Outer armored ring
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r,
-      Paint()..color = const Color(0xFF8B0000),
+    // Rotate to face player
+    final dir = game.player.position - position;
+    final angle = math.atan2(dir.y, dir.x) + math.pi / 2;
+
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(angle);
+    canvas.translate(-cx, -cy);
+
+    // Engine exhaust glow
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14),
+      Paint()
+        ..color = const Color(0xAAFF4400)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
 
-    // Inner body
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r - 7,
-      Paint()..color = const Color(0xFF3D0000),
-    );
+    // Side weapon pods
+    final leftPod = Path()
+      ..moveTo(cx - 14, cy - 6)
+      ..lineTo(cx - 22, cy - 2)
+      ..lineTo(cx - 22, cy + 14)
+      ..lineTo(cx - 14, cy + 12)
+      ..close();
+    final rightPod = Path()
+      ..moveTo(cx + 14, cy - 6)
+      ..lineTo(cx + 22, cy - 2)
+      ..lineTo(cx + 22, cy + 14)
+      ..lineTo(cx + 14, cy + 12)
+      ..close();
+    final podPaint = Paint()..color = const Color(0xFF6B0000);
+    canvas.drawPath(leftPod, podPaint);
+    canvas.drawPath(rightPod, podPaint);
 
-    // Riveted ring detail
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r - 3.5,
+    // Pod gun barrels
+    final gunPaint = Paint()..color = const Color(0xFF3D0000);
+    canvas.drawRect(Rect.fromLTWH(cx - 25, cy - 7, 5, 9), gunPaint);
+    canvas.drawRect(Rect.fromLTWH(cx + 20, cy - 7, 5, 9), gunPaint);
+
+    // Main hull
+    final hull = Path()
+      ..moveTo(cx, cy - 24)
+      ..lineTo(cx + 12, cy - 14)
+      ..lineTo(cx + 13, cy + 14)
+      ..lineTo(cx + 7, cy + 22)
+      ..lineTo(cx - 7, cy + 22)
+      ..lineTo(cx - 13, cy + 14)
+      ..lineTo(cx - 12, cy - 14)
+      ..close();
+    canvas.drawPath(hull, Paint()..color = const Color(0xFF8B0000));
+
+    // Inner hull panel
+    final innerHull = Path()
+      ..moveTo(cx, cy - 18)
+      ..lineTo(cx + 8, cy - 10)
+      ..lineTo(cx + 9, cy + 10)
+      ..lineTo(cx + 4, cy + 18)
+      ..lineTo(cx - 4, cy + 18)
+      ..lineTo(cx - 9, cy + 10)
+      ..lineTo(cx - 8, cy - 10)
+      ..close();
+    canvas.drawPath(innerHull, Paint()..color = const Color(0xFF3D0000));
+
+    // Hull armour outline
+    canvas.drawPath(
+      hull,
       Paint()
         ..color = const Color(0xFFAA2020)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.5,
+        ..strokeWidth = 2.0,
     );
 
-    // Eyes (large, orange — menacing)
-    final eyePaint = Paint()..color = const Color(0xFFFF8C00);
-    canvas.drawCircle(Offset(cx - r * 0.28, cy - r * 0.12), 6, eyePaint);
-    canvas.drawCircle(Offset(cx + r * 0.28, cy - r * 0.12), 6, eyePaint);
+    // Forward cannons
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset(cx - 4, cy - 22), width: 4, height: 10),
+      gunPaint,
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset(cx + 4, cy - 22), width: 4, height: 10),
+      gunPaint,
+    );
 
-    // Pupils
+    // Command bridge
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, cy - 5), width: 13, height: 11),
+      Paint()..color = const Color(0xFF5A0000),
+    );
+
+    // Bridge viewport windows (orange glow)
+    final eyePaint = Paint()..color = const Color(0xFFFF8C00);
+    canvas.drawCircle(Offset(cx - 3.5, cy - 5), 3.5, eyePaint);
+    canvas.drawCircle(Offset(cx + 3.5, cy - 5), 3.5, eyePaint);
     final pupilPaint = Paint()..color = const Color(0xFF1A0000);
-    canvas.drawCircle(Offset(cx - r * 0.28, cy - r * 0.12), 3, pupilPaint);
-    canvas.drawCircle(Offset(cx + r * 0.28, cy - r * 0.12), 3, pupilPaint);
+    canvas.drawCircle(Offset(cx - 3.5, cy - 5), 1.5, pupilPaint);
+    canvas.drawCircle(Offset(cx + 3.5, cy - 5), 1.5, pupilPaint);
+
+    // Engine ports
+    final portPaint = Paint()..color = const Color(0xFF1A0000);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - 4, cy + 21), width: 6, height: 4), portPaint);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx + 4, cy + 21), width: 6, height: 4), portPaint);
+    final firePaint = Paint()..color = const Color(0xFFFF6600);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - 4, cy + 22), width: 4, height: 3), firePaint);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx + 4, cy + 22), width: 4, height: 3), firePaint);
+
+    canvas.restore();
 
     renderHpBar(canvas);
     renderFlash(canvas);

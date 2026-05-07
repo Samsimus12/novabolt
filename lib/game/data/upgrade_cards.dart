@@ -7,13 +7,13 @@ import '../components/weapon_homing_bolt.dart';
 import '../components/weapon_rapid_fire.dart';
 import '../components/weapon_spread_shot.dart';
 import '../components/weapon_sword_aura.dart';
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 
 abstract class UpgradeCard {
   String get title;
   String get description;
   String get iconLabel;
-  void apply(RuneboltGame game);
+  void apply(NovaboltGame game);
 }
 
 class WeaponUpgradeCard extends UpgradeCard {
@@ -27,7 +27,7 @@ class WeaponUpgradeCard extends UpgradeCard {
   @override
   String get iconLabel => '⬆';
   @override
-  void apply(RuneboltGame game) => weapon.applyUpgrade();
+  void apply(NovaboltGame game) => weapon.applyUpgrade();
 }
 
 class NewWeaponCard extends UpgradeCard {
@@ -49,18 +49,18 @@ class NewWeaponCard extends UpgradeCard {
   @override
   String get iconLabel => '✦';
   @override
-  void apply(RuneboltGame game) => game.player.add(factory());
+  void apply(NovaboltGame game) => game.player.add(factory());
 }
 
 class StatBuffCard extends UpgradeCard {
   final String _title;
   final String _description;
-  final void Function(RuneboltGame) _apply;
+  final void Function(NovaboltGame) _apply;
 
   StatBuffCard({
     required String title,
     required String description,
-    required void Function(RuneboltGame) apply,
+    required void Function(NovaboltGame) apply,
   })  : _title = title,
         _description = description,
         _apply = apply;
@@ -72,10 +72,10 @@ class StatBuffCard extends UpgradeCard {
   @override
   String get iconLabel => '★';
   @override
-  void apply(RuneboltGame game) => _apply(game);
+  void apply(NovaboltGame game) => _apply(game);
 }
 
-List<UpgradeCard> generateUpgradeCards(RuneboltGame game) {
+List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
   final pool = <UpgradeCard>[];
   final player = game.player;
 

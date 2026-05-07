@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../game/data/upgrade_cards.dart';
-import '../game/runebolt_game.dart';
+import '../game/novabolt_game.dart';
 
 class LevelUpScreen extends StatelessWidget {
-  final RuneboltGame game;
+  final NovaboltGame game;
   const LevelUpScreen({super.key, required this.game});
 
   @override
@@ -60,7 +60,7 @@ class LevelUpScreen extends StatelessWidget {
 
 class _CardWidget extends StatelessWidget {
   final UpgradeCard card;
-  final RuneboltGame game;
+  final NovaboltGame game;
 
   const _CardWidget({required this.card, required this.game});
 

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../ads/ad_manager.dart';
 import '../coins/coin_manager.dart';
-import '../game/runebolt_game.dart';
+import '../game/novabolt_game.dart';
 
 class GameOverScreen extends StatefulWidget {
-  final RuneboltGame game;
+  final NovaboltGame game;
   final VoidCallback? onMenu;
   const GameOverScreen({super.key, required this.game, this.onMenu});
 

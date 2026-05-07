@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../game/runebolt_game.dart';
+import '../game/novabolt_game.dart';
 import '../game/systems/supercharge_system.dart';
 
 class GameControlsOverlay extends StatefulWidget {
-  final RuneboltGame game;
+  final NovaboltGame game;
   final VoidCallback onMenu;
 
   const GameControlsOverlay(

@@ -1,8 +1,8 @@
 import 'package:flame/components.dart';
 
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 
-abstract class Weapon extends Component with HasGameReference<RuneboltGame> {
+abstract class Weapon extends Component with HasGameReference<NovaboltGame> {
   double damage;
   double fireRate;
   int upgradeLevel = 1;

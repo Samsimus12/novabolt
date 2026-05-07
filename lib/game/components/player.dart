@@ -5,7 +5,7 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
 import '../../coins/coin_manager.dart';
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 import 'monster.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
@@ -50,7 +50,7 @@ _SkinPalette _paletteForSkin(String skin) => switch (skin) {
     };
 
 class Player extends PositionComponent
-    with HasGameReference<RuneboltGame>, CollisionCallbacks {
+    with HasGameReference<NovaboltGame>, CollisionCallbacks {
   double maxHp = 100;
   double currentHp = 100;
   double moveSpeed = 180;

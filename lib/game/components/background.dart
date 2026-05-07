@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../../coins/coin_manager.dart';
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 
 // Nebula star palette
 const _nebulaColors = [
@@ -15,7 +15,7 @@ const _nebulaColors = [
   Color(0xFF60FFC0),
 ];
 
-class StarBackground extends Component with HasGameReference<RuneboltGame> {
+class StarBackground extends Component with HasGameReference<NovaboltGame> {
   final _stars = <_Star>[];
   final _rng = math.Random();
 

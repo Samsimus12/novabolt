@@ -5,10 +5,10 @@ import 'package:flame/text.dart';
 import 'package:flutter/painting.dart' show TextStyle, FontWeight;
 
 import 'monster_boss.dart';
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 import '../systems/supercharge_system.dart';
 
-class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
+class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
   Hud() : super(priority: 10);
 
   static final _labelStyle = TextPaint(

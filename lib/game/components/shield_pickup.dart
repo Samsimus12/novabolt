@@ -4,11 +4,11 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 import 'player.dart';
 
 class ShieldPickup extends PositionComponent
-    with HasGameReference<RuneboltGame>, CollisionCallbacks {
+    with HasGameReference<NovaboltGame>, CollisionCallbacks {
   static const double shieldAmount = 50.0;
   static const double _lifetime = 8.0;
 

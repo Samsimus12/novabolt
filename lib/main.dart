@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'ads/ad_manager.dart';
 import 'audio/audio_manager.dart';
 import 'coins/coin_manager.dart';
-import 'game/runebolt_game.dart';
+import 'game/novabolt_game.dart';
 import 'screens/game_controls_overlay.dart';
 import 'screens/game_over_screen.dart';
 import 'screens/level_up_screen.dart';
@@ -17,17 +17,17 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await AdManager.instance.init();
   await CoinManager.instance.init();
-  runApp(const RuneboltApp());
+  runApp(const NovaboltApp());
 }
 
-class RuneboltApp extends StatefulWidget {
-  const RuneboltApp({super.key});
+class NovaboltApp extends StatefulWidget {
+  const NovaboltApp({super.key});
 
   @override
-  State<RuneboltApp> createState() => _RuneboltAppState();
+  State<NovaboltApp> createState() => _NovaboltAppState();
 }
 
-class _RuneboltAppState extends State<RuneboltApp> {
+class _NovaboltAppState extends State<NovaboltApp> {
   bool _inGame = false;
 
   @override
@@ -57,8 +57,8 @@ class _RuneboltAppState extends State<RuneboltApp> {
   }
 
   Widget _buildGame() {
-    return GameWidget<RuneboltGame>.controlled(
-      gameFactory: RuneboltGame.new,
+    return GameWidget<NovaboltGame>.controlled(
+      gameFactory: NovaboltGame.new,
       initialActiveOverlays: const ['GameControls'],
       overlayBuilderMap: {
         'GameControls': (context, game) =>

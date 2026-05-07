@@ -5,12 +5,12 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
-import '../runebolt_game.dart';
+import '../novabolt_game.dart';
 import 'death_particles.dart';
 import 'shield_pickup.dart';
 
 abstract class Monster extends PositionComponent
-    with HasGameReference<RuneboltGame> {
+    with HasGameReference<NovaboltGame> {
   final MonsterStats stats;
   late double currentHp;
   bool isDead = false;

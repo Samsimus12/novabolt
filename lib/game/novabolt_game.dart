@@ -18,7 +18,7 @@ import 'systems/supercharge_system.dart';
 import 'systems/wave_system.dart';
 import 'systems/xp_system.dart';
 
-class RuneboltGame extends FlameGame with HasCollisionDetection {
+class NovaboltGame extends FlameGame with HasCollisionDetection {
   late Player player;
   late JoystickComponent joystick;
   late JoystickComponent aimJoystick;

@@ -7,8 +7,8 @@ aims and fires. Killing enemies earns XP; leveling up shows a card upgrade picke
 A Supercharge bar fills as enemies die — activate for a screen-wide laser beam. Every 10 levels spawns a
 Dreadnought boss fight. AdMob ads are live: interstitial on menu return, rewarded "continue at 50% HP" on game-over.
 
-**GitHub**: https://github.com/Samsimus12/runebolt
-*(Repo/directory still named `runebolt` — rename to `novabolt` is a pending TODO)*
+**GitHub**: https://github.com/Samsimus12/novabolt
+*(Code files still use `runebolt` naming — `runebolt_game.dart`, class `RuneboltGame`, etc. — rename is a pending TODO)*
 
 ## How to Run
 ```bash

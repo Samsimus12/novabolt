@@ -5,6 +5,7 @@ import 'package:flame/text.dart';
 import 'package:flutter/painting.dart' show TextStyle, FontWeight;
 
 import '../runebolt_game.dart';
+import '../systems/supercharge_system.dart';
 
 class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
   Hud() : super(priority: 10);
@@ -23,6 +24,7 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
     final screenH = game.size.y;
 
     _drawHpBar(canvas, screenW);
+    _drawSuperchargeBar(canvas, screenW, screenH);
     _drawXpBar(canvas, screenW, screenH);
     _drawLevelBadge(canvas, screenW);
   }
@@ -44,6 +46,20 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
         bg: const Color(0xFF3A1010));
 
     _labelStyle.render(canvas, 'HP', Vector2(x + 4, y - 1));
+  }
+
+  void _drawSuperchargeBar(Canvas canvas, double screenW, double screenH) {
+    const x = 16.0;
+    const hpBarBottom = 100.0 + 14.0;
+    const y = hpBarBottom + 6.0;
+    const h = 10.0;
+    final w = screenW - 32;
+    final fraction = game.superchargeSystem.fraction;
+    final state = game.superchargeSystem.stateNotifier.value;
+    final isLit = state == SuperchargeState.ready || state == SuperchargeState.active;
+    final fg = isLit ? const Color(0xFF00E5FF) : const Color(0xFF006E8A);
+    _drawBar(canvas, x: x, y: y, w: w, h: h, fraction: fraction, fg: fg, bg: const Color(0xFF06141A));
+    _labelStyle.render(canvas, 'NOVA', Vector2(x + 4, y - 1));
   }
 
   void _drawXpBar(Canvas canvas, double screenW, double screenH) {

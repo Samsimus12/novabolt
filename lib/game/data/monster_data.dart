@@ -4,6 +4,8 @@ class MonsterStats {
   final double contactDamagePerSecond;
   final double size;
   final int xpValue;
+  final int chargeValue;
+  final double shieldDropChance;
   final double hpScaleRate;
   final double speedScaleRate;
   final double speedScaleCap;
@@ -14,6 +16,8 @@ class MonsterStats {
     required this.contactDamagePerSecond,
     required this.size,
     required this.xpValue,
+    this.chargeValue = 8,
+    this.shieldDropChance = 0.15,
     this.hpScaleRate = 0.3,
     this.speedScaleRate = 0.1,
     this.speedScaleCap = 3.0,
@@ -28,6 +32,8 @@ class MonsterStats {
       contactDamagePerSecond: contactDamagePerSecond,
       size: size,
       xpValue: xpValue,
+      chargeValue: chargeValue,
+      shieldDropChance: shieldDropChance,
       hpScaleRate: hpScaleRate,
       speedScaleRate: speedScaleRate,
       speedScaleCap: speedScaleCap,
@@ -41,6 +47,8 @@ const gruntStats = MonsterStats(
   contactDamagePerSecond: 15,
   size: 36,
   xpValue: 10,
+  chargeValue: 8,
+  shieldDropChance: 0.15,
 );
 
 const tankStats = MonsterStats(
@@ -49,6 +57,8 @@ const tankStats = MonsterStats(
   contactDamagePerSecond: 25,
   size: 60,
   xpValue: 30,
+  chargeValue: 25,
+  shieldDropChance: 0.40,
   hpScaleRate: 0.4,
   speedScaleRate: 0.05,
   speedScaleCap: 2.0,
@@ -60,6 +70,8 @@ const speederStats = MonsterStats(
   contactDamagePerSecond: 10,
   size: 22,
   xpValue: 5,
+  chargeValue: 5,
+  shieldDropChance: 0.10,
   hpScaleRate: 0.15,
   speedScaleRate: 0.12,
   speedScaleCap: 2.5,

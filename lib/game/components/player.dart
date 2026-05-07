@@ -16,7 +16,9 @@ class Player extends PositionComponent
   double moveSpeed = 180;
   double _facingAngle = 0;
 
-  final Set<Monster> _contactMonsters = {};
+  double shieldHp = 0;
+  static const double maxShieldHp = 50.0;
+  double _shieldFlashTimer = 0;
 
   Player({required super.position})
       : super(size: Vector2.all(44), anchor: Anchor.center, priority: 3);
@@ -46,28 +48,38 @@ class Player extends PositionComponent
       _facingAngle = math.atan2(aim.y, aim.x) + math.pi / 2;
     }
 
-    // Contact damage from monsters
-    _contactMonsters.removeWhere((m) => m.isDead || m.parent == null);
-    for (final monster in _contactMonsters) {
-      takeDamage(monster.stats.contactDamagePerSecond * dt);
-    }
+    if (_shieldFlashTimer > 0) _shieldFlashTimer -= dt;
+  }
+
+  Vector2 get aimDirection {
+    final aim = game.aimJoystick.relativeDelta;
+    if (aim.length > 0.05) return aim.normalized();
+    return Vector2(math.sin(_facingAngle), -math.cos(_facingAngle));
   }
 
   @override
   void onCollisionStart(
       Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
-    if (other is Monster) _contactMonsters.add(other);
+    if (other is Monster && !other.isDead) {
+      takeDamage(other.stats.contactDamagePerSecond);
+      other.takeDamage(other.currentHp);
+    }
   }
 
-  @override
-  void onCollisionEnd(PositionComponent other) {
-    super.onCollisionEnd(other);
-    if (other is Monster) _contactMonsters.remove(other);
+  void addShield(double amount) {
+    shieldHp = (shieldHp + amount).clamp(0, maxShieldHp);
   }
 
   void takeDamage(double damage) {
     if (game.isGameOver) return;
+    if (shieldHp > 0) {
+      _shieldFlashTimer = 0.12;
+      final absorbed = damage.clamp(0.0, shieldHp);
+      shieldHp -= absorbed;
+      damage -= absorbed;
+      if (damage <= 0) return;
+    }
     currentHp = (currentHp - damage).clamp(0, maxHp);
     if (currentHp <= 0) game.onPlayerDeath();
   }
@@ -81,7 +93,8 @@ class Player extends PositionComponent
     currentHp = 100;
     moveSpeed = 180;
     _facingAngle = 0;
-    _contactMonsters.clear();
+    shieldHp = 0;
+    _shieldFlashTimer = 0;
     children.whereType<Weapon>().toList().forEach((w) => w.removeFromParent());
     add(WeaponMagicBolt());
   }
@@ -188,5 +201,41 @@ class Player extends PositionComponent
     );
 
     canvas.restore();
+
+    _renderShield(canvas);
+  }
+
+  void _renderShield(Canvas canvas) {
+    if (shieldHp <= 0) return;
+    final cx = size.x / 2;
+    final cy = size.y / 2;
+    final fraction = (shieldHp / maxShieldHp).clamp(0.0, 1.0);
+    final alpha = (fraction * 200 + 30).toInt();
+    final strokeW = fraction * 3.0 + 1.0;
+    const ringRadius = 28.0;
+
+    // Glow
+    canvas.drawCircle(
+      Offset(cx, cy),
+      ringRadius,
+      Paint()
+        ..color = Color.fromARGB((alpha ~/ 3), 0, 229, 255)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW + 10
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+
+    // Ring (flashes white on hit)
+    final ringColor = _shieldFlashTimer > 0
+        ? Color.fromARGB(200, 255, 255, 255)
+        : Color.fromARGB(alpha, 0, 229, 255);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      ringRadius,
+      Paint()
+        ..color = ringColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW,
+    );
   }
 }

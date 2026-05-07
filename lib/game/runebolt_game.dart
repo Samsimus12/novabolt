@@ -9,7 +9,10 @@ import 'components/hud.dart';
 import 'components/monster.dart';
 import 'components/player.dart';
 import 'components/projectile.dart';
+import 'components/shield_pickup.dart';
+import 'components/supercharge_laser.dart';
 import 'data/upgrade_cards.dart';
+import 'systems/supercharge_system.dart';
 import 'systems/wave_system.dart';
 import 'systems/xp_system.dart';
 
@@ -18,6 +21,7 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
   late JoystickComponent joystick;
   late JoystickComponent aimJoystick;
   final XpSystem xpSystem = XpSystem();
+  final SuperchargeSystem superchargeSystem = SuperchargeSystem();
   late WaveSystem _waveSystem;
 
   List<UpgradeCard> currentCards = [];
@@ -66,11 +70,18 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
     camera.viewport.add(Hud());
   }
 
-  void onMonsterKilled(int xpValue) {
+  void onMonsterKilled(int xpValue, int chargeValue) {
+    superchargeSystem.addCharge(chargeValue.toDouble());
     if (xpSystem.addXp(xpValue)) {
       currentCards = generateUpgradeCards(this);
       overlays.add('LevelUp');
       pauseEngine();
+    }
+  }
+
+  void activateSupercharge() {
+    if (superchargeSystem.activate()) {
+      world.add(SuperchargeLaser());
     }
   }
 
@@ -93,7 +104,10 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
     overlays.remove('GameOver');
     world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<Projectile>().toList().forEach((p) => p.removeFromParent());
+    world.children.whereType<SuperchargeLaser>().toList().forEach((l) => l.removeFromParent());
+    world.children.whereType<ShieldPickup>().toList().forEach((s) => s.removeFromParent());
     xpSystem.reset();
+    superchargeSystem.reset();
     player.position = size / 2;
     player.reset();
     _waveSystem.reset();

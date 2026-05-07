@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/collisions.dart';
@@ -6,6 +7,7 @@ import 'package:flame/components.dart';
 import '../data/monster_data.dart';
 import '../runebolt_game.dart';
 import 'death_particles.dart';
+import 'shield_pickup.dart';
 
 abstract class Monster extends PositionComponent
     with HasGameReference<RuneboltGame> {
@@ -64,7 +66,10 @@ abstract class Monster extends PositionComponent
   void _die() {
     isDead = true;
     game.world.add(DeathParticles(position: position.clone(), color: deathColor));
-    game.onMonsterKilled(stats.xpValue);
+    if (math.Random().nextDouble() < stats.shieldDropChance) {
+      game.world.add(ShieldPickup(position: position.clone()));
+    }
+    game.onMonsterKilled(stats.xpValue, stats.chargeValue);
     removeFromParent();
   }
 

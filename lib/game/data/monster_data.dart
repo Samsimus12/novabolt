@@ -44,7 +44,7 @@ class MonsterStats {
 const gruntStats = MonsterStats(
   maxHp: 30,
   speed: 80,
-  contactDamagePerSecond: 15,
+  contactDamagePerSecond: 10,
   size: 36,
   xpValue: 10,
   chargeValue: 8,
@@ -54,7 +54,7 @@ const gruntStats = MonsterStats(
 const tankStats = MonsterStats(
   maxHp: 160,
   speed: 45,
-  contactDamagePerSecond: 25,
+  contactDamagePerSecond: 18,
   size: 60,
   xpValue: 30,
   chargeValue: 25,
@@ -67,7 +67,7 @@ const tankStats = MonsterStats(
 const speederStats = MonsterStats(
   maxHp: 18,
   speed: 210,
-  contactDamagePerSecond: 10,
+  contactDamagePerSecond: 7,
   size: 22,
   xpValue: 5,
   chargeValue: 5,
@@ -75,4 +75,17 @@ const speederStats = MonsterStats(
   hpScaleRate: 0.15,
   speedScaleRate: 0.12,
   speedScaleCap: 2.5,
+);
+
+const bossStats = MonsterStats(
+  maxHp: 800,
+  speed: 30,
+  contactDamagePerSecond: 28,
+  size: 100,
+  xpValue: 0,
+  chargeValue: 50,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.5,
+  speedScaleRate: 0.03,
+  speedScaleCap: 1.5,
 );

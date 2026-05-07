@@ -37,6 +37,18 @@ class LevelUpScreen extends StatelessWidget {
               'Level ${game.xpSystem.currentLevel}',
               style: const TextStyle(color: Color(0xCCF5F5DC), fontSize: 20),
             ),
+            if (game.picksTotal > 1) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Pick ${game.currentPickIndex} of ${game.picksTotal}',
+                style: const TextStyle(
+                  color: Color(0xFF00E5FF),
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
             for (final card in cards) _CardWidget(card: card, game: game),
           ],

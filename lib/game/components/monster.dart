@@ -70,8 +70,11 @@ abstract class Monster extends PositionComponent
       game.world.add(ShieldPickup(position: position.clone()));
     }
     game.onMonsterKilled(stats.xpValue, stats.chargeValue);
+    onDie();
     removeFromParent();
   }
+
+  void onDie() {}
 
   double get hpFraction => (currentHp / stats.maxHp).clamp(0.0, 1.0);
 

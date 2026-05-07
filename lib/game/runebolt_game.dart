@@ -7,6 +7,7 @@ import 'package:flutter/painting.dart' show EdgeInsets;
 import 'components/background.dart';
 import 'components/hud.dart';
 import 'components/monster.dart';
+import 'components/monster_boss.dart';
 import 'components/player.dart';
 import 'components/projectile.dart';
 import 'components/shield_pickup.dart';
@@ -26,6 +27,9 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
 
   List<UpgradeCard> currentCards = [];
   bool isGameOver = false;
+  BossMonster? activeBoss;
+  int picksTotal = 0;
+  int _picksRemaining = 0;
 
   @override
   Color backgroundColor() => const Color(0xFF0D0D2B);
@@ -72,12 +76,31 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
 
   void onMonsterKilled(int xpValue, int chargeValue) {
     superchargeSystem.addCharge(chargeValue.toDouble());
-    if (xpSystem.addXp(xpValue)) {
-      currentCards = generateUpgradeCards(this);
-      overlays.add('LevelUp');
-      pauseEngine();
+    if (xpValue > 0 && xpSystem.addXp(xpValue)) {
+      final level = xpSystem.currentLevel;
+      if (level % 10 == 0) {
+        _waveSystem.startBossFight(level);
+        return;
+      }
+      _showLevelUp(level);
     }
   }
+
+  void onBossKilled() {
+    activeBoss = null;
+    _waveSystem.onBossKilled();
+    _showLevelUp(xpSystem.currentLevel);
+  }
+
+  void _showLevelUp(int level) {
+    picksTotal = (1 + level ~/ 5).clamp(1, 5);
+    _picksRemaining = picksTotal;
+    currentCards = generateUpgradeCards(this);
+    overlays.add('LevelUp');
+    pauseEngine();
+  }
+
+  int get currentPickIndex => picksTotal - _picksRemaining + 1;
 
   void activateSupercharge() {
     if (superchargeSystem.activate()) {
@@ -93,9 +116,16 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void resumeFromLevelUp() {
-    currentCards = [];
+    _picksRemaining--;
     overlays.remove('LevelUp');
-    resumeEngine();
+    if (_picksRemaining > 0) {
+      currentCards = generateUpgradeCards(this);
+      overlays.add('LevelUp');
+    } else {
+      currentCards = [];
+      picksTotal = 0;
+      resumeEngine();
+    }
   }
 
   void restart() {
@@ -106,6 +136,9 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
     world.children.whereType<Projectile>().toList().forEach((p) => p.removeFromParent());
     world.children.whereType<SuperchargeLaser>().toList().forEach((l) => l.removeFromParent());
     world.children.whereType<ShieldPickup>().toList().forEach((s) => s.removeFromParent());
+    activeBoss = null;
+    picksTotal = 0;
+    _picksRemaining = 0;
     xpSystem.reset();
     superchargeSystem.reset();
     player.position = size / 2;

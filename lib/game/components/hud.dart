@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/painting.dart' show TextStyle, FontWeight;
 
+import 'monster_boss.dart';
 import '../runebolt_game.dart';
 import '../systems/supercharge_system.dart';
 
@@ -18,6 +19,14 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
     ),
   );
 
+  static final _bossLabelStyle = TextPaint(
+    style: const TextStyle(
+      color: Color(0xFFFF88FF),
+      fontSize: 13,
+      fontWeight: FontWeight.bold,
+    ),
+  );
+
   @override
   void render(Canvas canvas) {
     final screenW = game.size.x;
@@ -27,6 +36,11 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
     _drawSuperchargeBar(canvas, screenW, screenH);
     _drawXpBar(canvas, screenW, screenH);
     _drawLevelBadge(canvas, screenW);
+
+    final boss = game.activeBoss;
+    if (boss != null) {
+      _drawBossBar(canvas, screenW, boss);
+    }
   }
 
   void _drawHpBar(Canvas canvas, double screenW) {
@@ -100,6 +114,30 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
     final label = 'Lvl ${game.xpSystem.currentLevel}';
     _labelStyle.render(
         canvas, label, Vector2(cx - 15, cy - 7));
+  }
+
+  void _drawBossBar(Canvas canvas, double screenW, BossMonster boss) {
+    const x = 16.0;
+    const novaBarBottom = 100.0 + 14.0 + 6.0 + 10.0;
+    const y = novaBarBottom + 10.0;
+    const h = 16.0;
+    final w = screenW - 32;
+
+    // Background track with glow border
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(x - 1, y - 1, w + 2, h + 2), const Radius.circular(9)),
+      Paint()..color = const Color(0xFFAA00FF),
+    );
+    _drawBar(canvas,
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+        fraction: boss.hpFraction,
+        fg: const Color(0xFF9900FF),
+        bg: const Color(0xFF220044));
+
+    _bossLabelStyle.render(canvas, boss.displayName, Vector2(x + 4, y));
   }
 
   void _drawBar(

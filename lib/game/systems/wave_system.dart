@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 
+import '../components/monster_boss_dreadnought.dart';
 import '../components/monster_grunt.dart';
 import '../components/monster_speeder.dart';
 import '../components/monster_tank.dart';
@@ -10,6 +11,7 @@ import '../runebolt_game.dart';
 class WaveSystem extends Component with HasGameReference<RuneboltGame> {
   double _timer = 0;
   double _tankTimer = 0;
+  bool _isBossFight = false;
   final _rng = math.Random();
 
   double get _spawnInterval {
@@ -32,6 +34,7 @@ class WaveSystem extends Component with HasGameReference<RuneboltGame> {
   @override
   void update(double dt) {
     super.update(dt);
+    if (_isBossFight) return;
 
     _timer += dt;
     if (_timer >= _spawnInterval) {
@@ -80,8 +83,25 @@ class WaveSystem extends Component with HasGameReference<RuneboltGame> {
     }
   }
 
+  void startBossFight(int playerLevel) {
+    _isBossFight = true;
+    _timer = 0;
+    _tankTimer = 0;
+    final boss = MonsterBossDreadnought(
+      position: Vector2(game.size.x / 2, -80),
+      playerLevel: playerLevel,
+    );
+    game.activeBoss = boss;
+    game.world.add(boss);
+  }
+
+  void onBossKilled() {
+    _isBossFight = false;
+  }
+
   void reset() {
     _timer = 0;
     _tankTimer = 0;
+    _isBossFight = false;
   }
 }

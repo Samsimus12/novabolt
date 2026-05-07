@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'ads/ad_manager.dart';
 import 'audio/audio_manager.dart';
+import 'coins/coin_manager.dart';
 import 'game/runebolt_game.dart';
 import 'screens/game_controls_overlay.dart';
 import 'screens/game_over_screen.dart';
@@ -15,6 +16,7 @@ void main() async {
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await AdManager.instance.init();
+  await CoinManager.instance.init();
   runApp(const RuneboltApp());
 }
 

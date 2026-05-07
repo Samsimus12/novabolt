@@ -4,10 +4,50 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../../coins/coin_manager.dart';
 import '../runebolt_game.dart';
 import 'monster.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
+
+class _SkinPalette {
+  final Color fuselage;
+  final Color wings;
+  final Color cockpit;
+  final Color glow;
+  final Color highlight;
+  const _SkinPalette({
+    required this.fuselage,
+    required this.wings,
+    required this.cockpit,
+    required this.glow,
+    required this.highlight,
+  });
+}
+
+_SkinPalette _paletteForSkin(String skin) => switch (skin) {
+      'ice' => const _SkinPalette(
+          fuselage: Color(0xFF4DD0E1),
+          wings: Color(0xFF0097A7),
+          cockpit: Color(0xFFE0F7FA),
+          glow: Color(0xAA00B8D4),
+          highlight: Color(0xFF80DEEA),
+        ),
+      'flame' => const _SkinPalette(
+          fuselage: Color(0xFFFF5722),
+          wings: Color(0xFFBF360C),
+          cockpit: Color(0xFFFFAB91),
+          glow: Color(0xAADD2C00),
+          highlight: Color(0xFFFF8A65),
+        ),
+      _ => const _SkinPalette(
+          fuselage: Color(0xFFFFD700),
+          wings: Color(0xFFDDB500),
+          cockpit: Color(0xFF00E5FF),
+          glow: Color(0xAAFF7700),
+          highlight: Color(0xFFFFEE88),
+        ),
+    };
 
 class Player extends PositionComponent
     with HasGameReference<RuneboltGame>, CollisionCallbacks {
@@ -125,6 +165,8 @@ class Player extends PositionComponent
       );
     }
 
+    final pal = _paletteForSkin(CoinManager.instance.selectedSkin);
+
     canvas.save();
     canvas.translate(cx, cy);
     canvas.rotate(_facingAngle);
@@ -132,7 +174,7 @@ class Player extends PositionComponent
 
     // Engine exhaust glow
     final glowPaint = Paint()
-      ..color = const Color(0xAAFF7700)
+      ..color = pal.glow
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
     canvas.drawOval(Rect.fromCenter(center: Offset(cx - 5, cy + 16), width: 8, height: 11), glowPaint);
     canvas.drawOval(Rect.fromCenter(center: Offset(cx + 5, cy + 16), width: 8, height: 11), glowPaint);
@@ -147,7 +189,7 @@ class Player extends PositionComponent
       ..lineTo(cx + 21, cy + 10)
       ..lineTo(cx + 9, cy + 11)
       ..close();
-    canvas.drawPath(wingPath, Paint()..color = const Color(0xFFDDB500));
+    canvas.drawPath(wingPath, Paint()..color = pal.wings);
 
     // Main fuselage
     final body = Path()
@@ -158,21 +200,21 @@ class Player extends PositionComponent
       ..lineTo(cx - 8, cy + 12)
       ..lineTo(cx - 7, cy - 4)
       ..close();
-    canvas.drawPath(body, Paint()..color = const Color(0xFFFFD700));
+    canvas.drawPath(body, Paint()..color = pal.fuselage);
 
     // Hull highlight stroke
     canvas.drawPath(
       body,
       Paint()
-        ..color = const Color(0xFFFFEE88)
+        ..color = pal.highlight
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0,
     );
 
-    // Cockpit window (cyan)
+    // Cockpit window
     canvas.drawOval(
       Rect.fromCenter(center: Offset(cx, cy - 7), width: 9, height: 11),
-      Paint()..color = const Color(0xFF00E5FF),
+      Paint()..color = pal.cockpit,
     );
     // Cockpit glare
     canvas.drawOval(

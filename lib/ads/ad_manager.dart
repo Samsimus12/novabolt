@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import '../audio/audio_manager.dart';
+
 class AdManager {
   static final AdManager instance = AdManager._();
   AdManager._();
@@ -63,7 +65,9 @@ class AdManager {
     _rewardedAd = null;
     rewardedAdReady.value = false;
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (_) => AudioManager.instance.stop(),
       onAdDismissedFullScreenContent: (ad) {
+        AudioManager.instance.playGame();
         ad.dispose();
         _loadRewardedAd();
       },
@@ -83,6 +87,7 @@ class AdManager {
     }
     _interstitialAd = null;
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (_) => AudioManager.instance.stop(),
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _loadInterstitialAd();

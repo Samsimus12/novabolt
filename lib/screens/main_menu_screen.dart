@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../audio/audio_manager.dart';
+import '../coins/coin_manager.dart';
+import 'shop_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
   final VoidCallback onPlay;
@@ -14,6 +16,14 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
+  Future<void> _showShop() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ShopScreen()),
+    );
+    setState(() {});
+  }
+
   void _showSettings() {
     showDialog(
       context: context,
@@ -132,8 +142,50 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     ),
                     child: const Text('PLAY'),
                   ),
+                  const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: _showShop,
+                    icon: const Text('⚡', style: TextStyle(fontSize: 16)),
+                    label: const Text(
+                      'SHOP',
+                      style: TextStyle(
+                        color: Color(0xFFFFD700),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFFD700),
+                    ),
+                  ),
                   const Spacer(flex: 2),
                 ],
+              ),
+            ),
+          ),
+
+          // Coin balance — top-left corner
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('⚡', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${CoinManager.instance.totalCoins}',
+                      style: const TextStyle(
+                        color: Color(0xCCFFD700),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

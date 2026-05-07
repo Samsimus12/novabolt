@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ads/ad_manager.dart';
+import '../coins/coin_manager.dart';
 import '../game/runebolt_game.dart';
 
 class GameOverScreen extends StatefulWidget {
@@ -13,6 +14,8 @@ class GameOverScreen extends StatefulWidget {
 }
 
 class _GameOverScreenState extends State<GameOverScreen> {
+  bool _coinsAwarded = false;
+
   @override
   void initState() {
     super.initState();
@@ -27,15 +30,34 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
   void _onAdReadyChanged() => setState(() {});
 
+  int get _coinsEarned => widget.game.xpSystem.currentLevel * 10;
+
+  void _awardCoins() {
+    if (_coinsAwarded) return;
+    _coinsAwarded = true;
+    CoinManager.instance.addCoins(_coinsEarned);
+  }
+
   void _watchAdAndContinue() {
     AdManager.instance.showRewardedAd(
       onRewarded: () => widget.game.continueWithHalfHp(),
     );
   }
 
+  void _playAgain() {
+    _awardCoins();
+    widget.game.restart();
+  }
+
+  void _goToMenu() {
+    _awardCoins();
+    widget.onMenu?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     final adReady = AdManager.instance.rewardedAdReady.value;
+    final canContinue = adReady && !widget.game.hasUsedContinue;
 
     return Material(
       color: const Color(0xCC000000),
@@ -60,8 +82,24 @@ class _GameOverScreenState extends State<GameOverScreen> {
                 fontSize: 22,
               ),
             ),
-            const SizedBox(height: 48),
-            if (adReady) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⚡', style: TextStyle(fontSize: 15)),
+                const SizedBox(width: 5),
+                Text(
+                  '+$_coinsEarned NOVA',
+                  style: const TextStyle(
+                    color: Color(0xFFFFD700),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 40),
+            if (canContinue) ...[
               ElevatedButton.icon(
                 onPressed: _watchAdAndContinue,
                 icon: const Icon(Icons.play_circle_outline, size: 22),
@@ -78,7 +116,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
               const SizedBox(height: 16),
             ],
             ElevatedButton(
-              onPressed: widget.game.restart,
+              onPressed: _playAgain,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF9B59B6),
                 foregroundColor: Colors.white,
@@ -91,7 +129,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: onMenu,
+              onPressed: _goToMenu,
               child: const Text(
                 'Main Menu',
                 style: TextStyle(
@@ -105,6 +143,4 @@ class _GameOverScreenState extends State<GameOverScreen> {
       ),
     );
   }
-
-  VoidCallback? get onMenu => widget.onMenu;
 }

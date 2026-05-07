@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show EdgeInsets;
 
+import '../coins/coin_manager.dart';
 import 'components/background.dart';
 import 'components/hud.dart';
 import 'components/monster.dart';
@@ -27,12 +28,18 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
 
   List<UpgradeCard> currentCards = [];
   bool isGameOver = false;
+  bool _hasUsedContinue = false;
+  bool get hasUsedContinue => _hasUsedContinue;
   BossMonster? activeBoss;
   int picksTotal = 0;
   int _picksRemaining = 0;
 
   @override
-  Color backgroundColor() => const Color(0xFF0D0D2B);
+  Color backgroundColor() => switch (CoinManager.instance.selectedBackground) {
+        'dark_void' => const Color(0xFF020208),
+        'nebula' => const Color(0xFF0A0018),
+        _ => const Color(0xFF0D0D2B),
+      };
 
   @override
   Future<void> onLoad() async {
@@ -116,8 +123,9 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void continueWithHalfHp() {
-    if (!isGameOver) return;
+    if (!isGameOver || _hasUsedContinue) return;
     isGameOver = false;
+    _hasUsedContinue = true;
     overlays.remove('GameOver');
     player.currentHp = player.maxHp * 0.5;
     resumeEngine();
@@ -138,12 +146,15 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
 
   void restart() {
     isGameOver = false;
+    _hasUsedContinue = false;
     currentCards = [];
     overlays.remove('GameOver');
     world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<Projectile>().toList().forEach((p) => p.removeFromParent());
     world.children.whereType<SuperchargeLaser>().toList().forEach((l) => l.removeFromParent());
     world.children.whereType<ShieldPickup>().toList().forEach((s) => s.removeFromParent());
+    world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
+    world.add(StarBackground());
     activeBoss = null;
     picksTotal = 0;
     _picksRemaining = 0;

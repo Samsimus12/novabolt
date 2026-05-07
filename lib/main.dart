@@ -2,6 +2,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ads/ad_manager.dart';
 import 'audio/audio_manager.dart';
 import 'game/runebolt_game.dart';
 import 'screens/game_controls_overlay.dart';
@@ -13,6 +14,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  await AdManager.instance.init();
   runApp(const RuneboltApp());
 }
 
@@ -38,8 +40,10 @@ class _RuneboltAppState extends State<RuneboltApp> {
   }
 
   void _returnToMenu() {
-    setState(() => _inGame = false);
-    AudioManager.instance.playMenu();
+    AdManager.instance.showInterstitialAd(onDismissed: () {
+      setState(() => _inGame = false);
+      AudioManager.instance.playMenu();
+    });
   }
 
   @override

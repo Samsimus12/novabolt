@@ -115,6 +115,14 @@ class RuneboltGame extends FlameGame with HasCollisionDetection {
     pauseEngine();
   }
 
+  void continueWithHalfHp() {
+    if (!isGameOver) return;
+    isGameOver = false;
+    overlays.remove('GameOver');
+    player.currentHp = player.maxHp * 0.5;
+    resumeEngine();
+  }
+
   void resumeFromLevelUp() {
     _picksRemaining--;
     overlays.remove('LevelUp');

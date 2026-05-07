@@ -29,7 +29,7 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
 
   void _drawHpBar(Canvas canvas, double screenW) {
     const x = 16.0;
-    const y = 20.0;
+    const y = 100.0;
     final w = screenW - 32;
     const h = 14.0;
     final fraction =
@@ -63,9 +63,9 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
   }
 
   void _drawLevelBadge(Canvas canvas, double screenW) {
-    const cy = 52.0;
-    const r = 16.0;
-    final cx = screenW - 28;
+    const cy = 68.0;
+    const r = 22.0;
+    final cx = screenW / 2;
 
     canvas.drawCircle(
       Offset(cx, cy),
@@ -81,9 +81,9 @@ class Hud extends PositionComponent with HasGameReference<RuneboltGame> {
         ..strokeWidth = 1.5,
     );
 
-    final label = 'L${game.xpSystem.currentLevel}';
+    final label = 'Lvl ${game.xpSystem.currentLevel}';
     _labelStyle.render(
-        canvas, label, Vector2(cx - 8, cy - 7));
+        canvas, label, Vector2(cx - 15, cy - 7));
   }
 
   void _drawBar(

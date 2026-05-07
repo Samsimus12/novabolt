@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'game/runebolt_game.dart';
+import 'screens/game_controls_overlay.dart';
 import 'screens/game_over_screen.dart';
 import 'screens/level_up_screen.dart';
 import 'screens/main_menu_screen.dart';
@@ -38,7 +39,10 @@ class _RuneboltAppState extends State<RuneboltApp> {
   Widget _buildGame() {
     return GameWidget<RuneboltGame>.controlled(
       gameFactory: RuneboltGame.new,
+      initialActiveOverlays: const ['GameControls'],
       overlayBuilderMap: {
+        'GameControls': (context, game) =>
+            GameControlsOverlay(game: game, onMenu: _returnToMenu),
         'GameOver': (context, game) =>
             GameOverScreen(game: game, onMenu: _returnToMenu),
         'LevelUp': (context, game) => LevelUpScreen(game: game),

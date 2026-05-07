@@ -70,7 +70,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   children: [
                     const Spacer(flex: 2),
                     const Text(
-                      'RUNEBOLT',
+                      'NOVABOLT',
                       style: TextStyle(
                         color: Color(0xFFFFD700),
                         fontSize: 54,

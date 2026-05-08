@@ -2,11 +2,12 @@
 
 ## What This Is
 A cross-platform (iOS + Android) space-themed arena survival game built with **Flutter + Flame engine**.
-The player pilots a fighter jet against waves of asteroids and alien ships. Left joystick moves, right joystick
-aims and fires. Killing enemies earns XP; leveling up shows a card upgrade picker (picks scale with level).
-A Supercharge bar fills as enemies die — activate for a screen-wide laser beam. Every 10 levels spawns a
-Dreadnought boss fight. AdMob ads are live: interstitial on menu return, rewarded "continue at 50% HP" on game-over.
-A NOVA coin economy lets players earn currency per run and spend it in the shop on ship skins and star-field backgrounds.
+The player pilots a fighter jet against waves of enemies. Left joystick moves, right joystick aims and fires.
+Killing enemies earns XP; leveling up shows a card upgrade picker (picks scale with level). A Supercharge bar
+fills as enemies die — activate for a screen-wide laser beam. Boss fights every 10 levels (Dreadnought at odd
+multiples of 10, Void Tyrant at multiples of 20). Enemy visuals and the star-field background transform through
+3 phases as bosses are defeated. AdMob ads are live. A NOVA coin economy lets players spend on ship skins,
+shield skins, and Nova beam colours in the shop.
 
 **GitHub**: https://github.com/Samsimus12/novabolt
 
@@ -24,7 +25,7 @@ flutter run -d "Samsimus"        # physical iPhone (preferred)
 - **Flame 1.37.0** — 2D game engine; game loop, collision detection, camera, joystick
 - **flame_audio 2.12.1** — BGM (Menu.wav, Fighting.wav, Flying.wav) in `assets/`
 - **google_mobile_ads 5.3.1** — AdMob rewarded + interstitial ads
-- **shared_preferences** — persists music toggle, coins, owned shop items, selected skin/bg
+- **shared_preferences** — persists coins, owned items, selected skin/shield/nova, best stats
 - **flutter_launcher_icons** (dev) — generates all iOS + Android icon sizes from `assets/icon/icon.png`
 - **flutter_native_splash** (dev) — generates native launch screens from `assets/splash/splash.png`
 - All visuals are **code-drawn** (Canvas primitives) — no image assets in gameplay
@@ -36,110 +37,134 @@ flutter run -d "Samsimus"        # physical iPhone (preferred)
 
 ```
 lib/
-├── main.dart                          # NovaboltApp — loading screen → menu/game; AnimatedSwitcher fade; async init in widget tree
+├── main.dart                          # NovaboltApp — loading screen → menu/game; AnimatedSwitcher fade; async init
 ├── ads/
-│   └── ad_manager.dart               # Singleton; loads/shows rewarded + interstitial; pauses/resumes music around ads
+│   └── ad_manager.dart               # Singleton; loads/shows rewarded + interstitial; pauses/resumes music
 ├── audio/
 │   └── audio_manager.dart            # Singleton; FlameAudio.updatePrefix('assets/'); plays Menu/Fighting/Flying
 ├── coins/
-│   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selectedSkin/bg via SharedPreferences
+│   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selectedSkin/shieldSkin/novaTheme
+├── stats/
+│   └── stats_manager.dart            # Singleton; persists bestLevel, bestKills via SharedPreferences
 ├── game/
-│   ├── novabolt_game.dart            # FlameGame root — activeBoss, picksTotal, hasUsedContinue, continueWithHalfHp(), _showLevelUp()
+│   ├── novabolt_game.dart            # FlameGame root — bossPhase, killCount, isNewBest, continueWithHalfHp()
 │   ├── components/
-│   │   ├── player.dart               # Fighter jet; skin-aware render (_SkinPalette); left-stick move, right-stick aim; shield system
-│   │   ├── weapon.dart               # Abstract Weapon — fires only when aimJoystick active
+│   │   ├── player.dart               # Fighter jet; skin-aware render; shield color from CoinManager.selectedShieldSkin
+│   │   ├── weapon.dart               # Abstract Weapon — fires when aimJoystick active; isUpgradeable flag
 │   │   ├── weapon_magic_bolt.dart    # Starter (cyan #00E5FF, 15dmg, 2/sec)
 │   │   ├── weapon_spread_shot.dart   # 3-bolt fan (gold #F4A800)
 │   │   ├── weapon_rapid_fire.dart    # 4/sec (orange #FF6B35)
 │   │   ├── weapon_homing_bolt.dart   # Steers 3rad/s (purple #9B59B6)
 │   │   ├── weapon_sword_aura.dart    # 70px melee ring (gold #FFD700)
-│   │   ├── weapon_explosive_bolt.dart# AoE 80px (#FF8C00)
+│   │   ├── weapon_explosive_bolt.dart# AoE 80px (#FF8C00); isUpgradeable=false — won't re-appear after picked
 │   │   ├── weapon_frost_shard.dart   # Slows 40% for 2s (ice #88D8F0)
 │   │   ├── projectile.dart           # Base Projectile; `lifetime` is public (used by HomingBolt)
-│   │   ├── monster.dart              # Abstract Monster — hit flash, slowFactor, onDie() hook, shield drops
-│   │   ├── monster_grunt.dart        # Asteroid: irregular polygon, tumble rotation
-│   │   ├── monster_tank.dart         # Capital ship: warship with pods + cannons
-│   │   ├── monster_speeder.dart      # Scout fighter: arrowhead, rotates to face player
-│   │   ├── monster_boss.dart         # Abstract BossMonster — fires BossProjectile on timer; onDie() → game.onBossKilled()
-│   │   ├── monster_boss_dreadnought.dart # First boss: 100px purple warship, enrages at 50% HP
-│   │   ├── boss_projectile.dart      # Extends Projectile; hits Player only (overrides onCollisionStart)
+│   │   ├── monster.dart              # Abstract Monster — hit flash, slowFactor, updateMovement() hook
+│   │   ├── monster_grunt.dart        # 3-phase render: rocky asteroid → steel shard → void crystal
+│   │   ├── monster_tank.dart         # 3-phase render: red warship → steel juggernaut → void dreadnought
+│   │   ├── monster_speeder.dart      # 3-phase render: red scout → cyan drone → void dart
+│   │   ├── monster_caster.dart       # Ranged; keeps 200px range; fires CasterProjectile every 2.5s; 3-phase render
+│   │   ├── caster_projectile.dart    # Lime green orb (12dmg, speed 220); hits Player only
+│   │   ├── monster_boss.dart         # Abstract BossMonster — fireAtPlayer() overridable; onDie() → onBossKilled()
+│   │   ├── monster_boss_dreadnought.dart # Purple 100px warship; enrages at 50% HP (2.0s→1.2s); levels 10/30/50…
+│   │   ├── monster_boss_void_tyrant.dart # Crimson 120px warship; 3-shot spread ±0.35rad; enrages at 40% HP (1.8s→0.9s); levels 20/40/60…
+│   │   ├── boss_projectile.dart      # Extends Projectile; hits Player only
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
-│   │   ├── supercharge_laser.dart    # World Component (priority 4) — wide cyan beam; dot-product collision
+│   │   ├── health_pickup.dart        # Dropped by monsters; heals 30 HP; 8s lifetime
+│   │   ├── supercharge_laser.dart    # World Component (priority 4) — beam color from CoinManager.selectedNovaTheme
 │   │   ├── death_particles.dart      # 10 dots burst, fade over 0.45s
-│   │   ├── background.dart           # Theme-aware star field; reads CoinManager.selectedBackground; re-inits on restart()
-│   │   └── hud.dart                  # HP bar (y=114, h=20) / NOVA bar (h=18), XP bar (bottom), Lvl badge, boss bar
+│   │   ├── background.dart           # Phase-driven star field: Deep Space (0) → Nebula (1) → Blood Moon (2)
+│   │   └── hud.dart                  # HP/shield bar, NOVA bar, XP bar, Lvl badge, boss bar
 │   ├── systems/
-│   │   ├── wave_system.dart          # Regular + tank timers; _isBossFight pauses all spawning; startBossFight()
-│   │   ├── xp_system.dart            # XP tracking; threshold × 1.5/level starting at 50
-│   │   └── supercharge_system.dart   # Charge/ready/active state machine; ValueNotifier<SuperchargeState>
+│   │   ├── wave_system.dart          # Spawn timers; effectiveLevel = currentLevel + bossPhase*5; resets on boss kill
+│   │   ├── xp_system.dart            # Linear threshold: 60 + 40×level; reset() on restart
+│   │   └── supercharge_system.dart   # chargeMultiplier, depleteMultiplier, damageMultiplier; ValueNotifier state
 │   └── data/
-│       ├── monster_data.dart         # MonsterStats constants incl. bossStats
+│       ├── monster_data.dart         # MonsterStats: grunt/tank/speeder/caster/boss/tyrant constants
 │       ├── weapon_data.dart          # WeaponStats stub (unused)
-│       └── upgrade_cards.dart        # UpgradeCard pool — 6 weapons + 4 stat buffs; generateUpgradeCards()
+│       └── upgrade_cards.dart        # Card pool: 6 weapons + 6 stat buffs (incl. Nova Overload); bonus HP cards
 ├── screens/
-│   ├── loading_screen.dart           # Shown on cold boot while AdManager/CoinManager/AudioManager init; fades to menu
-│   ├── main_menu_screen.dart         # Animated living background; PLAY + SHOP buttons; coin balance (top-left)
-│   ├── shop_screen.dart              # Buy/equip ship skins + backgrounds with NOVA coins; CustomPaint previews
-│   ├── game_controls_overlay.dart    # Back + Pause (no border); NOVA button (center-bottom, cyan border when ready)
-│   ├── level_up_screen.dart          # Card picker overlay; shows "Pick X of Y" when picksTotal > 1
-│   └── game_over_screen.dart         # Shows "+N NOVA earned"; awards coins on exit; "Watch Ad → Continue" (once per run)
+│   ├── loading_screen.dart           # Cold boot init screen; fades to menu
+│   ├── main_menu_screen.dart         # Animated background; PLAY + SHOP; coin balance top-left
+│   ├── shop_screen.dart              # Ship skins + shield skins + Nova beam colours; ad-for-coins banner
+│   ├── game_controls_overlay.dart    # Back + Pause; NOVA button; "PAUSED" red glow overlay
+│   ├── level_up_screen.dart          # Card picker; bonus HP cards shown in green above selectable cards
+│   └── game_over_screen.dart         # Run stats + all-time bests + NEW BEST badge; +N NOVA earned; Watch Ad → Continue
 ```
 
 ---
 
 ## Implemented Features
 
-### Enemy Stats (post-damage-reduction)
+### Enemy Stats (base values — scale with level)
 | Monster | HP | Speed | Contact Dmg | XP | Charge | Spawns |
 |---|---|---|---|---|---|---|
-| Grunt (Asteroid) | 30 | 80 | **10** | 10 | 8 | Always |
-| Speeder (Scout) | 18 | 210 | **7** | 5 | 5 | Lvl 3+, 35% of regular |
-| Tank (Capital Ship) | 160 | 45 | **18** | 30 | 25 | Lvl 5+, 15s→7s timer |
-| Dreadnought (Boss) | 800 | 30 | **28** | 0 | 50 | Every 10 levels |
+| Grunt | 30 | 80 | 10 | 10 | 5 | Always |
+| Speeder | 18 | 210 | 7 | 5 | 3 | Lvl 3+, 35–50% of regular |
+| Tank | 160 | 45 | 18 | 30 | 15 | Lvl 5+, 15s→7s timer |
+| Caster | 40 | 55 | 6 | 20 | 7 | Lvl 7+, 15% of regular |
+| Dreadnought | 800 | 30 | 28 | 0 | 30 | Levels 10, 30, 50… |
+| Void Tyrant | 1600 | 45 | 40 | 0 | 50 | Levels 20, 40, 60… |
+
+### Phase Progression (bossPhase increments on each boss kill)
+- **Phase 0** (start): Deep Space bg, organic enemy designs
+- **Phase 1** (after boss 1): Nebula bg, mechanical steel enemy designs
+- **Phase 2** (after boss 2+): Blood Moon bg, void-corrupted enemy designs
+- Enemy stats use `effectiveLevel = currentLevel + bossPhase × 5` for HP/speed scaling
+- XP per kill multiplied by `1 + bossPhase × 0.25` (25% more per phase)
+- Star field and Flutter background color both swap when a boss dies
+
+### Enemy Visual Phases (per `game.bossPhase.clamp(0, 2)`)
+| Enemy | Phase 0 | Phase 1 | Phase 2 |
+|---|---|---|---|
+| Grunt | Brown rocky asteroid | Steel hex plate, chrome rivets | Near-black shard, magenta glow |
+| Speeder | Red-orange scout fighter | Cyan cyber drone, antenna | Dark lance, void eye, magenta trail |
+| Tank | Dark red warship, orange eyes | Gray juggernaut, vent slits, cyan viewport | Black hull, void energy, 3 void eyes |
+| Caster | Purple hexagon, lime cannon | Chrome orbital turret, gear ring | Dark orb, 8 tendrils, magenta pupil |
 
 ### Boss Fights
-- Triggers at levels 10, 20, 30… (`level % 10 == 0` in `onMonsterKilled`)
+- Trigger at `level % 10 == 0`; Void Tyrant at `level % 20 == 0 && level >= 20`, else Dreadnought
 - `WaveSystem._isBossFight = true` pauses all regular + tank spawning
-- `MonsterBossDreadnought` (100px) spawns at top-center, moves toward player
-- Fires `BossProjectile` (14 dmg) every 2.0s; enrages to 1.2s at ≤50% HP
-- `game.activeBoss` reference drives HUD boss bar (purple, below NOVA bar)
-- On death: `onBossKilled()` resumes spawning, then shows level-up screen as reward
+- On death: `bossPhase++`, background re-inits, spawn timers reset, level-up screen shown
+- `game.activeBoss` drives HUD boss bar
 
-### Multi-Pick Level-Ups
-- Formula: `picksTotal = (1 + level ~/ 5).clamp(1, 5)`
-- Level 1–4 → 1 pick, level 5–9 → 2, level 10–14 → 3, capped at 5
-- `resumeFromLevelUp()` decrements `_picksRemaining`; removes + re-adds 'LevelUp' overlay for each pick (forces Flutter rebuild with fresh cards)
-- "Pick X of Y" counter shown in cyan when picksTotal > 1
-- Boss-level (÷10) skips normal level-up screen; post-boss kill triggers `_showLevelUp()` with boss-level pick count
+### XP & Level-Up
+- **Threshold**: `60 + 40 × level` (linear — 100 at Lv1, 460 at Lv10, 860 at Lv20)
+- **Per-kill XP**: `xpValue × (1 + level ~/ 7) × (1 + bossPhase × 0.25)`
+- **Picks per level-up**: `(1 + level ~/ 7).clamp(1, 5)` — 1 pick until Lv7, 2 until Lv14, etc.
+- Bonus HP cards (20% chance each) auto-applied before showing the selectable cards
+- Multi-pick: overlay remove+re-add trick forces Flutter rebuild with fresh cards each round
+
+### Upgrade Cards
+- **Weapon upgrades**: up to level 4; `isUpgradeable = false` on `WeaponExplosiveBolt` (Plasma Rocket vanishes from pool once picked)
+- **Stat buffs**: Targeting Array (+20% dmg), Afterburner (+25% speed), Nova Accelerator (+fill rate), Extended Beam (+duration), Overcharge (+15% fire rate), **Nova Overload (+30% beam damage)**
+- **Bonus**: +25 Hull Plating / Repair Drones at 20% roll each
 
 ### AdMob Ads
-- **App ID**: `ca-app-pub-7289760521218684~5384220043` (set in Info.plist + AndroidManifest)
-- **Rewarded** (`ca-app-pub-7289760521218684/2091997829`): "Watch Ad → Continue (50% HP)" on game-over; limited to once per run via `_hasUsedContinue` on `NovaboltGame`
-- **Interstitial** (`ca-app-pub-7289760521218684/6268642442`): shown in `_returnToMenu()` before switching to MainMenuScreen
-- **Music**: pauses on `onAdShowedFullScreenContent`, resumes on dismiss (`playGame()` for rewarded, `playMenu()` via `_returnToMenu` for interstitial)
-- Both ad types auto-preload after dismiss; Android uses placeholder test IDs (TODO: real Android units)
+- **iOS App ID**: `ca-app-pub-7289760521218684~5384220043`
+- **Android App ID**: `ca-app-pub-7289760521218684~8694429573`
+- **Rewarded** (iOS `…/2091997829`, Android `…/6704964598`): "Watch Ad → Continue (50% HP)"; once per run
+- **Interstitial** (iOS `…/6268642442`, Android `…/3043097357`): shown on return to menu
+- Music pauses on ad show, resumes on dismiss; both ads auto-preload after dismiss
 
 ### NOVA Coins & Shop
-- **Earning**: `level × 10` NOVA per run, awarded when pressing Play Again or Main Menu from game-over screen
-- **Persisted** via `CoinManager` (`SharedPreferences`): total coins, owned items, selected skin, selected background
-- **Shop** accessible from main menu; shows coin balance; two sections: Ship Skins + Backgrounds
-- **Ship Skins** (read each frame in `Player.render()` via `_paletteForSkin()`):
-  - Gold Fighter — default, free
-  - Ice Falcon — 300 NOVA (teal fuselage, ice cockpit)
-  - Flame Hawk — 500 NOVA (red-orange fuselage)
-- **Background Themes** (read in `StarBackground.onLoad()`; re-inits on `restart()`):
-  - Deep Space — default, free (120 pale-blue stars, bg `#0D0D2B`)
-  - Dark Void — 200 NOVA (55 bright-white stars, bg `#020208`)
-  - Nebula — 400 NOVA (150 multicolour stars, bg `#0A0018`)
+- **Earning**: `level × 10` NOVA per run, awarded on game-over exit
+- **Ship Skins** (6): Gold Fighter (free), Ice Falcon (300), Flame Hawk (500), Shadow Viper (700), Solar Flare (900), Void Phantom (1200)
+- **Shield Skins** (4): Energy Barrier (free, cyan), Plasma Guard (250, orange), Void Ward (500, purple), Gold Guard (750, gold)
+- **Nova Beam** (4): Cyan Beam (free), Inferno (350, red-orange), Void Pulse (650, magenta), Eclipse (950, gold)
+- Shop has "Watch Ad → Earn 75 NOVA" banner
 
-### Shield Pickups
-- Dropped by monsters on death (grunt 7.5%, speeder 5%, tank 20%)
-- Restores 50 shield HP (max 50); shield absorbs damage before HP; rendered as cyan ring on player
+### High Score & Run Stats
+- `StatsManager` singleton persists `bestLevel` + `bestKills` via SharedPreferences
+- Game-over screen shows: current level + kills, all-time bests, gold "NEW BEST!" badge
+
+### Pickups
+- **Shield**: dropped by monsters (grunt 5.3%, speeder 3.5%, tank 14%, caster 6%); restores 50 shield HP
+- **Health**: dropped by monsters (grunt 4.9%, speeder 3.7%, tank 12.25%, caster 5.6%); heals 30 HP; 8s lifetime
 
 ### App Icon & Splash Screen
-- Source files: `assets/icon/icon.png` (1024×1024), `assets/splash/splash.png`
-- Generated with `flutter_launcher_icons` (all iOS + Android sizes) and `flutter_native_splash` (incl. Android 12 values-v31)
-- To regenerate after changing source images: `dart run flutter_launcher_icons && dart run flutter_native_splash:create`
+- Source: `assets/icon/icon.png` (1024×1024), `assets/splash/splash.png`
+- Regenerate: `dart run flutter_launcher_icons && dart run flutter_native_splash:create`
 
 ---
 
@@ -151,43 +176,34 @@ lib/
 
 3. **HomingBolt skips `super.update()`**: Handles own movement so fixed-direction Projectile.update() doesn't override steering. Collision still runs independently.
 
-4. **ExplosiveBolt/FrostShard/BossProjectile don't call `super.onCollisionStart()`**: Override completely. BossProjectile extends Projectile but only responds to `Player` — so it ignores monsters even though they're passive hitbox targets.
+4. **ExplosiveBolt/FrostShard/BossProjectile don't call `super.onCollisionStart()`**: Override completely. BossProjectile only responds to `Player`.
 
-5. **Boss death hook**: `Monster._die()` calls `onDie()` virtual method before `removeFromParent()`. `BossMonster.onDie()` calls `game.onBossKilled()`. Regular monsters leave `onDie()` empty.
+5. **Boss death hook**: `Monster._die()` calls `onDie()` virtual. `BossMonster.onDie()` calls `game.onBossKilled()`. Regular monsters leave `onDie()` empty.
 
-6. **Multi-pick overlay trick**: `overlays.remove('LevelUp')` then `overlays.add('LevelUp')` in the same frame forces Flutter to rebuild `LevelUpScreen` with fresh cards for the next pick.
+6. **Multi-pick overlay trick**: `overlays.remove('LevelUp')` then `overlays.add('LevelUp')` in the same frame forces Flutter to rebuild `LevelUpScreen` with fresh cards.
 
-7. **`Projectile.lifetime` is public**: Renamed from `_lifetime` so `HomingBolt` can increment it without calling `super.update()`.
+7. **`Projectile.lifetime` is public**: Renamed from `_lifetime` so `HomingBolt` can increment it without `super.update()`.
 
 8. **flame_audio path fix**: `FlameAudio.updatePrefix('assets/')` — flame_audio defaults to `assets/audio/` which breaks since audio files are directly in `assets/`.
 
 9. **AdManager interstitial fallthrough**: If no interstitial is loaded, `showInterstitialAd()` calls `onDismissed` immediately so the menu transition is never blocked.
 
-10. **StarBackground re-init on restart**: `restart()` removes and re-adds `StarBackground` so a background theme change in the shop takes effect on Play Again (not just after returning to menu).
+10. **Background re-init**: `onBossKilled()` and `restart()` both remove and re-add `StarBackground` so the phase-correct star field is shown immediately.
 
-11. **Loading screen async init**: `AdManager`, `CoinManager`, and `AudioManager` all init inside `_initialize()` in `_NovaboltAppState` — NOT in `main()`. `runApp()` is called immediately so the Flutter loading screen is visible during init. `AnimatedSwitcher` fades to the main menu when done.
+11. **Loading screen async init**: `AdManager`, `CoinManager`, `AudioManager`, and `StatsManager` all init inside `_initialize()` — NOT in `main()`. `runApp()` is called first so the splash is visible during init.
 
-12. **Native bundle IDs not renamed**: iOS bundle ID is still `com.sammorrison.runebolt`, Android applicationId `com.runebolt.runebolt`. Changing these requires new provisioning profiles — do before first App Store submission.
+12. **Bundle IDs**: iOS `com.sammorrison.novabolt` (Runner target + RunnerTests), Android `com.sammorrison.novabolt` (`build.gradle.kts` + `MainActivity.kt` path).
+
+13. **Enemy phase rendering**: Each monster reads `game.bossPhase.clamp(0, 2)` in `render()` and `deathColor`. Safe because `game` is always mounted when rendering or taking damage.
+
+14. **effectiveLevel in WaveSystem**: Monster stats use `currentLevel + bossPhase * 5` so enemies are harder after each boss, but spawn *timing* still uses `currentLevel` so pacing stays correct.
+
+15. **isUpgradeable on Weapon**: `WeaponExplosiveBolt` sets `isUpgradeable = false`; `generateUpgradeCards()` skips it in the upgrade pool. Use this flag on any future one-shot weapons.
 
 ---
 
 ## What's Left
 
-### High Priority
-| Feature | Notes |
-|---|---|
-| **Android ad unit IDs** | Replace placeholder test IDs in `AdManager` with real Android rewarded + interstitial unit IDs |
-| **Bundle ID rename** | iOS: update `PRODUCT_BUNDLE_IDENTIFIER` in `project.pbxproj` + provisioning profile. Android: rename `com.runebolt.runebolt` → `com.sammorrison.novabolt` in `build.gradle.kts` + move `MainActivity.kt` |
-
-### Medium Priority
-| Feature | Notes |
-|---|---|
-| **Caster monster** | Ranged attacker — fires straight projectiles at player on timer; new `CasterProjectile` component |
-| **Sound SFX** | Per-weapon fire, hit, death, level-up sounds via `AudioManager` |
-| **High score / run stats** | Persist best level reached, total kills per run; show on game-over screen |
-
-### Low Priority
-| Feature | Notes |
-|---|---|
-| **Real sprite assets** | Replace Canvas drawing with `Sprite`/`SpriteAnimation`; assets go in `assets/images/` |
-| **More bosses** | Second boss type at levels 20+; introduce alongside or after Caster monster |
+| Priority | Feature | Notes |
+|---|---|---|
+| Medium | **Sound SFX** | Per-weapon fire, hit, death, level-up sounds via `AudioManager` |

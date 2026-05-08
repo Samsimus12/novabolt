@@ -23,9 +23,14 @@ class AdManager {
       : 'ca-app-pub-3940256099942544/1033173712'; // TODO: replace with Android unit ID
 
   Future<void> init() async {
-    await MobileAds.instance.initialize();
-    _loadRewardedAd();
-    _loadInterstitialAd();
+    try {
+      await MobileAds.instance.initialize();
+      _loadRewardedAd();
+      _loadInterstitialAd();
+    } catch (e) {
+      // Simulator doesn't have the objective_c dylib — ads silently unavailable
+      debugPrint('AdManager init skipped: $e');
+    }
   }
 
   void _loadRewardedAd() {

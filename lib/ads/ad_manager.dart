@@ -16,11 +16,11 @@ class AdManager {
 
   static String get _rewardedAdUnitId => Platform.isIOS
       ? 'ca-app-pub-7289760521218684/2091997829'
-      : 'ca-app-pub-3940256099942544/5224354917'; // TODO: replace with Android unit ID
+      : 'ca-app-pub-7289760521218684/6704964598';
 
   static String get _interstitialAdUnitId => Platform.isIOS
       ? 'ca-app-pub-7289760521218684/6268642442'
-      : 'ca-app-pub-3940256099942544/1033173712'; // TODO: replace with Android unit ID
+      : 'ca-app-pub-7289760521218684/3043097357';
 
   Future<void> init() async {
     try {

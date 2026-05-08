@@ -38,8 +38,11 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   @override
   Color backgroundColor() => switch (CoinManager.instance.selectedBackground) {
-        'dark_void' => const Color(0xFF020208),
-        'nebula' => const Color(0xFF0A0018),
+        'dark_void'   => const Color(0xFF020208),
+        'nebula'      => const Color(0xFF0A0018),
+        'aurora'      => const Color(0xFF001A0F),
+        'blood_moon'  => const Color(0xFF150000),
+        'galaxy'      => const Color(0xFF0D0020),
         _ => const Color(0xFF0D0D2B),
       };
 

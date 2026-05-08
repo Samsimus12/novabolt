@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../ads/ad_manager.dart';
+import '../audio/audio_manager.dart';
 import '../coins/coin_manager.dart';
 
 // ── Item definitions ──────────────────────────────────────────────────────────
@@ -63,6 +65,30 @@ const _skins = [
     wing: Color(0xFFBF360C),
     cockpit: Color(0xFFFFAB91),
   ),
+  _SkinItem(
+    id: 'shadow',
+    name: 'Shadow Viper',
+    price: 700,
+    primary: Color(0xFF9C27B0),
+    wing: Color(0xFF4A0072),
+    cockpit: Color(0xFFEA80FC),
+  ),
+  _SkinItem(
+    id: 'solar',
+    name: 'Solar Flare',
+    price: 900,
+    primary: Color(0xFFFFD600),
+    wing: Color(0xFFF57F17),
+    cockpit: Color(0xFFFFFFFF),
+  ),
+  _SkinItem(
+    id: 'void',
+    name: 'Void Phantom',
+    price: 1200,
+    primary: Color(0xFF00B0FF),
+    wing: Color(0xFF0D47A1),
+    cockpit: Color(0xFF80D8FF),
+  ),
 ];
 
 const _backgrounds = [
@@ -93,6 +119,42 @@ const _backgrounds = [
       Color(0xFF60FFC0),
     ],
   ),
+  _BgItem(
+    id: 'aurora',
+    name: 'Aurora',
+    price: 600,
+    bgColor: Color(0xFF001A0F),
+    starColors: [
+      Color(0xFF00E676),
+      Color(0xFF1DE9B6),
+      Color(0xFF40C4FF),
+      Color(0xFFCCFF90),
+    ],
+  ),
+  _BgItem(
+    id: 'blood_moon',
+    name: 'Blood Moon',
+    price: 800,
+    bgColor: Color(0xFF150000),
+    starColors: [
+      Color(0xFFFF1744),
+      Color(0xFFFF6D00),
+      Color(0xFFFF8A65),
+    ],
+  ),
+  _BgItem(
+    id: 'galaxy',
+    name: 'Galaxy Core',
+    price: 1000,
+    bgColor: Color(0xFF0D0020),
+    starColors: [
+      Color(0xFFCE93D8),
+      Color(0xFFFFD54F),
+      Color(0xFFE040FB),
+      Color(0xFFFFFFFF),
+      Color(0xFF82B1FF),
+    ],
+  ),
 ];
 
 // Pre-generated star positions for previews (fixed seed = deterministic)
@@ -110,6 +172,10 @@ final _previewStarData = () {
   );
 }();
 
+const _adCoinsReward = 75;
+const _cardWidth = 120.0;
+const _cardListHeight = 195.0;
+
 // ── Shop screen ───────────────────────────────────────────────────────────────
 
 class ShopScreen extends StatefulWidget {
@@ -121,6 +187,7 @@ class ShopScreen extends StatefulWidget {
 
 class _ShopScreenState extends State<ShopScreen> {
   final _mgr = CoinManager.instance;
+  final _ads = AdManager.instance;
 
   Future<void> _buySkin(String id, int price) async {
     final ok = await _mgr.purchase('skin_$id', price);
@@ -148,6 +215,16 @@ class _ShopScreenState extends State<ShopScreen> {
     if (mounted) setState(() {});
   }
 
+  void _watchAdForCoins() {
+    _ads.showRewardedAd(
+      onRewarded: () async {
+        await _mgr.addCoins(_adCoinsReward);
+        if (mounted) setState(() {});
+      },
+      onDismissed: () => AudioManager.instance.playMenu(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -166,39 +243,52 @@ class _ShopScreenState extends State<ShopScreen> {
               _buildTopBar(context),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _sectionHeader('SHIP SKINS'),
+                      _buildEarnNovaSection(),
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _sectionHeader('SHIP SKINS'),
+                      ),
                       const SizedBox(height: 10),
-                      Row(
-                        children: _skins
-                            .map((s) => Expanded(child: _SkinCard(
-                                  item: s,
-                                  owned: _mgr.owns('skin_${s.id}'),
-                                  equipped: _mgr.selectedSkin == s.id,
-                                  canAfford: _mgr.totalCoins >= s.price,
-                                  onBuy: () => _buySkin(s.id, s.price),
-                                  onEquip: () => _equipSkin(s.id),
-                                )))
-                            .toList(),
+                      _buildHorizontalList(
+                        itemCount: _skins.length,
+                        builder: (i) {
+                          final s = _skins[i];
+                          return _SkinCard(
+                            item: s,
+                            owned: _mgr.owns('skin_${s.id}'),
+                            equipped: _mgr.selectedSkin == s.id,
+                            canAfford: _mgr.totalCoins >= s.price,
+                            onBuy: () => _buySkin(s.id, s.price),
+                            onEquip: () => _equipSkin(s.id),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
-                      _sectionHeader('BACKGROUNDS'),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: _backgrounds
-                            .map((b) => Expanded(child: _BgCard(
-                                  item: b,
-                                  owned: _mgr.owns('bg_${b.id}'),
-                                  equipped: _mgr.selectedBackground == b.id,
-                                  canAfford: _mgr.totalCoins >= b.price,
-                                  onBuy: () => _buyBg(b.id, b.price),
-                                  onEquip: () => _equipBg(b.id),
-                                )))
-                            .toList(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _sectionHeader('BACKGROUNDS'),
                       ),
+                      const SizedBox(height: 10),
+                      _buildHorizontalList(
+                        itemCount: _backgrounds.length,
+                        builder: (i) {
+                          final b = _backgrounds[i];
+                          return _BgCard(
+                            item: b,
+                            owned: _mgr.owns('bg_${b.id}'),
+                            equipped: _mgr.selectedBackground == b.id,
+                            canAfford: _mgr.totalCoins >= b.price,
+                            onBuy: () => _buyBg(b.id, b.price),
+                            onEquip: () => _equipBg(b.id),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -206,6 +296,42 @@ class _ShopScreenState extends State<ShopScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHorizontalList({
+    required int itemCount,
+    required Widget Function(int) builder,
+  }) {
+    return SizedBox(
+      height: _cardListHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: itemCount,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => SizedBox(width: _cardWidth, child: builder(i)),
+      ),
+    );
+  }
+
+  Widget _buildEarnNovaSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader('EARN NOVA'),
+          const SizedBox(height: 10),
+          ValueListenableBuilder<bool>(
+            valueListenable: _ads.rewardedAdReady,
+            builder: (_, ready, __) => _AdBanner(
+              ready: ready,
+              onWatch: _watchAdForCoins,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -277,6 +403,86 @@ class _ShopScreenState extends State<ShopScreen> {
         ),
         Expanded(child: Divider(color: Colors.white.withAlpha(30))),
       ],
+    );
+  }
+}
+
+// ── Ad banner ─────────────────────────────────────────────────────────────────
+
+class _AdBanner extends StatelessWidget {
+  final bool ready;
+  final VoidCallback onWatch;
+  const _AdBanner({required this.ready, required this.onWatch});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1A12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: ready
+              ? const Color(0x88FFD700)
+              : const Color(0x33FFFFFF),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Text('📺', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Watch an ad',
+                  style: TextStyle(
+                    color: Color(0xEEF5F5DC),
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Earn $_adCoinsReward ⚡ NOVA instantly',
+                  style: TextStyle(color: Color(0x99F5F5DC), fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          TextButton(
+            onPressed: ready ? onWatch : null,
+            style: TextButton.styleFrom(
+              backgroundColor: ready
+                  ? const Color(0x33FFD700)
+                  : const Color(0x11FFFFFF),
+              foregroundColor: ready
+                  ? const Color(0xFFFFD700)
+                  : const Color(0x55FFFFFF),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+                side: BorderSide(
+                  color: ready
+                      ? const Color(0x88FFD700)
+                      : const Color(0x22FFFFFF),
+                ),
+              ),
+            ),
+            child: Text(
+              ready ? 'WATCH' : 'LOADING',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -392,7 +598,6 @@ class _ItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
       decoration: BoxDecoration(
         color: equipped

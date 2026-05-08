@@ -59,7 +59,10 @@ class AdManager {
     );
   }
 
-  void showRewardedAd({required VoidCallback onRewarded}) {
+  void showRewardedAd({
+    required VoidCallback onRewarded,
+    VoidCallback? onDismissed,
+  }) {
     final ad = _rewardedAd;
     if (ad == null) return;
     _rewardedAd = null;
@@ -67,7 +70,9 @@ class AdManager {
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (_) => AudioManager.instance.stop(),
       onAdDismissedFullScreenContent: (ad) {
-        AudioManager.instance.playGame();
+        onDismissed != null
+            ? onDismissed()
+            : AudioManager.instance.playGame();
         ad.dispose();
         _loadRewardedAd();
       },

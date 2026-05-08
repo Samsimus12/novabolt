@@ -40,6 +40,27 @@ _SkinPalette _paletteForSkin(String skin) => switch (skin) {
           glow: Color(0xAADD2C00),
           highlight: Color(0xFFFF8A65),
         ),
+      'shadow' => const _SkinPalette(
+          fuselage: Color(0xFF9C27B0),
+          wings: Color(0xFF4A0072),
+          cockpit: Color(0xFFEA80FC),
+          glow: Color(0xAA7B1FA2),
+          highlight: Color(0xFFCE93D8),
+        ),
+      'solar' => const _SkinPalette(
+          fuselage: Color(0xFFFFD600),
+          wings: Color(0xFFF57F17),
+          cockpit: Color(0xFFFFFFFF),
+          glow: Color(0xAAFF8F00),
+          highlight: Color(0xFFFFF176),
+        ),
+      'void' => const _SkinPalette(
+          fuselage: Color(0xFF00B0FF),
+          wings: Color(0xFF0D47A1),
+          cockpit: Color(0xFF80D8FF),
+          glow: Color(0xAA0091EA),
+          highlight: Color(0xFFB3E5FC),
+        ),
       _ => const _SkinPalette(
           fuselage: Color(0xFFFFD700),
           wings: Color(0xFFDDB500),

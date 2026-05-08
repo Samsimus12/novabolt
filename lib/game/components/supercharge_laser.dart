@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../../coins/coin_manager.dart';
 import '../novabolt_game.dart';
 import 'monster.dart';
 
@@ -11,6 +12,13 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
   static const double halfWidth = 18.0;
 
   SuperchargeLaser() : super(priority: 4);
+
+  Color get _beamColor => switch (CoinManager.instance.selectedNovaTheme) {
+        'nova_inferno' => const Color(0xFFFF3D00),
+        'nova_void'    => const Color(0xFFFF00FF),
+        'nova_eclipse' => const Color(0xFFFFD700),
+        _              => const Color(0xFF00E5FF),
+      };
 
   @override
   void update(double dt) {
@@ -21,6 +29,7 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
 
     final origin = game.player.position;
     final dir = game.player.aimDirection;
+    final effectiveDps = dps * game.superchargeSystem.damageMultiplier;
 
     for (final monster in game.world.children.whereType<Monster>().toList()) {
       if (monster.isDead) continue;
@@ -29,7 +38,7 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
       if (along < 0) continue;
       final perp = (delta - dir * along).length;
       if (perp < halfWidth + monster.size.x / 2) {
-        monster.takeDamage(dps * dt);
+        monster.takeDamage(effectiveDps * dt);
       }
     }
   }
@@ -38,6 +47,7 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
   void render(Canvas canvas) {
     final origin = game.player.position;
     final dir = game.player.aimDirection;
+    final color = _beamColor;
 
     final screenW = game.size.x;
     final screenH = game.size.y;
@@ -58,7 +68,7 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
         ..lineTo(origin.x - perpX * 2, origin.y - perpY * 2)
         ..close(),
       Paint()
-        ..color = const Color(0x4400E5FF)
+        ..color = color.withAlpha(68)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
 
@@ -74,7 +84,7 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
         ..shader = Gradient.linear(
           Offset(origin.x, origin.y),
           Offset(endX, endY),
-          [const Color(0xBB00E5FF), const Color(0x0000E5FF)],
+          [color.withAlpha(187), color.withAlpha(0)],
         ),
     );
 

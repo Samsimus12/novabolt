@@ -272,6 +272,13 @@ class Player extends PositionComponent
     _renderShield(canvas);
   }
 
+  Color get _shieldColor => switch (CoinManager.instance.selectedShieldSkin) {
+        'shield_plasma' => const Color(0xFFFF6B35),
+        'shield_void'   => const Color(0xFFCC00FF),
+        'shield_gold'   => const Color(0xFFFFD700),
+        _               => const Color(0xFF00E5FF),
+      };
+
   void _renderShield(Canvas canvas) {
     if (shieldHp <= 0) return;
     final cx = size.x / 2;
@@ -280,22 +287,21 @@ class Player extends PositionComponent
     final alpha = (fraction * 200 + 30).toInt();
     final strokeW = fraction * 3.0 + 1.0;
     const ringRadius = 28.0;
+    final sc = _shieldColor;
 
-    // Glow
     canvas.drawCircle(
       Offset(cx, cy),
       ringRadius,
       Paint()
-        ..color = Color.fromARGB((alpha ~/ 3), 0, 229, 255)
+        ..color = Color.fromARGB(alpha ~/ 3, sc.red, sc.green, sc.blue)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeW + 10
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
 
-    // Ring (flashes white on hit)
     final ringColor = _shieldFlashTimer > 0
-        ? Color.fromARGB(200, 255, 255, 255)
-        : Color.fromARGB(alpha, 0, 229, 255);
+        ? const Color(0xC8FFFFFF)
+        : Color.fromARGB(alpha, sc.red, sc.green, sc.blue);
     canvas.drawCircle(
       Offset(cx, cy),
       ringRadius,

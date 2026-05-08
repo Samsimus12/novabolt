@@ -4,7 +4,6 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show EdgeInsets;
 
-import '../coins/coin_manager.dart';
 import '../stats/stats_manager.dart';
 import 'components/background.dart';
 import 'components/hud.dart';
@@ -41,13 +40,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   int _picksRemaining = 0;
 
   @override
-  Color backgroundColor() => switch (CoinManager.instance.selectedBackground) {
-        'dark_void'   => const Color(0xFF020208),
-        'nebula'      => const Color(0xFF0A0018),
-        'aurora'      => const Color(0xFF001A0F),
-        'blood_moon'  => const Color(0xFF150000),
-        'galaxy'      => const Color(0xFF0D0020),
-        _ => const Color(0xFF0D0D2B),
+  Color backgroundColor() => switch (bossPhase.clamp(0, 2)) {
+        1 => const Color(0xFF0A0018),  // nebula purple
+        2 => const Color(0xFF150000),  // blood moon red
+        _ => const Color(0xFF0D0D2B),  // deep space
       };
 
   @override
@@ -109,6 +105,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   void onBossKilled() {
     activeBoss = null;
     bossPhase++;
+    world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
+    world.add(StarBackground());
     _waveSystem.onBossKilled();
     _showLevelUp(xpSystem.currentLevel);
   }

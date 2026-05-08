@@ -9,8 +9,9 @@ class SuperchargeSystem {
   double _charge = 0;
   bool _isActive = false;
 
-  double chargeMultiplier = 1.0;  // increased by Nova Accelerator upgrade
-  double depleteMultiplier = 1.0; // decreased by Extended Beam upgrade
+  double chargeMultiplier = 1.0;
+  double depleteMultiplier = 1.0;
+  double damageMultiplier = 1.0;
 
   double get charge => _charge;
   double get fraction => (_charge / maxCharge).clamp(0.0, 1.0);
@@ -53,6 +54,7 @@ class SuperchargeSystem {
     _isActive = false;
     chargeMultiplier = 1.0;
     depleteMultiplier = 1.0;
+    damageMultiplier = 1.0;
     stateNotifier.value = SuperchargeState.charging;
   }
 }

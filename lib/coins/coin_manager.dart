@@ -10,17 +10,21 @@ class CoinManager {
   String _selectedSkin = 'default';
   String get selectedSkin => _selectedSkin;
 
-  String _selectedBackground = 'default';
-  String get selectedBackground => _selectedBackground;
+  String _selectedShieldSkin = 'shield_default';
+  String get selectedShieldSkin => _selectedShieldSkin;
 
-  final Set<String> _owned = {'skin_default', 'bg_default'};
+  String _selectedNovaTheme = 'nova_default';
+  String get selectedNovaTheme => _selectedNovaTheme;
+
+  final Set<String> _owned = {'skin_default', 'shield_default', 'nova_default'};
   bool owns(String id) => _owned.contains(id);
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _totalCoins = prefs.getInt('coins_total') ?? 0;
     _selectedSkin = prefs.getString('skin_selected') ?? 'default';
-    _selectedBackground = prefs.getString('bg_selected') ?? 'default';
+    _selectedShieldSkin = prefs.getString('shield_skin_selected') ?? 'shield_default';
+    _selectedNovaTheme = prefs.getString('nova_theme_selected') ?? 'nova_default';
     final saved = prefs.getStringList('items_owned') ?? [];
     _owned.addAll(saved);
   }
@@ -48,10 +52,17 @@ class CoinManager {
     await prefs.setString('skin_selected', skinId);
   }
 
-  Future<void> selectBackground(String bgId) async {
-    if (!_owned.contains('bg_$bgId')) return;
-    _selectedBackground = bgId;
+  Future<void> selectShieldSkin(String id) async {
+    if (!_owned.contains(id)) return;
+    _selectedShieldSkin = id;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('bg_selected', bgId);
+    await prefs.setString('shield_skin_selected', id);
+  }
+
+  Future<void> selectNovaTheme(String id) async {
+    if (!_owned.contains(id)) return;
+    _selectedNovaTheme = id;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('nova_theme_selected', id);
   }
 }

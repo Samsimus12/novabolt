@@ -167,6 +167,12 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
         }
       },
     ),
+    StatBuffCard(
+      title: 'Nova Overload',
+      description: 'Nova beam deals 30% more damage',
+      icon: '⚡',
+      apply: (g) => g.superchargeSystem.damageMultiplier += 0.30,
+    ),
   ];
 
   pool.addAll(statBuffs);

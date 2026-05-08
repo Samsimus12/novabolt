@@ -82,11 +82,6 @@ class _HudButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = highlight
-        ? const Color(0xFF00E5FF)
-        : onTap == null
-            ? const Color(0x559B59B6)
-            : const Color(0xFF9B59B6);
     final textColor = onTap == null ? const Color(0x55F5F5DC) : const Color(0xFFF5F5DC);
     return GestureDetector(
       onTap: onTap,
@@ -95,7 +90,9 @@ class _HudButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xAA000010),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1.5),
+          border: highlight
+              ? Border.all(color: const Color(0xFF00E5FF), width: 1.5)
+              : null,
         ),
         child: Text(
           label,

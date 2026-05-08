@@ -45,9 +45,9 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
 
   void _drawHpBar(Canvas canvas, double screenW) {
     const x = 16.0;
-    const y = 100.0;
+    const y = 114.0;
     final w = screenW - 32;
-    const h = 14.0;
+    const h = 20.0;
     final fraction =
         (game.player.currentHp / game.player.maxHp).clamp(0.0, 1.0);
     _drawBar(canvas,
@@ -59,21 +59,21 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
         fg: const Color(0xFFE74C3C),
         bg: const Color(0xFF3A1010));
 
-    _labelStyle.render(canvas, 'HP', Vector2(x + 4, y - 1));
+    _labelStyle.render(canvas, 'HP', Vector2(x + 4, y + 3));
   }
 
   void _drawSuperchargeBar(Canvas canvas, double screenW, double screenH) {
     const x = 16.0;
-    const hpBarBottom = 100.0 + 14.0;
+    const hpBarBottom = 114.0 + 20.0;
     const y = hpBarBottom + 6.0;
-    const h = 10.0;
+    const h = 18.0;
     final w = screenW - 32;
     final fraction = game.superchargeSystem.fraction;
     final state = game.superchargeSystem.stateNotifier.value;
     final isLit = state == SuperchargeState.ready || state == SuperchargeState.active;
     final fg = isLit ? const Color(0xFF00E5FF) : const Color(0xFF006E8A);
     _drawBar(canvas, x: x, y: y, w: w, h: h, fraction: fraction, fg: fg, bg: const Color(0xFF06141A));
-    _labelStyle.render(canvas, 'NOVA', Vector2(x + 4, y - 1));
+    _labelStyle.render(canvas, 'NOVA', Vector2(x + 4, y + 2));
   }
 
   void _drawXpBar(Canvas canvas, double screenW, double screenH) {
@@ -118,7 +118,7 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
 
   void _drawBossBar(Canvas canvas, double screenW, BossMonster boss) {
     const x = 16.0;
-    const novaBarBottom = 100.0 + 14.0 + 6.0 + 10.0;
+    const novaBarBottom = 114.0 + 20.0 + 6.0 + 18.0;
     const y = novaBarBottom + 10.0;
     const h = 16.0;
     final w = screenW - 32;

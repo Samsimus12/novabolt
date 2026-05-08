@@ -6,14 +6,14 @@ The player pilots a fighter jet against waves of asteroids and alien ships. Left
 aims and fires. Killing enemies earns XP; leveling up shows a card upgrade picker (picks scale with level).
 A Supercharge bar fills as enemies die — activate for a screen-wide laser beam. Every 10 levels spawns a
 Dreadnought boss fight. AdMob ads are live: interstitial on menu return, rewarded "continue at 50% HP" on game-over.
+A NOVA coin economy lets players earn currency per run and spend it in the shop on ship skins and star-field backgrounds.
 
 **GitHub**: https://github.com/Samsimus12/novabolt
-*(Code files still use `runebolt` naming — `runebolt_game.dart`, class `RuneboltGame`, etc. — rename is a pending TODO)*
 
 ## How to Run
 ```bash
 flutter pub get
-cd ios && pod install && cd ..   # after adding plugins (google_mobile_ads now included)
+cd ios && pod install && cd ..   # after adding plugins
 flutter run -d "Samsimus"        # physical iPhone (preferred)
 # Hot reload: r  |  Hot restart: R  |  Quit: q
 # NOTE: after native changes (pods, Info.plist) always do a full flutter run, not hot reload
@@ -24,8 +24,10 @@ flutter run -d "Samsimus"        # physical iPhone (preferred)
 - **Flame 1.37.0** — 2D game engine; game loop, collision detection, camera, joystick
 - **flame_audio 2.12.1** — BGM (Menu.wav, Fighting.wav, Flying.wav) in `assets/`
 - **google_mobile_ads 5.3.1** — AdMob rewarded + interstitial ads
-- **shared_preferences** — persists music toggle setting
-- All visuals are **code-drawn** (Canvas primitives) — no image assets yet
+- **shared_preferences** — persists music toggle, coins, owned shop items, selected skin/bg
+- **flutter_launcher_icons** (dev) — generates all iOS + Android icon sizes from `assets/icon/icon.png`
+- **flutter_native_splash** (dev) — generates native launch screens from `assets/splash/splash.png`
+- All visuals are **code-drawn** (Canvas primitives) — no image assets in gameplay
 - **NOT Expo/EAS** — Flutter/Dart ecosystem only
 
 ---
@@ -34,15 +36,17 @@ flutter run -d "Samsimus"        # physical iPhone (preferred)
 
 ```
 lib/
-├── main.dart                          # NovaboltApp — routes MainMenu/Game; inits AdManager; interstitial on menu return
+├── main.dart                          # NovaboltApp — loading screen → menu/game; AnimatedSwitcher fade; async init in widget tree
 ├── ads/
-│   └── ad_manager.dart               # Singleton; loads/shows rewarded + interstitial; rewardedAdReady ValueNotifier
+│   └── ad_manager.dart               # Singleton; loads/shows rewarded + interstitial; pauses/resumes music around ads
 ├── audio/
 │   └── audio_manager.dart            # Singleton; FlameAudio.updatePrefix('assets/'); plays Menu/Fighting/Flying
+├── coins/
+│   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selectedSkin/bg via SharedPreferences
 ├── game/
-│   ├── runebolt_game.dart            # FlameGame root — activeBoss, picksTotal, continueWithHalfHp(), _showLevelUp()
+│   ├── novabolt_game.dart            # FlameGame root — activeBoss, picksTotal, hasUsedContinue, continueWithHalfHp(), _showLevelUp()
 │   ├── components/
-│   │   ├── player.dart               # Fighter jet; left-stick move, right-stick aim; takeDamage(); shield system
+│   │   ├── player.dart               # Fighter jet; skin-aware render (_SkinPalette); left-stick move, right-stick aim; shield system
 │   │   ├── weapon.dart               # Abstract Weapon — fires only when aimJoystick active
 │   │   ├── weapon_magic_bolt.dart    # Starter (cyan #00E5FF, 15dmg, 2/sec)
 │   │   ├── weapon_spread_shot.dart   # 3-bolt fan (gold #F4A800)
@@ -62,8 +66,8 @@ lib/
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
 │   │   ├── supercharge_laser.dart    # World Component (priority 4) — wide cyan beam; dot-product collision
 │   │   ├── death_particles.dart      # 10 dots burst, fade over 0.45s
-│   │   ├── background.dart           # 120 stars drifting downward
-│   │   └── hud.dart                  # HP/NOVA bars (top), XP bar (bottom), Lvl badge, boss bar (purple, shown during boss)
+│   │   ├── background.dart           # Theme-aware star field; reads CoinManager.selectedBackground; re-inits on restart()
+│   │   └── hud.dart                  # HP bar (y=114, h=20) / NOVA bar (h=18), XP bar (bottom), Lvl badge, boss bar
 │   ├── systems/
 │   │   ├── wave_system.dart          # Regular + tank timers; _isBossFight pauses all spawning; startBossFight()
 │   │   ├── xp_system.dart            # XP tracking; threshold × 1.5/level starting at 50
@@ -73,10 +77,12 @@ lib/
 │       ├── weapon_data.dart          # WeaponStats stub (unused)
 │       └── upgrade_cards.dart        # UpgradeCard pool — 6 weapons + 4 stat buffs; generateUpgradeCards()
 ├── screens/
-│   ├── main_menu_screen.dart         # Animated living background (Ticker + CustomPainter), PLAY, settings cog
-│   ├── game_controls_overlay.dart    # Back + Pause (top); NOVA button (center-bottom)
+│   ├── loading_screen.dart           # Shown on cold boot while AdManager/CoinManager/AudioManager init; fades to menu
+│   ├── main_menu_screen.dart         # Animated living background; PLAY + SHOP buttons; coin balance (top-left)
+│   ├── shop_screen.dart              # Buy/equip ship skins + backgrounds with NOVA coins; CustomPaint previews
+│   ├── game_controls_overlay.dart    # Back + Pause (no border); NOVA button (center-bottom, cyan border when ready)
 │   ├── level_up_screen.dart          # Card picker overlay; shows "Pick X of Y" when picksTotal > 1
-│   └── game_over_screen.dart        # StatefulWidget; "Watch Ad → Continue" button reacts to rewardedAdReady notifier
+│   └── game_over_screen.dart         # Shows "+N NOVA earned"; awards coins on exit; "Watch Ad → Continue" (once per run)
 ```
 
 ---
@@ -104,18 +110,36 @@ lib/
 - Level 1–4 → 1 pick, level 5–9 → 2, level 10–14 → 3, capped at 5
 - `resumeFromLevelUp()` decrements `_picksRemaining`; removes + re-adds 'LevelUp' overlay for each pick (forces Flutter rebuild with fresh cards)
 - "Pick X of Y" counter shown in cyan when picksTotal > 1
-- Boss-level (÷10) skips normal level-up screen entirely; post-boss kill triggers `_showLevelUp()` with the boss-level pick count
+- Boss-level (÷10) skips normal level-up screen; post-boss kill triggers `_showLevelUp()` with boss-level pick count
 
 ### AdMob Ads
 - **App ID**: `ca-app-pub-7289760521218684~5384220043` (set in Info.plist + AndroidManifest)
-- **Rewarded** (`ca-app-pub-7289760521218684/2091997829`): "Watch Ad → Continue (50% HP)" on game-over; button shown/hidden via `AdManager.rewardedAdReady` ValueNotifier; calls `game.continueWithHalfHp()`
-- **Interstitial** (`ca-app-pub-7289760521218684/6268642442`): shown in `_returnToMenu()` before switching to MainMenuScreen; falls through immediately if no ad loaded
-- Both ad types auto-preload after dismiss; Android uses placeholder test IDs (TODO: add real Android units)
-- ⚠️ **Known bug**: rewarded ad can be watched unlimited times per run — needs a `_hasUsedContinue` bool on `RuneboltGame`, checked before showing the button, reset in `restart()`
+- **Rewarded** (`ca-app-pub-7289760521218684/2091997829`): "Watch Ad → Continue (50% HP)" on game-over; limited to once per run via `_hasUsedContinue` on `NovaboltGame`
+- **Interstitial** (`ca-app-pub-7289760521218684/6268642442`): shown in `_returnToMenu()` before switching to MainMenuScreen
+- **Music**: pauses on `onAdShowedFullScreenContent`, resumes on dismiss (`playGame()` for rewarded, `playMenu()` via `_returnToMenu` for interstitial)
+- Both ad types auto-preload after dismiss; Android uses placeholder test IDs (TODO: real Android units)
+
+### NOVA Coins & Shop
+- **Earning**: `level × 10` NOVA per run, awarded when pressing Play Again or Main Menu from game-over screen
+- **Persisted** via `CoinManager` (`SharedPreferences`): total coins, owned items, selected skin, selected background
+- **Shop** accessible from main menu; shows coin balance; two sections: Ship Skins + Backgrounds
+- **Ship Skins** (read each frame in `Player.render()` via `_paletteForSkin()`):
+  - Gold Fighter — default, free
+  - Ice Falcon — 300 NOVA (teal fuselage, ice cockpit)
+  - Flame Hawk — 500 NOVA (red-orange fuselage)
+- **Background Themes** (read in `StarBackground.onLoad()`; re-inits on `restart()`):
+  - Deep Space — default, free (120 pale-blue stars, bg `#0D0D2B`)
+  - Dark Void — 200 NOVA (55 bright-white stars, bg `#020208`)
+  - Nebula — 400 NOVA (150 multicolour stars, bg `#0A0018`)
 
 ### Shield Pickups
 - Dropped by monsters on death (grunt 7.5%, speeder 5%, tank 20%)
 - Restores 50 shield HP (max 50); shield absorbs damage before HP; rendered as cyan ring on player
+
+### App Icon & Splash Screen
+- Source files: `assets/icon/icon.png` (1024×1024), `assets/splash/splash.png`
+- Generated with `flutter_launcher_icons` (all iOS + Android sizes) and `flutter_native_splash` (incl. Android 12 values-v31)
+- To regenerate after changing source images: `dart run flutter_launcher_icons && dart run flutter_native_splash:create`
 
 ---
 
@@ -139,6 +163,12 @@ lib/
 
 9. **AdManager interstitial fallthrough**: If no interstitial is loaded, `showInterstitialAd()` calls `onDismissed` immediately so the menu transition is never blocked.
 
+10. **StarBackground re-init on restart**: `restart()` removes and re-adds `StarBackground` so a background theme change in the shop takes effect on Play Again (not just after returning to menu).
+
+11. **Loading screen async init**: `AdManager`, `CoinManager`, and `AudioManager` all init inside `_initialize()` in `_NovaboltAppState` — NOT in `main()`. `runApp()` is called immediately so the Flutter loading screen is visible during init. `AnimatedSwitcher` fades to the main menu when done.
+
+12. **Native bundle IDs not renamed**: iOS bundle ID is still `com.sammorrison.runebolt`, Android applicationId `com.runebolt.runebolt`. Changing these requires new provisioning profiles — do before first App Store submission.
+
 ---
 
 ## What's Left
@@ -146,20 +176,18 @@ lib/
 ### High Priority
 | Feature | Notes |
 |---|---|
-| **Fix ad continue limit** | Add `bool _hasUsedContinue = false` to `RuneboltGame`; set true in `continueWithHalfHp()`; reset in `restart()`; check in `GameOverScreen` before showing the watch-ad button |
-| **Coins system** | Earn coins per run (based on level). Persist with `SharedPreferences`. Shop screen from main menu — buy ship skins + backgrounds. |
-| **Repo/dir rename** | Rename `runebolt` → `novabolt` throughout: directory, `runebolt_game.dart` → `novabolt_game.dart`, class name, GitHub repo |
+| **Android ad unit IDs** | Replace placeholder test IDs in `AdManager` with real Android rewarded + interstitial unit IDs |
+| **Bundle ID rename** | iOS: update `PRODUCT_BUNDLE_IDENTIFIER` in `project.pbxproj` + provisioning profile. Android: rename `com.runebolt.runebolt` → `com.sammorrison.novabolt` in `build.gradle.kts` + move `MainActivity.kt` |
 
 ### Medium Priority
 | Feature | Notes |
 |---|---|
-| **Ship skins** | 3+ designs (default gold, ice blue, red flame); selected skin stored as string key in SharedPreferences; `Player.render()` switches on it |
-| **Background themes** | Different star densities/colors + nebula gradients; `StarBackground` reads from settings singleton |
 | **Caster monster** | Ranged attacker — fires straight projectiles at player on timer; new `CasterProjectile` component |
 | **Sound SFX** | Per-weapon fire, hit, death, level-up sounds via `AudioManager` |
-| **Android ad unit IDs** | Replace placeholder test IDs in `AdManager` with real Android rewarded + interstitial unit IDs |
+| **High score / run stats** | Persist best level reached, total kills per run; show on game-over screen |
 
 ### Low Priority
 | Feature | Notes |
 |---|---|
 | **Real sprite assets** | Replace Canvas drawing with `Sprite`/`SpriteAnimation`; assets go in `assets/images/` |
+| **More bosses** | Second boss type at levels 20+; introduce alongside or after Caster monster |

@@ -9,14 +9,13 @@ import 'game/novabolt_game.dart';
 import 'screens/game_controls_overlay.dart';
 import 'screens/game_over_screen.dart';
 import 'screens/level_up_screen.dart';
+import 'screens/loading_screen.dart';
 import 'screens/main_menu_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  await AdManager.instance.init();
-  await CoinManager.instance.init();
   runApp(const NovaboltApp());
 }
 
@@ -28,12 +27,21 @@ class NovaboltApp extends StatefulWidget {
 }
 
 class _NovaboltAppState extends State<NovaboltApp> {
+  bool _loaded = false;
   bool _inGame = false;
 
   @override
   void initState() {
     super.initState();
-    AudioManager.instance.init().then((_) => AudioManager.instance.playMenu());
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await AdManager.instance.init();
+    await CoinManager.instance.init();
+    await AudioManager.instance.init();
+    AudioManager.instance.playMenu();
+    if (mounted) setState(() => _loaded = true);
   }
 
   void _startGame() {
@@ -52,7 +60,14 @@ class _NovaboltAppState extends State<NovaboltApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: _inGame ? _buildGame() : MainMenuScreen(onPlay: _startGame),
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        child: _loaded
+            ? (_inGame
+                ? _buildGame()
+                : MainMenuScreen(key: const ValueKey('menu'), onPlay: _startGame))
+            : const LoadingScreen(key: ValueKey('loading')),
+      ),
     );
   }
 

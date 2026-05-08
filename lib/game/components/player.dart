@@ -53,6 +53,7 @@ class Player extends PositionComponent
     with HasGameReference<NovaboltGame>, CollisionCallbacks {
   double maxHp = 100;
   double currentHp = 100;
+  double lifestealPerKill = 0.0;
   double moveSpeed = 180;
   double _facingAngle = 0;
 
@@ -111,6 +112,10 @@ class Player extends PositionComponent
     shieldHp = (shieldHp + amount).clamp(0, maxShieldHp);
   }
 
+  void addHp(double amount) {
+    currentHp = (currentHp + amount).clamp(0, maxHp);
+  }
+
   void takeDamage(double damage) {
     if (game.isGameOver) return;
     if (shieldHp > 0) {
@@ -132,6 +137,7 @@ class Player extends PositionComponent
     maxHp = 100;
     currentHp = 100;
     moveSpeed = 180;
+    lifestealPerKill = 0.0;
     _facingAngle = 0;
     shieldHp = 0;
     _shieldFlashTimer = 0;

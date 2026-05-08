@@ -11,6 +11,7 @@ import 'components/monster.dart';
 import 'components/monster_boss.dart';
 import 'components/player.dart';
 import 'components/projectile.dart';
+import 'components/health_pickup.dart';
 import 'components/shield_pickup.dart';
 import 'components/supercharge_laser.dart';
 import 'data/upgrade_cards.dart';
@@ -27,6 +28,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   late WaveSystem _waveSystem;
 
   List<UpgradeCard> currentCards = [];
+  List<StatBuffCard> bonusCards = [];
   bool isGameOver = false;
   bool _hasUsedContinue = false;
   bool get hasUsedContinue => _hasUsedContinue;
@@ -82,6 +84,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void onMonsterKilled(int xpValue, int chargeValue) {
+    if (player.lifestealPerKill > 0) player.addHp(player.lifestealPerKill);
     superchargeSystem.addCharge(chargeValue.toDouble());
     if (xpValue > 0 && xpSystem.addXp(xpValue)) {
       final level = xpSystem.currentLevel;
@@ -103,6 +106,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     picksTotal = (1 + level ~/ 5).clamp(1, 5);
     _picksRemaining = picksTotal;
     currentCards = generateUpgradeCards(this);
+    bonusCards = rollBonusCards(this);
+    for (final bonus in bonusCards) {
+      bonus.apply(this);
+    }
     overlays.add('LevelUp');
     pauseEngine();
   }
@@ -139,6 +146,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       overlays.add('LevelUp');
     } else {
       currentCards = [];
+      bonusCards = [];
       picksTotal = 0;
       resumeEngine();
     }
@@ -148,11 +156,13 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     isGameOver = false;
     _hasUsedContinue = false;
     currentCards = [];
+    bonusCards = [];
     overlays.remove('GameOver');
     world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<Projectile>().toList().forEach((p) => p.removeFromParent());
     world.children.whereType<SuperchargeLaser>().toList().forEach((l) => l.removeFromParent());
     world.children.whereType<ShieldPickup>().toList().forEach((s) => s.removeFromParent());
+    world.children.whereType<HealthPickup>().toList().forEach((h) => h.removeFromParent());
     world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
     world.add(StarBackground());
     activeBoss = null;

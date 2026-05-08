@@ -55,14 +55,17 @@ class NewWeaponCard extends UpgradeCard {
 class StatBuffCard extends UpgradeCard {
   final String _title;
   final String _description;
+  final String _icon;
   final void Function(NovaboltGame) _apply;
 
   StatBuffCard({
     required String title,
     required String description,
     required void Function(NovaboltGame) apply,
+    String icon = '★',
   })  : _title = title,
         _description = description,
+        _icon = icon,
         _apply = apply;
 
   @override
@@ -70,7 +73,7 @@ class StatBuffCard extends UpgradeCard {
   @override
   String get description => _description;
   @override
-  String get iconLabel => '★';
+  String get iconLabel => _icon;
   @override
   void apply(NovaboltGame game) => _apply(game);
 }
@@ -131,11 +134,12 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
   // Stat buffs — always available
   final statBuffs = [
     StatBuffCard(
-      title: '+25 Hull Plating',
-      description: 'Reinforce hull for +25 max HP',
+      title: 'Targeting Array',
+      description: 'Weapon calibration — all weapons deal 20% more damage',
       apply: (g) {
-        g.player.maxHp += 25;
-        g.player.currentHp = (g.player.currentHp + 25).clamp(0, g.player.maxHp);
+        for (final w in g.player.activeWeapons) {
+          w.damage *= 1.20;
+        }
       },
     ),
     StatBuffCard(
@@ -144,12 +148,9 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       apply: (g) => g.player.moveSpeed *= 1.25,
     ),
     StatBuffCard(
-      title: 'Repair Drones',
-      description: 'Emergency repair restores 40 HP',
-      apply: (g) {
-        g.player.currentHp =
-            (g.player.currentHp + 40).clamp(0, g.player.maxHp);
-      },
+      title: 'Lifesteal Matrix',
+      description: 'Drain life on every kill — restore 3 HP per enemy destroyed',
+      apply: (g) => g.player.lifestealPerKill += 3.0,
     ),
     StatBuffCard(
       title: 'Overcharge',
@@ -167,4 +168,32 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
 
   // Ensure we always return exactly 3 unique cards
   return pool.take(3).toList();
+}
+
+// Rolls 0–2 bonus HP cards (each ~40% chance). Caller applies and displays them.
+List<StatBuffCard> rollBonusCards(NovaboltGame game) {
+  final result = <StatBuffCard>[];
+  final rng = math.Random();
+  if (rng.nextDouble() < 0.25) {
+    result.add(StatBuffCard(
+      title: '+25 Hull Plating',
+      description: 'Reinforce hull for +25 max HP',
+      icon: '♥',
+      apply: (g) {
+        g.player.maxHp += 25;
+        g.player.currentHp = (g.player.currentHp + 25).clamp(0, g.player.maxHp);
+      },
+    ));
+  }
+  if (rng.nextDouble() < 0.25) {
+    result.add(StatBuffCard(
+      title: 'Repair Drones',
+      description: 'Emergency repair restores 40 HP',
+      icon: '♥',
+      apply: (g) {
+        g.player.currentHp = (g.player.currentHp + 40).clamp(0, g.player.maxHp);
+      },
+    ));
+  }
+  return result;
 }

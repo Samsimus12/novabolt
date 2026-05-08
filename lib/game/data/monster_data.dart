@@ -6,6 +6,7 @@ class MonsterStats {
   final int xpValue;
   final int chargeValue;
   final double shieldDropChance;
+  final double healthDropChance;
   final double hpScaleRate;
   final double speedScaleRate;
   final double speedScaleCap;
@@ -18,6 +19,7 @@ class MonsterStats {
     required this.xpValue,
     this.chargeValue = 8,
     this.shieldDropChance = 0.15,
+    this.healthDropChance = 0.10,
     this.hpScaleRate = 0.3,
     this.speedScaleRate = 0.1,
     this.speedScaleCap = 3.0,
@@ -34,6 +36,7 @@ class MonsterStats {
       xpValue: xpValue,
       chargeValue: chargeValue,
       shieldDropChance: shieldDropChance,
+      healthDropChance: healthDropChance,
       hpScaleRate: hpScaleRate,
       speedScaleRate: speedScaleRate,
       speedScaleCap: speedScaleCap,
@@ -48,7 +51,8 @@ const gruntStats = MonsterStats(
   size: 36,
   xpValue: 10,
   chargeValue: 8,
-  shieldDropChance: 0.075,
+  shieldDropChance: 0.053,
+  healthDropChance: 0.07,
 );
 
 const tankStats = MonsterStats(
@@ -58,7 +62,8 @@ const tankStats = MonsterStats(
   size: 60,
   xpValue: 30,
   chargeValue: 25,
-  shieldDropChance: 0.20,
+  shieldDropChance: 0.14,
+  healthDropChance: 0.175,
   hpScaleRate: 0.4,
   speedScaleRate: 0.05,
   speedScaleCap: 2.0,
@@ -71,7 +76,8 @@ const speederStats = MonsterStats(
   size: 22,
   xpValue: 5,
   chargeValue: 5,
-  shieldDropChance: 0.05,
+  shieldDropChance: 0.035,
+  healthDropChance: 0.053,
   hpScaleRate: 0.15,
   speedScaleRate: 0.12,
   speedScaleCap: 2.5,

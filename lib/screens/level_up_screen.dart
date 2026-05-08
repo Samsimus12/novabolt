@@ -49,7 +49,23 @@ class LevelUpScreen extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 32),
+            if (game.bonusCards.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'BONUS',
+                style: TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              for (final bonus in game.bonusCards) _BonusWidget(card: bonus),
+              const SizedBox(height: 16),
+              const Divider(color: Color(0x334CAF50), indent: 24, endIndent: 24),
+            ],
+            const SizedBox(height: 16),
             for (final card in cards) _CardWidget(card: card, game: game),
           ],
         ),
@@ -129,6 +145,74 @@ class _CardWidget extends StatelessWidget {
             Icon(Icons.chevron_right, color: _accent, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BonusWidget extends StatelessWidget {
+  final StatBuffCard card;
+  const _BonusWidget({required this.card});
+
+  static const _green = Color(0xFF4CAF50);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF081A0E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _green.withAlpha(120), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _green.withAlpha(30),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text('♥', style: TextStyle(fontSize: 20, color: _green)),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  card.title,
+                  style: const TextStyle(
+                    color: Color(0xFF4CAF50),
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  card.description,
+                  style: const TextStyle(
+                    color: Color(0xAA4CAF50),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Text(
+            'AUTO',
+            style: TextStyle(
+              color: _green,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

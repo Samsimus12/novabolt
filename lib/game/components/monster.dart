@@ -7,6 +7,7 @@ import 'package:flame/components.dart';
 import '../data/monster_data.dart';
 import '../novabolt_game.dart';
 import 'death_particles.dart';
+import 'health_pickup.dart';
 import 'shield_pickup.dart';
 
 abstract class Monster extends PositionComponent
@@ -66,8 +67,12 @@ abstract class Monster extends PositionComponent
   void _die() {
     isDead = true;
     game.world.add(DeathParticles(position: position.clone(), color: deathColor));
-    if (math.Random().nextDouble() < stats.shieldDropChance) {
+    final rng = math.Random();
+    if (rng.nextDouble() < stats.shieldDropChance) {
       game.world.add(ShieldPickup(position: position.clone()));
+    }
+    if (rng.nextDouble() < stats.healthDropChance) {
+      game.world.add(HealthPickup(position: position.clone()));
     }
     game.onMonsterKilled(stats.xpValue, stats.chargeValue);
     onDie();

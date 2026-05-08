@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 
 import '../components/monster_boss_dreadnought.dart';
+import '../components/monster_boss_void_tyrant.dart';
 import '../components/monster_caster.dart';
 import '../components/monster_grunt.dart';
 import '../components/monster_speeder.dart';
@@ -91,10 +92,10 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     _isBossFight = true;
     _timer = 0;
     _tankTimer = 0;
-    final boss = MonsterBossDreadnought(
-      position: Vector2(game.size.x / 2, -80),
-      playerLevel: playerLevel,
-    );
+    final spawnPos = Vector2(game.size.x / 2, -80);
+    final boss = (playerLevel >= 20 && playerLevel % 20 == 0)
+        ? MonsterBossVoidTyrant(position: spawnPos, playerLevel: playerLevel)
+        : MonsterBossDreadnought(position: spawnPos, playerLevel: playerLevel);
     game.activeBoss = boss;
     game.world.add(boss);
   }

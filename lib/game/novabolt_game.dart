@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show EdgeInsets;
 
 import '../coins/coin_manager.dart';
+import '../stats/stats_manager.dart';
 import 'components/background.dart';
 import 'components/hud.dart';
 import 'components/monster.dart';
@@ -32,6 +33,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   bool isGameOver = false;
   bool _hasUsedContinue = false;
   bool get hasUsedContinue => _hasUsedContinue;
+  int killCount = 0;
+  bool isNewBest = false;
   BossMonster? activeBoss;
   int picksTotal = 0;
   int _picksRemaining = 0;
@@ -87,6 +90,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void onMonsterKilled(int xpValue, int chargeValue) {
+    killCount++;
     superchargeSystem.addCharge(chargeValue.toDouble());
     if (xpValue > 0) {
       final scaledXp = xpValue * (1 + xpSystem.currentLevel ~/ 7);
@@ -130,6 +134,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   void onPlayerDeath() {
     if (isGameOver) return;
     isGameOver = true;
+    isNewBest = StatsManager.instance.submitRun(
+      level: xpSystem.currentLevel,
+      kills: killCount,
+    );
     overlays.add('GameOver');
     pauseEngine();
   }
@@ -160,6 +168,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   void restart() {
     isGameOver = false;
     _hasUsedContinue = false;
+    isNewBest = false;
+    killCount = 0;
     currentCards = [];
     bonusCards = [];
     overlays.remove('GameOver');

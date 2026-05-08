@@ -6,6 +6,7 @@ import 'ads/ad_manager.dart';
 import 'audio/audio_manager.dart';
 import 'coins/coin_manager.dart';
 import 'game/novabolt_game.dart';
+import 'stats/stats_manager.dart';
 import 'screens/game_controls_overlay.dart';
 import 'screens/game_over_screen.dart';
 import 'screens/level_up_screen.dart';
@@ -40,6 +41,7 @@ class _NovaboltAppState extends State<NovaboltApp> {
     await AdManager.instance.init();
     await CoinManager.instance.init();
     await AudioManager.instance.init();
+    await StatsManager.instance.init();
     AudioManager.instance.playMenu();
     if (mounted) setState(() => _loaded = true);
   }

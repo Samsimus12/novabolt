@@ -109,3 +109,16 @@ const bossStats = MonsterStats(
   speedScaleRate: 0.03,
   speedScaleCap: 1.5,
 );
+
+const tyrantStats = MonsterStats(
+  maxHp: 1600,
+  speed: 45,
+  contactDamagePerSecond: 40,
+  size: 120,
+  xpValue: 0,
+  chargeValue: 50,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.5,
+  speedScaleRate: 0.03,
+  speedScaleCap: 1.8,
+);

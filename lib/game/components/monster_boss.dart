@@ -19,11 +19,11 @@ abstract class BossMonster extends Monster {
     _fireTimer += dt;
     if (_fireTimer >= fireInterval) {
       _fireTimer = 0;
-      _fireAtPlayer();
+      fireAtPlayer();
     }
   }
 
-  void _fireAtPlayer() {
+  void fireAtPlayer() {
     final dir = game.player.position - position;
     if (dir.length < 1) return;
     game.world.add(BossProjectile(

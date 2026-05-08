@@ -88,13 +88,16 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   void onMonsterKilled(int xpValue, int chargeValue) {
     superchargeSystem.addCharge(chargeValue.toDouble());
-    if (xpValue > 0 && xpSystem.addXp(xpValue)) {
-      final level = xpSystem.currentLevel;
-      if (level % 10 == 0) {
-        _waveSystem.startBossFight(level);
-        return;
+    if (xpValue > 0) {
+      final scaledXp = xpValue * (1 + xpSystem.currentLevel ~/ 7);
+      if (xpSystem.addXp(scaledXp)) {
+        final level = xpSystem.currentLevel;
+        if (level % 10 == 0) {
+          _waveSystem.startBossFight(level);
+          return;
+        }
+        _showLevelUp(level);
       }
-      _showLevelUp(level);
     }
   }
 
@@ -105,7 +108,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void _showLevelUp(int level) {
-    picksTotal = (1 + level ~/ 5).clamp(1, 5);
+    picksTotal = (1 + level ~/ 7).clamp(1, 5);
     _picksRemaining = picksTotal;
     currentCards = generateUpgradeCards(this);
     bonusCards = rollBonusCards(this);

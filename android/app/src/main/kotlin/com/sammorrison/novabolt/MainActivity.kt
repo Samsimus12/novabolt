@@ -1,4 +1,4 @@
-package com.runebolt.runebolt
+package com.sammorrison.novabolt
 
 import io.flutter.embedding.android.FlutterActivity
 

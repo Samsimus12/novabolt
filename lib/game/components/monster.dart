@@ -46,6 +46,10 @@ abstract class Monster extends PositionComponent
       _slowTimer -= dt;
       if (_slowTimer <= 0) slowFactor = 1.0;
     }
+    updateMovement(dt);
+  }
+
+  void updateMovement(double dt) {
     final dir = game.player.position - position;
     if (dir.length > 1) {
       position += dir.normalized() * stats.speed * slowFactor * dt;

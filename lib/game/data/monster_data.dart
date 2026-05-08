@@ -83,6 +83,20 @@ const speederStats = MonsterStats(
   speedScaleCap: 2.5,
 );
 
+const casterStats = MonsterStats(
+  maxHp: 40,
+  speed: 55,
+  contactDamagePerSecond: 6,
+  size: 32,
+  xpValue: 20,
+  chargeValue: 12,
+  shieldDropChance: 0.06,
+  healthDropChance: 0.08,
+  hpScaleRate: 0.2,
+  speedScaleRate: 0.08,
+  speedScaleCap: 2.0,
+);
+
 const bossStats = MonsterStats(
   maxHp: 800,
   speed: 30,

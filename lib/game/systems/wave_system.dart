@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 
 import '../components/monster_boss_dreadnought.dart';
+import '../components/monster_caster.dart';
 import '../components/monster_grunt.dart';
 import '../components/monster_speeder.dart';
 import '../components/monster_tank.dart';
@@ -58,7 +59,10 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
   void _spawnRegular() {
     final lvl = game.xpSystem.currentLevel;
     final pos = _randomEdgePosition();
-    if (lvl >= 3 && _rng.nextDouble() < 0.35) {
+    final roll = _rng.nextDouble();
+    if (lvl >= 7 && roll < 0.15) {
+      _spawnAt(MonsterCaster(position: pos, playerLevel: lvl));
+    } else if (lvl >= 3 && roll < (lvl >= 7 ? 0.50 : 0.35)) {
       _spawnAt(MonsterSpeeder(position: pos, playerLevel: lvl));
     } else {
       _spawnAt(MonsterGrunt(position: pos, playerLevel: lvl));

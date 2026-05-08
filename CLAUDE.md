@@ -202,8 +202,17 @@ lib/
 
 ---
 
+## App Store
+
+- **iOS**: v1.0 submitted for review 2026-05-07. Bundle ID `com.sammorrison.novabolt`, AdMob live.
+- **Privacy policy**: `docs/privacy.html` in repo — enable GitHub Pages (main branch, /docs folder) so `https://samsimus12.github.io/novabolt/privacy.html` is live. Required because AdMob is present.
+- **Android**: not yet submitted.
+
+---
+
 ## What's Left
 
 | Priority | Feature | Notes |
 |---|---|---|
 | Medium | **Sound SFX** | Per-weapon fire, hit, death, level-up sounds via `AudioManager` |
+| Low | **Android Play Store** | Submit once iOS review passes; same build process via `flutter build appbundle --release` |

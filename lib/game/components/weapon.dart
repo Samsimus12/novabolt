@@ -13,6 +13,7 @@ abstract class Weapon extends Component with HasGameReference<NovaboltGame> {
   double get fireInterval => 1.0 / fireRate;
 
   String get displayName;
+  bool get isUpgradeable => true;
   String get nextUpgradeDescription => 'Damage +30%';
 
   @override

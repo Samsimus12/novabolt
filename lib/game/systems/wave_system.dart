@@ -51,22 +51,25 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
         _tankTimer = 0;
         _spawnAt(MonsterTank(
           position: _randomEdgePosition(),
-          playerLevel: game.xpSystem.currentLevel,
+          playerLevel: _effectiveLevel,
         ));
       }
     }
   }
 
+  int get _effectiveLevel => game.xpSystem.currentLevel + game.bossPhase * 5;
+
   void _spawnRegular() {
     final lvl = game.xpSystem.currentLevel;
+    final eff = _effectiveLevel;
     final pos = _randomEdgePosition();
     final roll = _rng.nextDouble();
     if (lvl >= 7 && roll < 0.15) {
-      _spawnAt(MonsterCaster(position: pos, playerLevel: lvl));
+      _spawnAt(MonsterCaster(position: pos, playerLevel: eff));
     } else if (lvl >= 3 && roll < (lvl >= 7 ? 0.50 : 0.35)) {
-      _spawnAt(MonsterSpeeder(position: pos, playerLevel: lvl));
+      _spawnAt(MonsterSpeeder(position: pos, playerLevel: eff));
     } else {
-      _spawnAt(MonsterGrunt(position: pos, playerLevel: lvl));
+      _spawnAt(MonsterGrunt(position: pos, playerLevel: eff));
     }
   }
 
@@ -102,6 +105,8 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
 
   void onBossKilled() {
     _isBossFight = false;
+    _timer = 0;
+    _tankTimer = 0;
   }
 
   void reset() {

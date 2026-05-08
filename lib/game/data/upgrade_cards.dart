@@ -82,9 +82,9 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
   final pool = <UpgradeCard>[];
   final player = game.player;
 
-  // Upgrade existing weapons (up to level 4)
+  // Upgrade existing weapons (up to level 4, only if upgradeable)
   for (final w in player.activeWeapons) {
-    if (w.upgradeLevel < 4) pool.add(WeaponUpgradeCard(w));
+    if (w.isUpgradeable && w.upgradeLevel < 4) pool.add(WeaponUpgradeCard(w));
   }
 
   // Unlock new weapons

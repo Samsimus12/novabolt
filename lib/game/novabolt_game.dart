@@ -90,7 +90,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     killCount++;
     superchargeSystem.addCharge(chargeValue.toDouble());
     if (xpValue > 0) {
-      final scaledXp = xpValue * (1 + xpSystem.currentLevel ~/ 7);
+      final scaledXp = (xpValue * (1 + xpSystem.currentLevel ~/ 7) * (1.0 + bossPhase * 0.25)).round();
       if (xpSystem.addXp(scaledXp)) {
         final level = xpSystem.currentLevel;
         if (level % 10 == 0) {

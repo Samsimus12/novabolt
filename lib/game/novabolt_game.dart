@@ -35,6 +35,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   bool get hasUsedContinue => _hasUsedContinue;
   int killCount = 0;
   bool isNewBest = false;
+  int bossPhase = 0;
   BossMonster? activeBoss;
   int picksTotal = 0;
   int _picksRemaining = 0;
@@ -107,6 +108,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   void onBossKilled() {
     activeBoss = null;
+    bossPhase++;
     _waveSystem.onBossKilled();
     _showLevelUp(xpSystem.currentLevel);
   }
@@ -170,6 +172,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _hasUsedContinue = false;
     isNewBest = false;
     killCount = 0;
+    bossPhase = 0;
     currentCards = [];
     bonusCards = [];
     overlays.remove('GameOver');

@@ -87,7 +87,6 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void onMonsterKilled(int xpValue, int chargeValue) {
-    if (player.lifestealPerKill > 0) player.addHp(player.lifestealPerKill);
     superchargeSystem.addCharge(chargeValue.toDouble());
     if (xpValue > 0 && xpSystem.addXp(xpValue)) {
       final level = xpSystem.currentLevel;

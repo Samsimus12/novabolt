@@ -148,9 +148,15 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       apply: (g) => g.player.moveSpeed *= 1.25,
     ),
     StatBuffCard(
-      title: 'Lifesteal Matrix',
-      description: 'Drain life on every kill — restore 3 HP per enemy destroyed',
-      apply: (g) => g.player.lifestealPerKill += 3.0,
+      title: 'Nova Accelerator',
+      description: 'Boost NOVA charge rate — bar fills 25% faster',
+      apply: (g) => g.superchargeSystem.chargeMultiplier += 0.20,
+    ),
+    StatBuffCard(
+      title: 'Extended Beam',
+      description: 'Reinforce NOVA core — beam lasts 25% longer',
+      apply: (g) => g.superchargeSystem.depleteMultiplier =
+          (g.superchargeSystem.depleteMultiplier - 0.20).clamp(0.2, 1.0),
     ),
     StatBuffCard(
       title: 'Overcharge',
@@ -174,7 +180,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
 List<StatBuffCard> rollBonusCards(NovaboltGame game) {
   final result = <StatBuffCard>[];
   final rng = math.Random();
-  if (rng.nextDouble() < 0.25) {
+  if (rng.nextDouble() < 0.20) {
     result.add(StatBuffCard(
       title: '+25 Hull Plating',
       description: 'Reinforce hull for +25 max HP',
@@ -185,7 +191,7 @@ List<StatBuffCard> rollBonusCards(NovaboltGame game) {
       },
     ));
   }
-  if (rng.nextDouble() < 0.25) {
+  if (rng.nextDouble() < 0.20) {
     result.add(StatBuffCard(
       title: 'Repair Drones',
       description: 'Emergency repair restores 40 HP',

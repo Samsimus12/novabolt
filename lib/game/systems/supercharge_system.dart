@@ -9,6 +9,9 @@ class SuperchargeSystem {
   double _charge = 0;
   bool _isActive = false;
 
+  double chargeMultiplier = 1.0;  // increased by Nova Accelerator upgrade
+  double depleteMultiplier = 1.0; // decreased by Extended Beam upgrade
+
   double get charge => _charge;
   double get fraction => (_charge / maxCharge).clamp(0.0, 1.0);
   bool get isActive => _isActive;
@@ -20,7 +23,7 @@ class SuperchargeSystem {
   void addCharge(double amount) {
     if (_isActive) return;
     final before = _charge;
-    _charge = (_charge + amount).clamp(0.0, maxCharge);
+    _charge = (_charge + amount * chargeMultiplier).clamp(0.0, maxCharge);
     if (before < maxCharge && _charge >= maxCharge) {
       stateNotifier.value = SuperchargeState.ready;
     }
@@ -35,7 +38,7 @@ class SuperchargeSystem {
 
   // Returns true when fully depleted
   bool deplete(double dt) {
-    _charge -= depleteRate * dt;
+    _charge -= depleteRate * depleteMultiplier * dt;
     if (_charge <= 0) {
       _charge = 0;
       _isActive = false;
@@ -48,6 +51,8 @@ class SuperchargeSystem {
   void reset() {
     _charge = 0;
     _isActive = false;
+    chargeMultiplier = 1.0;
+    depleteMultiplier = 1.0;
     stateNotifier.value = SuperchargeState.charging;
   }
 }

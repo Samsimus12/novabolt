@@ -47,6 +47,25 @@ class _GameControlsOverlayState extends State<GameControlsOverlay> {
           ),
         ),
 
+        // Paused indicator
+        if (_paused)
+          const Center(
+            child: Text(
+              'PAUSED',
+              style: TextStyle(
+                color: Color(0xFFFF1744),
+                fontSize: 52,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 12,
+                decoration: TextDecoration.none,
+                shadows: [
+                  Shadow(color: Color(0xAAFF1744), blurRadius: 20),
+                  Shadow(color: Color(0x55FF1744), blurRadius: 40),
+                ],
+              ),
+            ),
+          ),
+
         // NOVA button — center-bottom, above joystick area
         Align(
           alignment: Alignment.bottomCenter,

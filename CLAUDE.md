@@ -3,11 +3,10 @@
 ## What This Is
 A cross-platform (iOS + Android) space-themed arena survival game built with **Flutter + Flame engine**.
 The player pilots a fighter jet against waves of enemies. Left joystick moves, right joystick aims and fires.
-Killing enemies earns XP; leveling up shows a card upgrade picker (picks scale with boss phase). A Supercharge bar
-fills as enemies die — activate for a screen-wide laser beam. Boss fights every 10 levels — 10 unique bosses
-cycle with increasing difficulty. Enemy visuals, backgrounds, and boss attacks all transform through 10 phases
-as bosses are defeated (cycling back to phase 1 after boss 10). AdMob ads are live. A NOVA coin economy lets
-players spend on ship skins, shield skins, and Nova beam colours in the shop.
+Killing enemies earns XP; leveling up shows a card upgrade picker. A Supercharge bar fills as enemies die —
+activate for a screen-wide Nova attack. Boss fights every 10 levels — 10 unique bosses cycle with increasing
+difficulty. Enemy visuals, backgrounds, and boss attacks transform through 10 phases as bosses are defeated.
+AdMob ads are live. A NOVA coin economy lets players spend on ship skins, shield skins, and Nova beam colours.
 
 **GitHub**: https://github.com/Samsimus12/novabolt
 
@@ -50,22 +49,22 @@ lib/
 ├── stats/
 │   └── stats_manager.dart            # Singleton; persists bestLevel, bestKills via SharedPreferences
 ├── game/
-│   ├── novabolt_game.dart            # FlameGame root — bossPhase, killCount, isNewBest, continueWithHalfHp()
+│   ├── novabolt_game.dart            # FlameGame root — bossPhase, killCount, isNewBest, isBossReward, continueWithHalfHp()
 │   ├── components/
-│   │   ├── player.dart               # Fighter jet; skin-aware render; shield color from CoinManager.selectedShieldSkin
-│   │   ├── weapon.dart               # Abstract Weapon — fires when aimJoystick active; isUpgradeable flag
+│   │   ├── player.dart               # Fighter jet; skin-aware render; progressive damage visuals; _damageTime timer
+│   │   ├── weapon.dart               # Abstract Weapon — fires when aimJoystick active; isUpgradeable flag; upgradeLevel starts at 1
 │   │   ├── weapon_magic_bolt.dart    # Starter (cyan #00E5FF, 15dmg, 2/sec)
 │   │   ├── weapon_spread_shot.dart   # 3-bolt fan (gold #F4A800)
 │   │   ├── weapon_rapid_fire.dart    # 4/sec (orange #FF6B35)
 │   │   ├── weapon_homing_bolt.dart   # Steers 3rad/s (purple #9B59B6)
-│   │   ├── weapon_sword_aura.dart    # 70px melee ring (gold #FFD700)
+│   │   ├── weapon_sword_aura.dart    # 70px melee ring; +1 counter-orbiting inner ball per upgrade level
 │   │   ├── weapon_explosive_bolt.dart# AoE 80px (#FF8C00); isUpgradeable=false — won't re-appear after picked
 │   │   ├── weapon_frost_shard.dart   # Slows 40% for 2s (ice #88D8F0)
 │   │   ├── projectile.dart           # Base Projectile; `lifetime` is public (used by HomingBolt)
 │   │   ├── monster.dart              # Abstract Monster — hit flash, slowFactor, updateMovement() hook
-│   │   ├── monster_grunt.dart        # 10-phase render: phases 1+2 unique; phases 0,3-9 use color-table _renderThemed
-│   │   ├── monster_tank.dart         # 10-phase render: phases 1+2 unique; phases 0,3-9 use color-table _renderThemed
-│   │   ├── monster_speeder.dart      # 10-phase render: phases 1+2 unique; phases 0,3-9 use color-table _renderThemed
+│   │   ├── monster_grunt.dart        # 10-phase render: phases 0/1/2 unique renderers; phases 3-9 use _renderThemed
+│   │   ├── monster_tank.dart         # 10-phase render: phases 0/1/2 unique renderers; phases 3-9 use _renderThemed
+│   │   ├── monster_speeder.dart      # 10-phase render: phases 0/1/2 unique renderers; phases 3-9 use _renderThemed
 │   │   ├── monster_caster.dart       # Ranged; keeps 200px range; fires CasterProjectile every 2.5s; 10-phase render
 │   │   ├── caster_projectile.dart    # Lime green orb (12dmg, speed 220); hits Player only
 │   │   ├── monster_boss.dart         # Abstract BossMonster — fireSpecialAttack() overridable; onDie() → onBossKilled()
@@ -100,7 +99,7 @@ lib/
 │   ├── main_menu_screen.dart         # Animated background; PLAY + SHOP; coin balance top-left
 │   ├── shop_screen.dart              # Ship skins + shield skins + Nova beam colours; ad-for-coins banner
 │   ├── game_controls_overlay.dart    # Back + Pause; NOVA button; "PAUSED" red glow overlay
-│   ├── level_up_screen.dart          # Card picker; bonus HP cards + inherited Nova banner above selectable cards
+│   ├── level_up_screen.dart          # Card picker; bonus HP cards + inherited Nova banner; BOSS REWARD label
 │   └── game_over_screen.dart         # Run stats + all-time bests + NEW BEST badge; +N NOVA earned; Watch Ad → Continue
 ```
 
@@ -130,7 +129,7 @@ lib/
 | Phase | Background | Enemy Theme | Boss |
 |---|---|---|---|
 | 0 | Deep Space (dark stars) | Organic / rocky | Dreadnought |
-| 1 | Alien Planet Sky (gradient + clouds) | Mechanical steel | Void Tyrant |
+| 1 | Alien Planet Sky (indigo-blue gradient + puffy white clouds) | Mechanical steel | Void Tyrant |
 | 2 | Blood Moon (red nebula) | Void-corrupted | Leviathan |
 | 3 | Crimson Void | Deep red/black | Blood Colossus |
 | 4 | Storm Nebula | Purple storm | Storm Phantom |
@@ -147,11 +146,25 @@ lib/
 ### XP & Level-Up
 - **Threshold**: `60 + 40 × level` (linear)
 - **Per-kill XP**: `xpValue × (1 + level ~/ 7) × (1 + bossPhase × 0.25)`
-- **Picks per level-up** (by boss phase): `< 3 → 2 picks`, `< 6 → 3 picks`, `< 10 → 4 picks`, `10+ → 5 picks`
+- **Picks per level-up**: 1 pick normally; 20% chance of a "Lucky Draw" (2 picks); boss kill always gives 3 picks ("BOSS REWARD" — red header in UI)
 - Bonus HP cards (20% chance each) auto-applied before showing selectable cards
+- Weapon upgrade cap is level 10 (`upgradeLevel < 10` in `upgrade_cards.dart`)
+- Card title shows `upgradeLevel + 1` (the level you're upgrading *to*); `applyUpgrade()` increments `upgradeLevel` and multiplies damage × 1.3
+
+### Ship Damage Visuals (`player.dart`)
+Progressive overlays drawn inside the rotated canvas block — rotate with the ship:
+- **< 75% HP**: Two hairline cracks on fuselage
+- **< 50% HP**: Two more cracks + dark smoke cloud from right engine
+- **< 25% HP**: Left wing scorched (dark overlay) + orange fire from left engine
+- **< 10% HP**: Pulsing red danger glow over whole ship + both engines on fire (sine-wave pulse via `_damageTime`)
+
+### Force Field Upgrade Visual (`weapon_sword_aura.dart`)
+- Base: 3 gold dots orbiting the 70px ring clockwise
+- Each upgrade beyond level 1 adds one pale-gold ball counter-orbiting at 65% radius (1.5× speed)
+- At level 10: 3 outer dots + 9 inner balls
 
 ### Boss Music
-- `AudioManager.playBoss()` called when boss fight starts — crossfades from game track to a random boss track (`Boss Battle.wav` or `Boss Battle 2.wav`)
+- `AudioManager.playBoss()` crossfades from game track to a random boss track (`Boss Battle.wav` or `Boss Battle 2.wav`)
 - `AudioManager.playGame()` called after boss kill — crossfades back to a random game track
 - Crossfade: 20 steps × 75ms fade out, swap track, fade in; `_fadeGeneration` counter cancels any in-progress fade
 
@@ -175,7 +188,7 @@ lib/
 
 2. **ATT before AdMob**: `main.dart _initialize()` requests `AppTrackingTransparency` permission before calling `AdManager.instance.init()`. If you skip this order, iOS won't show the ATT prompt and Apple will reject the app (happened in v1.0 review).
 
-3. **Weapons as Player children**: Weapon `render()` is in Player local space — draw at `(size.x/2, size.y/2)` for center.
+3. **Weapons as Player children**: Weapon `render()` is in Player local space — draw at `(size.x/2, size.y/2)` for center. Damage overlays in `player.dart` must also be inside `canvas.save()/restore()` to rotate with the ship.
 
 4. **HomingBolt skips `super.update()`**: Handles own movement so fixed-direction Projectile.update() doesn't override steering.
 
@@ -199,27 +212,22 @@ lib/
 
 14. **`fireSpecialAttack()` is public on BossMonster**: Renamed from `_fireSpecialAttack` (library-private) so subclasses (e.g. `MonsterBossSingularity`) can override it.
 
-15. **10-phase monster visuals**: All 4 monster types use `bossPhase % 10` in their `render()` switch. Phases 1 and 2 have unique hand-drawn renderers; phases 0 and 3-9 use compact const color tables + a single `_renderThemed()` method.
+15. **10-phase monster visuals**: All 4 monster types use `bossPhase % 10` in their `render()` switch. Phases 0, 1, and 2 each have a unique hand-drawn renderer (`_renderOrganic`, `_renderMechanical`, `_renderVoid`); phases 3-9 use compact const color tables + `_renderThemed()`. Previously phase 0 was incorrectly falling through to `_renderThemed` — fixed in commit `c9b426a`.
 
 16. **audioplayers 6.6.0**: `FlameAudio.bgm.audioPlayer` is non-nullable — no null checks needed. `setVolume(double)` is the correct API (no named parameter).
+
+17. **`isBossReward` flag**: Set on `NovaboltGame` by `_showLevelUp(isBossKill: true)`. Read by `level_up_screen.dart` to show red "BOSS REWARD!" header and red pick counter. Cleared in `resumeFromLevelUp()` and `restart()`.
 
 ---
 
 ## App Store
 
-- **iOS**: v1.0 rejected 2026-05-08 (Guideline 2.1 — ATT prompt not appearing). Fixed ATT order, submitted build `1.0.0 (2)` on 2026-05-09. **Awaiting re-review.**
+- **iOS**: v1.0 rejected 2026-05-08 (Guideline 2.1 — ATT prompt not appearing). Fixed ATT order, submitted build `1.0.0 (2)` on 2026-05-09. **Awaiting re-review as of 2026-05-09.**
+- To submit a new build: bump `version` in `pubspec.yaml` (e.g. `1.0.0+3`), run `flutter build ipa --release`, upload via Transporter, then select the new build in App Store Connect and resubmit.
 - **Privacy policy**: `docs/privacy.html` — enable GitHub Pages (main branch, /docs folder) so `https://samsimus12.github.io/novabolt/privacy.html` is live.
 - **Android**: not yet submitted.
 
-### Building a New IPA
-```bash
-flutter build ipa --release
-# IPA at: build/ios/ipa/novabolt.ipa
-# Upload via Transporter (drag-and-drop) or xcrun altool
-```
-
 ### ATT Reset for Testing
-To retrigger the ATT prompt on a physical device:
 1. Settings → Privacy & Security → Tracking → turn "Allow Apps to Request to Track" **ON**
 2. Delete Novabolt from the device
 3. Reinstall via `flutter run -d "Samsimus"`

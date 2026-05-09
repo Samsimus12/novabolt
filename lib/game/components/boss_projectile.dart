@@ -6,11 +6,17 @@ import 'player.dart';
 import 'projectile.dart';
 
 class BossProjectile extends Projectile {
+  final Color _color;
+
   BossProjectile({
     required super.position,
     required super.direction,
     required double damage,
-  }) : super(speed: 280, damage: damage, size: 14);
+    double speed = 280,
+    double size = 14,
+    Color color = const Color(0xFFFF3300),
+  })  : _color = color,
+        super(speed: speed, damage: damage, size: size);
 
   @override
   void onCollisionStart(
@@ -29,13 +35,13 @@ class BossProjectile extends Projectile {
       Offset(cx, cy),
       size.x / 2 + 4,
       Paint()
-        ..color = const Color(0xAAFF2200)
+        ..color = _color.withAlpha(170)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
     );
     canvas.drawCircle(
       Offset(cx, cy),
       size.x / 2,
-      Paint()..color = const Color(0xFFFF3300),
+      Paint()..color = _color,
     );
   }
 }

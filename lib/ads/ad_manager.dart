@@ -14,13 +14,27 @@ class AdManager {
 
   final ValueNotifier<bool> rewardedAdReady = ValueNotifier(false);
 
-  static String get _rewardedAdUnitId => Platform.isIOS
-      ? 'ca-app-pub-7289760521218684/2091997829'
-      : 'ca-app-pub-7289760521218684/6704964598';
+  static String get _rewardedAdUnitId {
+    if (kDebugMode) {
+      return Platform.isIOS
+          ? 'ca-app-pub-3940256099942544/1712485313'
+          : 'ca-app-pub-3940256099942544/5224354917';
+    }
+    return Platform.isIOS
+        ? 'ca-app-pub-7289760521218684/2091997829'
+        : 'ca-app-pub-7289760521218684/6704964598';
+  }
 
-  static String get _interstitialAdUnitId => Platform.isIOS
-      ? 'ca-app-pub-7289760521218684/6268642442'
-      : 'ca-app-pub-7289760521218684/3043097357';
+  static String get _interstitialAdUnitId {
+    if (kDebugMode) {
+      return Platform.isIOS
+          ? 'ca-app-pub-3940256099942544/4411468910'
+          : 'ca-app-pub-3940256099942544/1033173712';
+    }
+    return Platform.isIOS
+        ? 'ca-app-pub-7289760521218684/6268642442'
+        : 'ca-app-pub-7289760521218684/3043097357';
+  }
 
   Future<void> init() async {
     try {
@@ -45,6 +59,7 @@ class AdManager {
         onAdFailedToLoad: (error) {
           debugPrint('Rewarded ad failed to load: $error');
           rewardedAdReady.value = false;
+          Future.delayed(const Duration(seconds: 30), _loadRewardedAd);
         },
       ),
     );

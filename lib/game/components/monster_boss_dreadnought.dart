@@ -2,11 +2,12 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../data/nova_mode.dart';
 import 'monster_boss.dart';
 
 class MonsterBossDreadnought extends BossMonster {
   MonsterBossDreadnought({required super.position, int playerLevel = 1})
-      : super(stats: bossStats.scaled(playerLevel));
+      : super(stats: bossStats.scaled(playerLevel), playerLevel: playerLevel);
 
   @override
   String get displayName => 'DREADNOUGHT';
@@ -16,6 +17,28 @@ class MonsterBossDreadnought extends BossMonster {
 
   @override
   double get projectileDamage => 14.0;
+
+  // 3 shots at level 10, +2 per 20 levels (level 30 → 5, level 50 → 7, etc.)
+  @override
+  int get shotCount => (playerLevel ~/ 10 + 2).clamp(3, 9);
+
+  @override
+  double get specialAttackInterval => 18.0;
+
+  @override
+  int get maxSpecialAttacks => 2;
+
+  @override
+  int get specialBurstCount => 12;
+
+  @override
+  Color get specialColor => const Color(0xFFFFDD00);
+
+  @override
+  void onDie() {
+    game.pendingInheritMode = NovaMode.dreadnought;
+    super.onDie();
+  }
 
   @override
   Color get deathColor => const Color(0xFF9900FF);
@@ -149,6 +172,7 @@ class MonsterBossDreadnought extends BossMonster {
 
     canvas.restore();
 
+    renderChargeEffect(canvas, cx, cy);
     renderFlash(canvas);
   }
 }

@@ -10,6 +10,7 @@ class MonsterStats {
   final double hpScaleRate;
   final double speedScaleRate;
   final double speedScaleCap;
+  final double damageScaleRate;
 
   const MonsterStats({
     required this.maxHp,
@@ -23,15 +24,17 @@ class MonsterStats {
     this.hpScaleRate = 0.3,
     this.speedScaleRate = 0.1,
     this.speedScaleCap = 3.0,
+    this.damageScaleRate = 0.05,
   });
 
   MonsterStats scaled(int playerLevel) {
     final hpMult = 1.0 + (playerLevel - 1) * hpScaleRate;
     final speedMult = (1.0 + (playerLevel - 1) * speedScaleRate).clamp(1.0, speedScaleCap);
+    final damageMult = 1.0 + (playerLevel - 1) * damageScaleRate;
     return MonsterStats(
       maxHp: maxHp * hpMult,
       speed: speed * speedMult,
-      contactDamagePerSecond: contactDamagePerSecond,
+      contactDamagePerSecond: contactDamagePerSecond * damageMult,
       size: size,
       xpValue: xpValue,
       chargeValue: chargeValue,
@@ -40,6 +43,7 @@ class MonsterStats {
       hpScaleRate: hpScaleRate,
       speedScaleRate: speedScaleRate,
       speedScaleCap: speedScaleCap,
+      damageScaleRate: damageScaleRate,
     );
   }
 }
@@ -79,8 +83,8 @@ const speederStats = MonsterStats(
   shieldDropChance: 0.035,
   healthDropChance: 0.037,
   hpScaleRate: 0.15,
-  speedScaleRate: 0.12,
-  speedScaleCap: 2.5,
+  speedScaleRate: 0.07,
+  speedScaleCap: 1.8,
 );
 
 const casterStats = MonsterStats(

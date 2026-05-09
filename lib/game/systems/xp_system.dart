@@ -20,6 +20,10 @@ class XpSystem {
     return false;
   }
 
+  void resetXp() {
+    currentXp = 0;
+  }
+
   void reset() {
     currentLevel = 1;
     currentXp = 0;

@@ -14,22 +14,26 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
   double _timer = 0;
   double _tankTimer = 0;
   bool _isBossFight = false;
+  int _bossKillLevel = 0;
   final _rng = math.Random();
 
+  // Levels elapsed since the last boss kill (or game start).
+  int get _waveLevel => game.xpSystem.currentLevel - _bossKillLevel;
+
   double get _spawnInterval {
-    final lvl = game.xpSystem.currentLevel;
-    if (lvl < 3) return 3.0;
-    if (lvl < 5) return 2.0;
-    if (lvl < 8) return 1.5;
-    if (lvl < 12) return 1.0;
+    final wl = _waveLevel;
+    if (wl < 3) return 3.0;
+    if (wl < 5) return 2.0;
+    if (wl < 8) return 1.5;
+    if (wl < 12) return 1.0;
     return 0.7;
   }
 
   double get _tankSpawnInterval {
-    final lvl = game.xpSystem.currentLevel;
-    if (lvl < 5) return double.infinity;
-    if (lvl < 8) return 15.0;
-    if (lvl < 12) return 10.0;
+    final wl = _waveLevel;
+    if (wl < 5) return double.infinity;
+    if (wl < 8) return 15.0;
+    if (wl < 12) return 10.0;
     return 7.0;
   }
 
@@ -57,16 +61,16 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     }
   }
 
-  int get _effectiveLevel => game.xpSystem.currentLevel + game.bossPhase * 5;
+  int get _effectiveLevel => game.xpSystem.currentLevel + game.bossPhase * 8;
 
   void _spawnRegular() {
-    final lvl = game.xpSystem.currentLevel;
+    final wl = _waveLevel;
     final eff = _effectiveLevel;
     final pos = _randomEdgePosition();
     final roll = _rng.nextDouble();
-    if (lvl >= 7 && roll < 0.15) {
+    if (wl >= 7 && roll < 0.15) {
       _spawnAt(MonsterCaster(position: pos, playerLevel: eff));
-    } else if (lvl >= 3 && roll < (lvl >= 7 ? 0.50 : 0.35)) {
+    } else if (wl >= 3 && roll < (wl >= 7 ? 0.50 : 0.35)) {
       _spawnAt(MonsterSpeeder(position: pos, playerLevel: eff));
     } else {
       _spawnAt(MonsterGrunt(position: pos, playerLevel: eff));
@@ -107,11 +111,13 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     _isBossFight = false;
     _timer = 0;
     _tankTimer = 0;
+    _bossKillLevel = game.xpSystem.currentLevel;
   }
 
   void reset() {
     _timer = 0;
     _tankTimer = 0;
     _isBossFight = false;
+    _bossKillLevel = 0;
   }
 }

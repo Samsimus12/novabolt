@@ -7,6 +7,7 @@ import 'package:flame/components.dart';
 import '../../coins/coin_manager.dart';
 import '../novabolt_game.dart';
 import 'monster.dart';
+import 'monster_boss.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
 
@@ -75,6 +76,8 @@ class Player extends PositionComponent
   double maxHp = 100;
   double currentHp = 100;
   double moveSpeed = 180;
+  int afterburnerStacks = 0;
+  static const int maxAfterburnerStacks = 2;
   double _facingAngle = 0;
 
   double shieldHp = 0;
@@ -124,7 +127,7 @@ class Player extends PositionComponent
     super.onCollisionStart(intersectionPoints, other);
     if (other is Monster && !other.isDead) {
       takeDamage(other.stats.contactDamagePerSecond);
-      other.takeDamage(other.currentHp);
+      if (other is! BossMonster) other.takeDamage(other.currentHp);
     }
   }
 
@@ -157,6 +160,7 @@ class Player extends PositionComponent
     maxHp = 100;
     currentHp = 100;
     moveSpeed = 180;
+    afterburnerStacks = 0;
     _facingAngle = 0;
     shieldHp = 0;
     _shieldFlashTimer = 0;

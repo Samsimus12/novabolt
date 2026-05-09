@@ -65,6 +65,10 @@ class LevelUpScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Divider(color: Color(0x334CAF50), indent: 24, endIndent: 24),
             ],
+            if (game.pendingInheritMode != null) ...[
+              const SizedBox(height: 16),
+              _InheritedNovaWidget(modeName: game.pendingInheritMode!.displayName),
+            ],
             const SizedBox(height: 16),
             for (final card in cards) _CardWidget(card: card, game: game),
           ],
@@ -207,6 +211,74 @@ class _BonusWidget extends StatelessWidget {
             'AUTO',
             style: TextStyle(
               color: _green,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InheritedNovaWidget extends StatelessWidget {
+  final String modeName;
+  const _InheritedNovaWidget({required this.modeName});
+
+  static const _cyan = Color(0xFF00E5FF);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF001A1F),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _cyan.withAlpha(120), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _cyan.withAlpha(30),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text('⚡', style: TextStyle(fontSize: 20, color: _cyan)),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nova Beam Inherited',
+                  style: TextStyle(
+                    color: _cyan,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  modeName,
+                  style: const TextStyle(
+                    color: Color(0xAA00E5FF),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Text(
+            'AUTO',
+            style: TextStyle(
+              color: _cyan,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1,

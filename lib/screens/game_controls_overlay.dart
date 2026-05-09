@@ -47,22 +47,77 @@ class _GameControlsOverlayState extends State<GameControlsOverlay> {
           ),
         ),
 
-        // Paused indicator
+        // Paused indicator + Nova mode selector
         if (_paused)
-          const Center(
-            child: Text(
-              'PAUSED',
-              style: TextStyle(
-                color: Color(0xFFFF1744),
-                fontSize: 52,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 12,
-                decoration: TextDecoration.none,
-                shadows: [
-                  Shadow(color: Color(0xAAFF1744), blurRadius: 20),
-                  Shadow(color: Color(0x55FF1744), blurRadius: 40),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'PAUSED',
+                  style: TextStyle(
+                    color: Color(0xFFFF1744),
+                    fontSize: 52,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 12,
+                    decoration: TextDecoration.none,
+                    shadows: [
+                      Shadow(color: Color(0xAAFF1744), blurRadius: 20),
+                      Shadow(color: Color(0x55FF1744), blurRadius: 40),
+                    ],
+                  ),
+                ),
+                if (widget.game.unlockedNovaModes.length > 1) ...[
+                  const SizedBox(height: 20),
+                  const Text(
+                    'NOVA MODE',
+                    style: TextStyle(
+                      color: Color(0xFF00E5FF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.none,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...widget.game.unlockedNovaModes.map((mode) {
+                    final isActive = mode == widget.game.activeNovaMode;
+                    return GestureDetector(
+                      onTap: () => setState(() => widget.game.activeNovaMode = mode),
+                      child: Container(
+                        width: 220,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? const Color(0x4400E5FF)
+                              : const Color(0xAA000010),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isActive
+                                ? const Color(0xFF00E5FF)
+                                : const Color(0x33FFFFFF),
+                            width: isActive ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Text(
+                          mode.displayName,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isActive
+                                ? const Color(0xFF00E5FF)
+                                : const Color(0x99F5F5DC),
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
                 ],
-              ),
+              ],
             ),
           ),
 

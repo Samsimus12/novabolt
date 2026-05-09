@@ -10,10 +10,12 @@ import 'components/hud.dart';
 import 'components/monster.dart';
 import 'components/monster_boss.dart';
 import 'components/player.dart';
+import 'components/player_nova_burst.dart';
 import 'components/projectile.dart';
 import 'components/health_pickup.dart';
 import 'components/shield_pickup.dart';
 import 'components/supercharge_laser.dart';
+import 'data/nova_mode.dart';
 import 'data/upgrade_cards.dart';
 import 'systems/supercharge_system.dart';
 import 'systems/wave_system.dart';
@@ -38,6 +40,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   BossMonster? activeBoss;
   int picksTotal = 0;
   int _picksRemaining = 0;
+
+  NovaMode activeNovaMode = NovaMode.laser;
+  Set<NovaMode> unlockedNovaModes = {NovaMode.laser};
+  NovaMode? pendingInheritMode;
 
   @override
   Color backgroundColor() => switch (bossPhase.clamp(0, 2)) {
@@ -105,14 +111,25 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   void onBossKilled() {
     activeBoss = null;
     bossPhase++;
+
+    // Auto-inherit the boss's Nova attack and restore full HP.
+    if (pendingInheritMode != null) {
+      activeNovaMode = pendingInheritMode!;
+      unlockedNovaModes.add(pendingInheritMode!);
+      // pendingInheritMode stays set so the level-up screen can display it.
+    }
+    player.currentHp = player.maxHp;
+
+    world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
     world.add(StarBackground());
     _waveSystem.onBossKilled();
+    xpSystem.resetXp();
     _showLevelUp(xpSystem.currentLevel);
   }
 
   void _showLevelUp(int level) {
-    picksTotal = (1 + level ~/ 7).clamp(1, 5);
+    picksTotal = (bossPhase + 1).clamp(1, 5);
     _picksRemaining = picksTotal;
     currentCards = generateUpgradeCards(this);
     bonusCards = rollBonusCards(this);
@@ -126,8 +143,22 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   int get currentPickIndex => picksTotal - _picksRemaining + 1;
 
   void activateSupercharge() {
-    if (superchargeSystem.activate()) {
-      world.add(SuperchargeLaser());
+    if (!superchargeSystem.activate()) return;
+    switch (activeNovaMode) {
+      case NovaMode.laser:
+        world.add(SuperchargeLaser());
+      case NovaMode.dreadnought:
+        world.add(PlayerNovaBurst(
+          shotCount: 12,
+          color: const Color(0xFFFFDD00),
+          damage: 6.0,
+        ));
+      case NovaMode.voidTyrant:
+        world.add(PlayerNovaBurst(
+          shotCount: 16,
+          color: const Color(0xFFFF00CC),
+          damage: 4.0,
+        ));
     }
   }
 
@@ -161,6 +192,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       currentCards = [];
       bonusCards = [];
       picksTotal = 0;
+      pendingInheritMode = null; // clear if boss inherit wasn't selected
       resumeEngine();
     }
   }
@@ -173,6 +205,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     bossPhase = 0;
     currentCards = [];
     bonusCards = [];
+    activeNovaMode = NovaMode.laser;
+    unlockedNovaModes = {NovaMode.laser};
+    pendingInheritMode = null;
     overlays.remove('GameOver');
     world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<Projectile>().toList().forEach((p) => p.removeFromParent());

@@ -1,15 +1,13 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:flame/components.dart';
-
 import '../data/monster_data.dart';
-import 'boss_projectile.dart';
+import '../data/nova_mode.dart';
 import 'monster_boss.dart';
 
 class MonsterBossVoidTyrant extends BossMonster {
   MonsterBossVoidTyrant({required super.position, int playerLevel = 1})
-      : super(stats: tyrantStats.scaled(playerLevel));
+      : super(stats: tyrantStats.scaled(playerLevel), playerLevel: playerLevel);
 
   @override
   String get displayName => 'VOID TYRANT';
@@ -20,23 +18,29 @@ class MonsterBossVoidTyrant extends BossMonster {
   @override
   double get projectileDamage => 18.0;
 
+  // 5 shots at level 20, +2 per 20 levels (level 40 → 7, level 60 → 9, etc.)
+  @override
+  int get shotCount => (playerLevel ~/ 10 + 3).clamp(5, 11);
+
+  @override
+  double get specialAttackInterval => 15.0;
+
+  @override
+  int get maxSpecialAttacks => 2;
+
+  @override
+  int get specialBurstCount => 16;
+
+  @override
+  Color get specialColor => const Color(0xFFFF00CC);
+
   @override
   Color get deathColor => const Color(0xFFCC0000);
 
   @override
-  void fireAtPlayer() {
-    final dir = game.player.position - position;
-    if (dir.length < 1) return;
-    final baseAngle = math.atan2(dir.y, dir.x);
-    const spread = 0.35;
-    for (final offset in [-spread, 0.0, spread]) {
-      final angle = baseAngle + offset;
-      game.world.add(BossProjectile(
-        position: position.clone(),
-        direction: Vector2(math.cos(angle), math.sin(angle)),
-        damage: projectileDamage,
-      ));
-    }
+  void onDie() {
+    game.pendingInheritMode = NovaMode.voidTyrant;
+    super.onDie();
   }
 
   @override
@@ -187,6 +191,7 @@ class MonsterBossVoidTyrant extends BossMonster {
 
     canvas.restore();
 
+    renderChargeEffect(canvas, cx, cy);
     renderFlash(canvas);
   }
 }

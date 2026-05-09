@@ -3,11 +3,11 @@
 ## What This Is
 A cross-platform (iOS + Android) space-themed arena survival game built with **Flutter + Flame engine**.
 The player pilots a fighter jet against waves of enemies. Left joystick moves, right joystick aims and fires.
-Killing enemies earns XP; leveling up shows a card upgrade picker (picks scale with level). A Supercharge bar
-fills as enemies die — activate for a screen-wide laser beam. Boss fights every 10 levels (Dreadnought at odd
-multiples of 10, Void Tyrant at multiples of 20). Enemy visuals and the star-field background transform through
-3 phases as bosses are defeated. AdMob ads are live. A NOVA coin economy lets players spend on ship skins,
-shield skins, and Nova beam colours in the shop.
+Killing enemies earns XP; leveling up shows a card upgrade picker (picks scale with boss phase). A Supercharge bar
+fills as enemies die — activate for a screen-wide laser beam. Boss fights every 10 levels — 10 unique bosses
+cycle with increasing difficulty. Enemy visuals, backgrounds, and boss attacks all transform through 10 phases
+as bosses are defeated (cycling back to phase 1 after boss 10). AdMob ads are live. A NOVA coin economy lets
+players spend on ship skins, shield skins, and Nova beam colours in the shop.
 
 **GitHub**: https://github.com/Samsimus12/novabolt
 
@@ -25,7 +25,7 @@ flutter run -d "Samsimus"        # physical iPhone (preferred)
 ## Tech Stack
 - **Flutter** (Dart, SDK `^3.11.5`) — cross-platform framework
 - **Flame 1.37.0** — 2D game engine; game loop, collision detection, camera, joystick
-- **flame_audio 2.12.1** — BGM (Menu.wav, Fighting.wav, Flying.wav) in `assets/`
+- **flame_audio 2.12.1** — BGM (Menu.wav, Fighting.wav, Fighting 2.wav, Flying.wav, Flying 2.wav, Boss Battle.wav, Boss Battle 2.wav) in `assets/`
 - **google_mobile_ads 5.3.1** — AdMob rewarded + interstitial ads
 - **app_tracking_transparency 2.0.6** — ATT permission prompt (must fire before AdMob init on iOS)
 - **shared_preferences** — persists coins, owned items, selected skin/shield/nova, best stats
@@ -44,7 +44,7 @@ lib/
 ├── ads/
 │   └── ad_manager.dart               # Singleton; loads/shows rewarded + interstitial; pauses/resumes music
 ├── audio/
-│   └── audio_manager.dart            # Singleton; FlameAudio.updatePrefix('assets/'); plays Menu/Fighting/Flying
+│   └── audio_manager.dart            # Singleton; playMenu/playGame/playBoss; crossfades between tracks; _fadeGeneration for cancellation
 ├── coins/
 │   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selectedSkin/shieldSkin/novaTheme
 ├── stats/
@@ -63,27 +63,36 @@ lib/
 │   │   ├── weapon_frost_shard.dart   # Slows 40% for 2s (ice #88D8F0)
 │   │   ├── projectile.dart           # Base Projectile; `lifetime` is public (used by HomingBolt)
 │   │   ├── monster.dart              # Abstract Monster — hit flash, slowFactor, updateMovement() hook
-│   │   ├── monster_grunt.dart        # 3-phase render: rocky asteroid → steel shard → void crystal
-│   │   ├── monster_tank.dart         # 3-phase render: red warship → steel juggernaut → void dreadnought
-│   │   ├── monster_speeder.dart      # 3-phase render: red scout → cyan drone → void dart
-│   │   ├── monster_caster.dart       # Ranged; keeps 200px range; fires CasterProjectile every 2.5s; 3-phase render
+│   │   ├── monster_grunt.dart        # 10-phase render: phases 1+2 unique; phases 0,3-9 use color-table _renderThemed
+│   │   ├── monster_tank.dart         # 10-phase render: phases 1+2 unique; phases 0,3-9 use color-table _renderThemed
+│   │   ├── monster_speeder.dart      # 10-phase render: phases 1+2 unique; phases 0,3-9 use color-table _renderThemed
+│   │   ├── monster_caster.dart       # Ranged; keeps 200px range; fires CasterProjectile every 2.5s; 10-phase render
 │   │   ├── caster_projectile.dart    # Lime green orb (12dmg, speed 220); hits Player only
-│   │   ├── monster_boss.dart         # Abstract BossMonster — fireAtPlayer() overridable; onDie() → onBossKilled()
-│   │   ├── monster_boss_dreadnought.dart # Purple 100px warship; enrages at 50% HP (2.0s→1.2s); levels 10/30/50…
-│   │   ├── monster_boss_void_tyrant.dart # Crimson 120px warship; 3-shot spread ±0.35rad; enrages at 40% HP; levels 20/40/60…
+│   │   ├── monster_boss.dart         # Abstract BossMonster — fireSpecialAttack() overridable; onDie() → onBossKilled()
+│   │   ├── monster_boss_dreadnought.dart    # Phase 0: purple warship; 16-shot radial special; enrages at 50% HP
+│   │   ├── monster_boss_void_tyrant.dart    # Phase 1: crimson warship; 3-shot spread; enrages at 40% HP
+│   │   ├── monster_boss_leviathan.dart      # Phase 2: cyan sea beast; 24-shot slow radial special
+│   │   ├── monster_boss_blood_colossus.dart # Phase 3: crimson giant; 24 large-projectile radial
+│   │   ├── monster_boss_storm_phantom.dart  # Phase 4: X-pattern (4 groups of 4 at 90° intervals)
+│   │   ├── monster_boss_cosmic_behemoth.dart# Phase 5: blue titan; 32 ultra-slow massive projectiles
+│   │   ├── monster_boss_shadow_reaper.dart  # Phase 6: twin streams (10 forward fan + 10 backward fan)
+│   │   ├── monster_boss_solar_titan.dart    # Phase 7: dual alternating rings (inner 12 + outer 12 offset)
+│   │   ├── monster_boss_void_emperor.dart   # Phase 8: purple emperor; 28 super-fast projectiles
+│   │   ├── monster_boss_singularity.dart    # Phase 9: always fires 360° radially; 40-shot white special
 │   │   ├── boss_projectile.dart      # Extends Projectile; hits Player only
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
 │   │   ├── health_pickup.dart        # Dropped by monsters; heals 30 HP; 8s lifetime
 │   │   ├── supercharge_laser.dart    # World Component (priority 4) — beam color from CoinManager.selectedNovaTheme
 │   │   ├── death_particles.dart      # 10 dots burst, fade over 0.45s
-│   │   ├── background.dart           # Phase-driven star field: Deep Space (0) → Nebula (1) → Blood Moon (2)
+│   │   ├── background.dart           # 10-phase backgrounds cycling via bossPhase % 10; re-added on boss kill
 │   │   └── hud.dart                  # HP/shield bar, NOVA bar, XP bar, Lvl badge, boss bar
 │   ├── systems/
-│   │   ├── wave_system.dart          # Spawn timers; effectiveLevel = currentLevel + bossPhase*5; resets on boss kill
+│   │   ├── wave_system.dart          # Spawn timers; effectiveLevel = currentLevel + bossPhase*8; routes to 10 boss types
 │   │   ├── xp_system.dart            # Linear threshold: 60 + 40×level; reset() on restart
 │   │   └── supercharge_system.dart   # chargeMultiplier, depleteMultiplier, damageMultiplier; ValueNotifier state
 │   └── data/
-│       ├── monster_data.dart         # MonsterStats: grunt/tank/speeder/caster/boss/tyrant constants
+│       ├── monster_data.dart         # MonsterStats for all 10 boss types + 4 regular enemy types
+│       ├── nova_mode.dart            # 11 NovaMode enum values with displayName/inheritTitle/inheritDescription
 │       ├── weapon_data.dart          # WeaponStats stub (unused)
 │       └── upgrade_cards.dart        # Card pool: 6 weapons + 6 stat buffs (incl. Nova Overload); bonus HP cards
 ├── screens/
@@ -91,7 +100,7 @@ lib/
 │   ├── main_menu_screen.dart         # Animated background; PLAY + SHOP; coin balance top-left
 │   ├── shop_screen.dart              # Ship skins + shield skins + Nova beam colours; ad-for-coins banner
 │   ├── game_controls_overlay.dart    # Back + Pause; NOVA button; "PAUSED" red glow overlay
-│   ├── level_up_screen.dart          # Card picker; bonus HP cards shown in green above selectable cards
+│   ├── level_up_screen.dart          # Card picker; bonus HP cards + inherited Nova banner above selectable cards
 │   └── game_over_screen.dart         # Run stats + all-time bests + NEW BEST badge; +N NOVA earned; Watch Ad → Continue
 ```
 
@@ -106,21 +115,45 @@ lib/
 | Speeder | 18 | 210 | 7 | 5 | 3 | Lvl 3+, 35–50% of regular |
 | Tank | 160 | 45 | 18 | 30 | 15 | Lvl 5+, 15s→7s timer |
 | Caster | 40 | 55 | 6 | 20 | 7 | Lvl 7+, 15% of regular |
-| Dreadnought | 800 | 30 | 28 | 0 | 30 | Levels 10, 30, 50… |
-| Void Tyrant | 1600 | 45 | 40 | 0 | 50 | Levels 20, 40, 60… |
+| Dreadnought | 800 | 30 | 28 | 0 | 30 | Phase 0 boss |
+| Void Tyrant | 1600 | 45 | 40 | 0 | 50 | Phase 1 boss |
+| Leviathan | 2400 | 35 | 45 | 0 | 60 | Phase 2 boss |
+| Blood Colossus | 3200 | 25 | 52 | 0 | 70 | Phase 3 boss |
+| Storm Phantom | 2000 | 65 | 38 | 0 | 55 | Phase 4 boss |
+| Cosmic Behemoth | 4000 | 20 | 58 | 0 | 80 | Phase 5 boss |
+| Shadow Reaper | 2800 | 55 | 48 | 0 | 65 | Phase 6 boss |
+| Solar Titan | 3600 | 30 | 55 | 0 | 75 | Phase 7 boss |
+| Void Emperor | 4800 | 40 | 62 | 0 | 90 | Phase 8 boss |
+| Singularity | 6000 | 35 | 70 | 0 | 100 | Phase 9 boss |
 
-### Phase Progression
-- **Phase 0** (start): Deep Space bg, organic enemy designs
-- **Phase 1** (after boss 1): Nebula bg, mechanical steel enemy designs
-- **Phase 2** (after boss 2+): Blood Moon bg, void-corrupted enemy designs
-- `effectiveLevel = currentLevel + bossPhase × 5` for HP/speed scaling
+### Phase Progression (cycles every 10 bosses via `bossPhase % 10`)
+| Phase | Background | Enemy Theme | Boss |
+|---|---|---|---|
+| 0 | Deep Space (dark stars) | Organic / rocky | Dreadnought |
+| 1 | Alien Planet Sky (gradient + clouds) | Mechanical steel | Void Tyrant |
+| 2 | Blood Moon (red nebula) | Void-corrupted | Leviathan |
+| 3 | Crimson Void | Deep red/black | Blood Colossus |
+| 4 | Storm Nebula | Purple storm | Storm Phantom |
+| 5 | Crystal Expanse | Cyan/teal | Cosmic Behemoth |
+| 6 | Solar Flare | Orange/gold | Shadow Reaper |
+| 7 | Galactic Core | Deep blue | Solar Titan |
+| 8 | Shadow Realm | Dark purple | Void Emperor |
+| 9 | Singularity | White/black event horizon | Singularity |
+
+- `effectiveLevel = currentLevel + bossPhase × 8` for HP/speed scaling
 - XP per kill multiplied by `1 + bossPhase × 0.25`
+- After boss 10 the cycle repeats from phase 0 (visuals reset) but difficulty keeps compounding
 
 ### XP & Level-Up
 - **Threshold**: `60 + 40 × level` (linear)
 - **Per-kill XP**: `xpValue × (1 + level ~/ 7) × (1 + bossPhase × 0.25)`
-- **Picks per level-up**: `(1 + level ~/ 7).clamp(1, 5)`
+- **Picks per level-up** (by boss phase): `< 3 → 2 picks`, `< 6 → 3 picks`, `< 10 → 4 picks`, `10+ → 5 picks`
 - Bonus HP cards (20% chance each) auto-applied before showing selectable cards
+
+### Boss Music
+- `AudioManager.playBoss()` called when boss fight starts — crossfades from game track to a random boss track (`Boss Battle.wav` or `Boss Battle 2.wav`)
+- `AudioManager.playGame()` called after boss kill — crossfades back to a random game track
+- Crossfade: 20 steps × 75ms fade out, swap track, fade in; `_fadeGeneration` counter cancels any in-progress fade
 
 ### AdMob Ads
 - **iOS App ID**: `ca-app-pub-7289760521218684~5384220043`
@@ -158,19 +191,32 @@ lib/
 
 10. **AdManager interstitial fallthrough**: If no interstitial is loaded, `showInterstitialAd()` calls `onDismissed` immediately so the menu transition is never blocked.
 
-11. **Background re-init**: `onBossKilled()` and `restart()` both remove and re-add `StarBackground` so the phase-correct star field is shown immediately.
+11. **Background re-init**: `onBossKilled()` and `restart()` both remove and re-add `StarBackground` so the phase-correct background is shown immediately.
 
 12. **Bundle IDs**: iOS `com.sammorrison.novabolt` (Runner target + RunnerTests), Android `com.sammorrison.novabolt`.
 
 13. **isUpgradeable on Weapon**: `WeaponExplosiveBolt` sets `isUpgradeable = false`; `generateUpgradeCards()` skips it in the upgrade pool after first pick.
 
+14. **`fireSpecialAttack()` is public on BossMonster**: Renamed from `_fireSpecialAttack` (library-private) so subclasses (e.g. `MonsterBossSingularity`) can override it.
+
+15. **10-phase monster visuals**: All 4 monster types use `bossPhase % 10` in their `render()` switch. Phases 1 and 2 have unique hand-drawn renderers; phases 0 and 3-9 use compact const color tables + a single `_renderThemed()` method.
+
+16. **audioplayers 6.6.0**: `FlameAudio.bgm.audioPlayer` is non-nullable — no null checks needed. `setVolume(double)` is the correct API (no named parameter).
+
 ---
 
 ## App Store
 
-- **iOS**: v1.0 rejected 2026-05-08 (Guideline 2.1 — ATT prompt not appearing). Fixed by adding `app_tracking_transparency` package and requesting permission before AdMob init. Replied to review thread with screen recording. **Awaiting re-review.**
+- **iOS**: v1.0 rejected 2026-05-08 (Guideline 2.1 — ATT prompt not appearing). Fixed ATT order, submitted build `1.0.0 (2)` on 2026-05-09. **Awaiting re-review.**
 - **Privacy policy**: `docs/privacy.html` — enable GitHub Pages (main branch, /docs folder) so `https://samsimus12.github.io/novabolt/privacy.html` is live.
 - **Android**: not yet submitted.
+
+### Building a New IPA
+```bash
+flutter build ipa --release
+# IPA at: build/ios/ipa/novabolt.ipa
+# Upload via Transporter (drag-and-drop) or xcrun altool
+```
 
 ### ATT Reset for Testing
 To retrigger the ATT prompt on a physical device:
@@ -184,7 +230,7 @@ To retrigger the ATT prompt on a physical device:
 
 | Priority | Feature | Notes |
 |---|---|---|
-| High | **iOS re-review** | Waiting on Apple; ATT fix submitted with screen recording |
+| High | **iOS re-review** | Build 2 submitted 2026-05-09; awaiting Apple decision |
 | Medium | **Sound SFX** | Per-weapon fire, hit, death, level-up sounds via `AudioManager` |
 | Low | **Android Play Store** | Submit once iOS review passes; `flutter build appbundle --release` |
 | Stashed | **Camera-follow / larger world** | `git stash list` → "camera-follow world expansion (WIP)"; needs more work before it feels right |

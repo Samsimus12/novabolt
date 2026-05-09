@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show EdgeInsets;
 
+import '../audio/audio_manager.dart';
 import '../stats/stats_manager.dart';
 import 'components/background.dart';
 import 'components/hud.dart';
@@ -102,6 +103,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         final level = xpSystem.currentLevel;
         if (level % 10 == 0) {
           _waveSystem.startBossFight(level);
+          AudioManager.instance.playBoss();
           return;
         }
         _showLevelUp(level);
@@ -120,6 +122,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       // pendingInheritMode stays set so the level-up screen can display it.
     }
     player.currentHp = player.maxHp;
+    AudioManager.instance.playGame();
 
     world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());

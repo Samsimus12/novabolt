@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
@@ -41,6 +42,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   BossMonster? activeBoss;
   int picksTotal = 0;
   int _picksRemaining = 0;
+  bool isBossReward = false;
 
   NovaMode activeNovaMode = NovaMode.laser;
   Set<NovaMode> unlockedNovaModes = {NovaMode.laser};
@@ -52,7 +54,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   @override
   Color backgroundColor() => switch (_visualPhase) {
         0 => const Color(0xFF0D0D2B),  // deep space
-        1 => const Color(0xFF010C06),  // alien planet sky
+        1 => const Color(0xFF06031C),  // alien planet sky
         2 => const Color(0xFF0A0018),  // nebula purple
         3 => const Color(0xFF150000),  // blood moon red
         4 => const Color(0xFF08000F),  // void storm
@@ -138,16 +140,16 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     world.add(StarBackground());
     _waveSystem.onBossKilled();
     xpSystem.resetXp();
-    _showLevelUp(xpSystem.currentLevel);
+    _showLevelUp(xpSystem.currentLevel, isBossKill: true);
   }
 
-  void _showLevelUp(int level) {
-    picksTotal = switch (bossPhase) {
-      < 3  => 2,
-      < 6  => 3,
-      < 10 => 4,
-      _    => 5,
-    };
+  void _showLevelUp(int level, {bool isBossKill = false}) {
+    isBossReward = isBossKill;
+    if (isBossKill) {
+      picksTotal = 3;
+    } else {
+      picksTotal = math.Random().nextDouble() < 0.20 ? 2 : 1;
+    }
     _picksRemaining = picksTotal;
     currentCards = generateUpgradeCards(this);
     bonusCards = rollBonusCards(this);
@@ -259,6 +261,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       currentCards = [];
       bonusCards = [];
       picksTotal = 0;
+      isBossReward = false;
       pendingInheritMode = null; // clear if boss inherit wasn't selected
       resumeEngine();
     }

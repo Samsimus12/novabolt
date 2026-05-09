@@ -70,5 +70,22 @@ class WeaponSwordAura extends Weapon {
         dotPaint,
       );
     }
+
+    // Upgrade balls — one per level beyond 1, counter-orbiting on inner ring
+    final extraBalls = upgradeLevel - 1;
+    if (extraBalls > 0) {
+      const innerR = _radius * 0.65;
+      final glowPaint = Paint()
+        ..color = const Color(0x88FFD700)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      final ballPaint = Paint()..color = const Color(0xFFFFFFAA);
+      for (int i = 0; i < extraBalls; i++) {
+        final a = -_angle * 1.5 + (i * math.pi * 2 / extraBalls);
+        final bx = cx + math.cos(a) * innerR;
+        final by = cy + math.sin(a) * innerR;
+        canvas.drawCircle(Offset(bx, by), 5.0, glowPaint);
+        canvas.drawCircle(Offset(bx, by), 3.0, ballPaint);
+      }
+    }
   }
 }

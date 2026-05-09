@@ -17,16 +17,16 @@ class LevelUpScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
-              'LEVEL UP!',
+            Text(
+              game.isBossReward ? 'BOSS REWARD!' : 'LEVEL UP!',
               style: TextStyle(
-                color: Color(0xFFFFD700),
+                color: game.isBossReward ? const Color(0xFFFF4444) : const Color(0xFFFFD700),
                 fontSize: 44,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 4,
                 shadows: [
                   Shadow(
-                      color: Color(0xAAF4A800),
+                      color: game.isBossReward ? const Color(0xAAFF0000) : const Color(0xAAF4A800),
                       blurRadius: 20,
                       offset: Offset(0, 0))
                 ],
@@ -40,9 +40,11 @@ class LevelUpScreen extends StatelessWidget {
             if (game.picksTotal > 1) ...[
               const SizedBox(height: 6),
               Text(
-                'Pick ${game.currentPickIndex} of ${game.picksTotal}',
-                style: const TextStyle(
-                  color: Color(0xFF00E5FF),
+                game.isBossReward
+                    ? 'Pick ${game.currentPickIndex} of ${game.picksTotal} — Boss Reward'
+                    : 'Pick ${game.currentPickIndex} of ${game.picksTotal} — Lucky Draw!',
+                style: TextStyle(
+                  color: game.isBossReward ? const Color(0xFFFF6666) : const Color(0xFF00E5FF),
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,

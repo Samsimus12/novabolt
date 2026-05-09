@@ -31,6 +31,8 @@ class MonsterSpeeder extends Monster {
     canvas.translate(-cx, -cy);
 
     switch (game.bossPhase % 10) {
+      case 0:
+        _renderOrganic(canvas, cx, cy);
       case 1:
         _renderMechanical(canvas, cx, cy);
       case 2:

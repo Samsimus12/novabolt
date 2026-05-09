@@ -65,6 +65,8 @@ class MonsterCaster extends Monster {
     final angle = math.atan2(dir.y, dir.x);
 
     switch (game.bossPhase % 10) {
+      case 0:
+        _renderOrganic(canvas, cx, cy, r, angle);
       case 1:
         _renderMechanical(canvas, cx, cy, r, angle);
       case 2:

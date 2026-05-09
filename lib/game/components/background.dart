@@ -10,11 +10,11 @@ const _deepSpaceColor = Color(0xFFBEC8FF);
 
 // ── Phase 1: Alien Planet Sky ─────────────────────────────────────────────────
 const _alienCloudColors = [
-  Color(0xFF0D3A22), Color(0xFF0A2E2E), Color(0xFF193D28),
-  Color(0xFF1A5C3A), Color(0xFF145050),
+  Color(0xFFDDE8FF), Color(0xFFCCD5FF), Color(0xFFBBCCFF),
+  Color(0xFFEEEEFF), Color(0xFFAABBEE),
 ];
 const _alienMoteColors = [
-  Color(0xFF7FFFD4), Color(0xFF00FA9A), Color(0xFFADFF2F), Color(0xFFFAFAD2),
+  Color(0xFFFFFFFF), Color(0xFFDDEEFF), Color(0xFFCCDDFF),
 ];
 
 // ── Phase 2: Nebula ───────────────────────────────────────────────────────────
@@ -74,30 +74,30 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
 
     switch (phase) {
       case 1: // Alien Planet Sky
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
           _clouds.add(_Cloud(
             x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
-            w: _rng.nextDouble() * 150 + 90, h: _rng.nextDouble() * 30 + 15,
-            speed: _rng.nextDouble() * 7 + 4,
-            alpha: _rng.nextDouble() * 0.10 + 0.07,
-            colorIndex: _rng.nextInt(3), isLarge: true,
+            w: _rng.nextDouble() * 200 + 130, h: _rng.nextDouble() * 50 + 30,
+            speed: _rng.nextDouble() * 5 + 2,
+            alpha: _rng.nextDouble() * 0.12 + 0.10,
+            colorIndex: _rng.nextInt(_alienCloudColors.length), isLarge: true,
           ));
         }
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 10; i++) {
           _clouds.add(_Cloud(
             x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
-            w: _rng.nextDouble() * 100 + 55, h: _rng.nextDouble() * 20 + 10,
-            speed: _rng.nextDouble() * 14 + 12,
-            alpha: _rng.nextDouble() * 0.14 + 0.09,
+            w: _rng.nextDouble() * 120 + 70, h: _rng.nextDouble() * 30 + 16,
+            speed: _rng.nextDouble() * 14 + 8,
+            alpha: _rng.nextDouble() * 0.18 + 0.12,
             colorIndex: _rng.nextInt(_alienCloudColors.length), isLarge: false,
           ));
         }
-        for (int i = 0; i < 35; i++) {
+        for (int i = 0; i < 20; i++) {
           _stars.add(_Star(
             x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
-            radius: _rng.nextDouble() * 1.6 + 0.5,
-            speed: _rng.nextDouble() * 40 + 20,
-            alpha: _rng.nextDouble() * 0.45 + 0.25,
+            radius: _rng.nextDouble() * 1.0 + 0.3,
+            speed: _rng.nextDouble() * 6 + 2,
+            alpha: _rng.nextDouble() * 0.30 + 0.10,
             colorIndex: _rng.nextInt(_alienMoteColors.length),
           ));
         }
@@ -256,42 +256,66 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
     final sz = game.size;
     final paint = Paint();
 
+    // Sky gradient: deep indigo at top → dark twilight blue at horizon
     canvas.drawRect(
       Rect.fromLTWH(0, 0, sz.x, sz.y),
       Paint()..shader = Gradient.linear(
         Offset.zero, Offset(0, sz.y),
-        [const Color(0xFF010C06), const Color(0xFF041E10)],
+        [
+          const Color(0xFF06031C),  // near-black indigo
+          const Color(0xFF0D1640),  // deep space blue
+          const Color(0xFF162855),  // twilight horizon
+        ],
+        [0.0, 0.55, 1.0],
       ),
     );
 
-    for (final c in _clouds) {
-      final color = _alienCloudColors[c.colorIndex];
-      if (c.isLarge) {
-        paint.color = color.withAlpha(((c.alpha * 0.45) * 255).round());
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(c.x, c.y), width: c.w * 1.45, height: c.h * 1.6),
-          paint,
-        );
-      }
-      paint.color = color.withAlpha((c.alpha * 255).round());
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(c.x, c.y), width: c.w, height: c.h),
-        paint,
-      );
-    }
-
-    canvas.drawRect(
-      Rect.fromLTWH(0, sz.y * 0.60, sz.x, sz.y * 0.40),
-      Paint()..shader = Gradient.linear(
-        Offset(0, sz.y * 0.60), Offset(0, sz.y),
-        [const Color(0x00000000), const Color(0x1A1A7040)],
-      ),
-    );
-
+    // Faint stars peeking through the atmosphere
     for (final s in _stars) {
       paint.color = _alienMoteColors[s.colorIndex].withAlpha((s.alpha * 255).round());
       canvas.drawCircle(Offset(s.x, s.y), s.radius, paint);
     }
+
+    // Clouds — each drawn as multiple overlapping ovals for a puffy look
+    for (final c in _clouds) {
+      final color = _alienCloudColors[c.colorIndex];
+      final a = (c.alpha * 255).round();
+
+      if (c.isLarge) {
+        // Soft glow halo behind the cloud mass
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset(c.x, c.y), width: c.w * 1.6, height: c.h * 1.5),
+          Paint()
+            ..color = color.withAlpha(a ~/ 4)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+        );
+        // Main puff blobs
+        paint.color = color.withAlpha(a);
+        canvas.drawOval(Rect.fromCenter(center: Offset(c.x, c.y - c.h * 0.10), width: c.w * 0.75, height: c.h * 1.05), paint);
+        canvas.drawOval(Rect.fromCenter(center: Offset(c.x - c.w * 0.27, c.y + c.h * 0.08), width: c.w * 0.62, height: c.h * 0.88), paint);
+        canvas.drawOval(Rect.fromCenter(center: Offset(c.x + c.w * 0.25, c.y + c.h * 0.08), width: c.w * 0.58, height: c.h * 0.82), paint);
+        // Bright top highlight
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset(c.x, c.y - c.h * 0.18), width: c.w * 0.45, height: c.h * 0.55),
+          Paint()..color = color.withAlpha((a * 0.55).round()),
+        );
+      } else {
+        // Smaller foreground clouds: 3-blob puff
+        paint.color = color.withAlpha(a);
+        canvas.drawOval(Rect.fromCenter(center: Offset(c.x, c.y - c.h * 0.08), width: c.w * 0.80, height: c.h * 1.05), paint);
+        canvas.drawOval(Rect.fromCenter(center: Offset(c.x - c.w * 0.22, c.y + c.h * 0.10), width: c.w * 0.60, height: c.h * 0.80), paint);
+        canvas.drawOval(Rect.fromCenter(center: Offset(c.x + c.w * 0.20, c.y + c.h * 0.10), width: c.w * 0.55, height: c.h * 0.75), paint);
+      }
+    }
+
+    // Subtle atmospheric glow at the horizon
+    canvas.drawRect(
+      Rect.fromLTWH(0, sz.y * 0.65, sz.x, sz.y * 0.35),
+      Paint()..shader = Gradient.linear(
+        Offset(0, sz.y * 0.65), Offset(0, sz.y),
+        [const Color(0x00162855), const Color(0x2A1E3A6A)],
+      ),
+    );
   }
 
   void _renderSingularity(Canvas canvas) {

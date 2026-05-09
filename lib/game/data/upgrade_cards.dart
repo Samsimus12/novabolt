@@ -114,7 +114,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
   // --- Weapon category ---
 
   for (final w in player.activeWeapons) {
-    if (w.isUpgradeable && w.upgradeLevel < 4) pool.add(WeaponUpgradeCard(w));
+    if (w.isUpgradeable && w.upgradeLevel < 10) pool.add(WeaponUpgradeCard(w));
   }
 
   if (!player.hasWeapon<WeaponSpreadShot>()) {

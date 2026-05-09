@@ -83,6 +83,7 @@ class Player extends PositionComponent
   double shieldHp = 0;
   static const double maxShieldHp = 50.0;
   double _shieldFlashTimer = 0;
+  double _damageTime = 0;
 
   Player({required super.position})
       : super(size: Vector2.all(44), anchor: Anchor.center, priority: 3);
@@ -113,6 +114,7 @@ class Player extends PositionComponent
     }
 
     if (_shieldFlashTimer > 0) _shieldFlashTimer -= dt;
+    _damageTime += dt;
   }
 
   Vector2 get aimDirection {
@@ -164,6 +166,7 @@ class Player extends PositionComponent
     _facingAngle = 0;
     shieldHp = 0;
     _shieldFlashTimer = 0;
+    _damageTime = 0;
     children.whereType<Weapon>().toList().forEach((w) => w.removeFromParent());
     add(WeaponMagicBolt());
   }
@@ -271,9 +274,81 @@ class Player extends PositionComponent
       Paint()..color = const Color(0xFFFF9900),
     );
 
+    final hpFraction = (currentHp / maxHp).clamp(0.0, 1.0);
+    if (hpFraction < 0.75) _renderDamage(canvas, cx, cy, hpFraction);
+
     canvas.restore();
 
     _renderShield(canvas);
+  }
+
+  void _renderDamage(Canvas canvas, double cx, double cy, double hpFraction) {
+    // 75% — hairline cracks on fuselage
+    final crackPaint = Paint()
+      ..color = const Color(0xBB000000)
+      ..strokeWidth = 0.9
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(Offset(cx - 3, cy - 10), Offset(cx - 1, cy - 3), crackPaint);
+    canvas.drawLine(Offset(cx + 3, cy + 1), Offset(cx + 5, cy + 7), crackPaint);
+
+    if (hpFraction >= 0.50) return;
+
+    // 50% — more cracks + dark smoke from right engine
+    canvas.drawLine(Offset(cx - 6, cy + 1), Offset(cx - 4, cy + 8), crackPaint);
+    canvas.drawLine(Offset(cx + 1, cy - 14), Offset(cx + 5, cy - 9), crackPaint);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx + 5, cy + 19), width: 9, height: 7),
+      Paint()
+        ..color = const Color(0x77333333)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+
+    if (hpFraction >= 0.25) return;
+
+    // 25% — fire from left engine + scorched wing overlay
+    canvas.drawPath(
+      Path()
+        ..moveTo(cx - 5, cy - 1)
+        ..lineTo(cx - 21, cy + 10)
+        ..lineTo(cx - 9, cy + 11)
+        ..close(),
+      Paint()..color = const Color(0x66220000),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx - 5, cy + 17), width: 10, height: 9),
+      Paint()
+        ..color = const Color(0xCCFF4400)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawLine(Offset(cx + 1, cy - 6), Offset(cx - 2, cy + 4),
+        Paint()
+          ..color = const Color(0xFFFF6600)
+          ..strokeWidth = 1.2
+          ..style = PaintingStyle.stroke);
+
+    if (hpFraction >= 0.10) return;
+
+    // 10% — pulsing red danger glow + both engines on fire
+    final pulse = math.sin(_damageTime * 10) * 0.5 + 0.5;
+    final pulseAlpha = (80 + pulse * 120).toInt();
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, cy - 2), width: 28, height: 42),
+      Paint()
+        ..color = Color.fromARGB(pulseAlpha ~/ 2, 255, 0, 0)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx - 5, cy + 19), width: 11, height: 10),
+      Paint()
+        ..color = Color.fromARGB(pulseAlpha, 255, 100, 0)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx + 5, cy + 19), width: 11, height: 10),
+      Paint()
+        ..color = Color.fromARGB(pulseAlpha, 255, 100, 0)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
   }
 
   Color get _shieldColor => switch (CoinManager.instance.selectedShieldSkin) {

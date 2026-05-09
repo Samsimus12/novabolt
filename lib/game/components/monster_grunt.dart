@@ -45,6 +45,8 @@ class MonsterGrunt extends Monster {
   @override
   void render(Canvas canvas) {
     switch (game.bossPhase % 10) {
+      case 0:
+        _renderOrganic(canvas);
       case 1:
         _renderMechanical(canvas);
       case 2:

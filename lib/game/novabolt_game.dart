@@ -47,8 +47,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   @override
   Color backgroundColor() => switch (bossPhase.clamp(0, 2)) {
-        1 => const Color(0xFF0A0018),  // nebula purple
-        2 => const Color(0xFF150000),  // blood moon red
+        1 => const Color(0xFF010C06),  // alien planet sky
+        2 => const Color(0xFF0A0018),  // nebula purple
+        // 3 => const Color(0xFF150000),  // blood moon red (Phase 3, future)
         _ => const Color(0xFF0D0D2B),  // deep space
       };
 

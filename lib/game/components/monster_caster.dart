@@ -15,14 +15,14 @@ class MonsterCaster extends Monster {
   MonsterCaster({required super.position, int playerLevel = 1})
       : super(stats: casterStats.scaled(playerLevel));
 
+  static const _deathColors = [
+    Color(0xFF7C4DFF), Color(0xFF00E5FF), Color(0xFFFF00FF),
+    Color(0xFFCC0000), Color(0xFF8800FF), Color(0xFF00FFFF),
+    Color(0xFFFFAA00), Color(0xFF00FFCC), Color(0xFF5500AA), Color(0xFFFFFFFF),
+  ];
+
   @override
-  Color get deathColor {
-    return switch (game.bossPhase.clamp(0, 2)) {
-      1 => const Color(0xFF00E5FF),
-      2 => const Color(0xFFFF00FF),
-      _ => const Color(0xFF7C4DFF),
-    };
-  }
+  Color get deathColor => _deathColors[(game.bossPhase % 10).clamp(0, 9)];
 
   @override
   void updateMovement(double dt) {
@@ -64,13 +64,13 @@ class MonsterCaster extends Monster {
     final dir = game.player.position - position;
     final angle = math.atan2(dir.y, dir.x);
 
-    switch (game.bossPhase.clamp(0, 2)) {
+    switch (game.bossPhase % 10) {
       case 1:
         _renderMechanical(canvas, cx, cy, r, angle);
       case 2:
         _renderVoid(canvas, cx, cy, r, angle);
       default:
-        _renderOrganic(canvas, cx, cy, r, angle);
+        _renderThemed(canvas, cx, cy, r, angle);
     }
 
     renderHpBar(canvas);
@@ -232,6 +232,70 @@ class MonsterCaster extends Monster {
     final chargeAlpha = (_fireTimer / _fireInterval * 180).toInt().clamp(0, 180);
     canvas.drawCircle(Offset(cx, cy), 11, Paint()
       ..color = Color.fromARGB(chargeAlpha, 255, 0, 255)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5);
+  }
+
+  static const _hexBodyColor = [
+    Color(0xFF311B92), Color(0xFF455A64), Color(0xFF0D0020),
+    Color(0xFF3D0000), Color(0xFF1A0033), Color(0xFF002244),
+    Color(0xFF2A1500), Color(0xFF020808), Color(0xFF06000F), Color(0xFF050505),
+  ];
+  static const _hexOutlineColor = [
+    Color(0xFF7C4DFF), Color(0xFF78909C), Color(0xFFCC00FF),
+    Color(0xFF880000), Color(0xFF6600CC), Color(0xFF00AAFF),
+    Color(0xFFCC7700), Color(0xFF00FFCC), Color(0xFF440088), Color(0xFFAAAAAA),
+  ];
+  static const _coreColor = [
+    Color(0xFFB2FF59), Color(0xFF00E5FF), Color(0xFFFF00FF),
+    Color(0xFFFF2200), Color(0xFF9900FF), Color(0xFF00FFFF),
+    Color(0xFFFFDD00), Color(0xFF00FFAA), Color(0xFFAA00FF), Color(0xFFFFFFFF),
+  ];
+
+  void _renderThemed(Canvas canvas, double cx, double cy, double r, double angle) {
+    final p = (game.bossPhase % 10).clamp(0, 9);
+    final outlineColor = _hexOutlineColor[p];
+    final coreColor = _coreColor[p];
+
+    // Aura
+    canvas.drawCircle(Offset(cx, cy), r + 4, Paint()
+      ..color = outlineColor.withAlpha(80)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+
+    // Hexagon body
+    final hex = Path();
+    for (int i = 0; i < 6; i++) {
+      final a = math.pi / 6 + i * math.pi / 3;
+      if (i == 0) hex.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      else hex.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+    }
+    hex.close();
+    canvas.drawPath(hex, Paint()..color = _hexBodyColor[p]);
+    canvas.drawPath(hex, Paint()
+      ..color = outlineColor..style = PaintingStyle.stroke..strokeWidth = 1.5);
+
+    // Rotating barrel
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(angle);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(2, -3, r - 2, 6), const Radius.circular(2)),
+      Paint()..color = _hexBodyColor[p].withAlpha(220),
+    );
+    canvas.drawCircle(Offset(r - 1, 0), 3, Paint()..color = coreColor);
+    canvas.restore();
+
+    // Core glow + dot
+    canvas.drawCircle(Offset(cx, cy), 7, Paint()
+      ..color = coreColor.withAlpha(160)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    canvas.drawCircle(Offset(cx, cy), 4, Paint()..color = coreColor);
+
+    // Charge ring
+    final chargeAlpha = (_fireTimer / _fireInterval * 180).toInt().clamp(0, 180);
+    final chargeRgb = coreColor;
+    canvas.drawCircle(Offset(cx, cy), 11, Paint()
+      ..color = chargeRgb.withAlpha(chargeAlpha)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5);
   }

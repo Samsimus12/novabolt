@@ -8,14 +8,14 @@ class MonsterTank extends Monster {
   MonsterTank({required super.position, int playerLevel = 1})
       : super(stats: tankStats.scaled(playerLevel));
 
+  static const _deathColors = [
+    Color(0xFF8B0000), Color(0xFF78909C), Color(0xFFCC00FF),
+    Color(0xFFBB0000), Color(0xFF6600CC), Color(0xFF00BBFF),
+    Color(0xFFFF8800), Color(0xFFFFFFFF), Color(0xFF440088), Color(0xFFCCCCCC),
+  ];
+
   @override
-  Color get deathColor {
-    return switch (game.bossPhase.clamp(0, 2)) {
-      1 => const Color(0xFF78909C),
-      2 => const Color(0xFFCC00FF),
-      _ => const Color(0xFF8B0000),
-    };
-  }
+  Color get deathColor => _deathColors[(game.bossPhase % 10).clamp(0, 9)];
 
   @override
   void render(Canvas canvas) {
@@ -30,18 +30,95 @@ class MonsterTank extends Monster {
     canvas.rotate(angle);
     canvas.translate(-cx, -cy);
 
-    switch (game.bossPhase.clamp(0, 2)) {
+    switch (game.bossPhase % 10) {
       case 1:
         _renderMechanical(canvas, cx, cy);
       case 2:
         _renderVoid(canvas, cx, cy);
       default:
-        _renderOrganic(canvas, cx, cy);
+        _renderThemed(canvas, cx, cy);
     }
 
     canvas.restore();
     renderHpBar(canvas);
     renderFlash(canvas);
+  }
+
+  // Hull colour table for phases 0, 3-9 (reuses phase-0 shape).
+  static const _hullColor = [
+    Color(0xFF8B0000), Color(0xFF546E7A), Color(0xFF1A0033), // 0-2
+    Color(0xFF550000), Color(0xFF1A0033), Color(0xFF002244), // 3-5
+    Color(0xFF331100), Color(0xFF030808), Color(0xFF0A0015), Color(0xFF0A0A0A), // 6-9
+  ];
+  static const _outlineColor = [
+    Color(0xFFAA2020), Color(0xFF78909C), Color(0xFFCC00FF),
+    Color(0xFFAA0000), Color(0xFF6600CC), Color(0xFF0088FF),
+    Color(0xFFFFAA00), Color(0xFF00FFCC), Color(0xFF5500AA), Color(0xFFAAAAAA),
+  ];
+  static const _eyeColor = [
+    Color(0xFFFF8C00), Color(0xFF00E5FF), Color(0xFFFF00FF),
+    Color(0xFFFF2200), Color(0xFF9900FF), Color(0xFF00FFFF),
+    Color(0xFFFFDD00), Color(0xFF00FFAA), Color(0xFFAA00FF), Color(0xFFFFFFFF),
+  ];
+  static const _engineColor = [
+    Color(0xFFFF6600), Color(0xFF0088FF), Color(0xFFCC00FF),
+    Color(0xFFFF2200), Color(0xFF7700FF), Color(0xFF00AAFF),
+    Color(0xFFFF8800), Color(0xFF00FFCC), Color(0xFF6600CC), Color(0xFFCCCCCC),
+  ];
+  static const _glowColor = [
+    Color(0xAAFF4400), Color(0xAA0088FF), Color(0xAACC00FF),
+    Color(0xAACC0000), Color(0xAA6600CC), Color(0xAA0088FF),
+    Color(0xAAAA6600), Color(0xAA00FFAA), Color(0xAA440088), Color(0xAA888888),
+  ];
+
+  void _renderThemed(Canvas canvas, double cx, double cy) {
+    final p = (game.bossPhase % 10).clamp(0, 9);
+
+    // Engine glow
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14),
+      Paint()..color = _glowColor[p]..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+
+    final leftPod = Path()
+      ..moveTo(cx - 14, cy - 6)..lineTo(cx - 22, cy - 2)
+      ..lineTo(cx - 22, cy + 14)..lineTo(cx - 14, cy + 12)..close();
+    final rightPod = Path()
+      ..moveTo(cx + 14, cy - 6)..lineTo(cx + 22, cy - 2)
+      ..lineTo(cx + 22, cy + 14)..lineTo(cx + 14, cy + 12)..close();
+    final podPaint = Paint()..color = _hullColor[p].withAlpha(200);
+    canvas.drawPath(leftPod, podPaint);
+    canvas.drawPath(rightPod, podPaint);
+
+    final hull = Path()
+      ..moveTo(cx, cy - 24)..lineTo(cx + 12, cy - 14)
+      ..lineTo(cx + 13, cy + 14)..lineTo(cx + 7, cy + 22)
+      ..lineTo(cx - 7, cy + 22)..lineTo(cx - 13, cy + 14)
+      ..lineTo(cx - 12, cy - 14)..close();
+    canvas.drawPath(hull, Paint()..color = _hullColor[p]);
+    canvas.drawPath(hull, Paint()
+      ..color = _outlineColor[p]..style = PaintingStyle.stroke..strokeWidth = 2.0);
+
+    // Guns
+    final gunPaint = Paint()..color = _hullColor[p].withAlpha(180);
+    canvas.drawRect(Rect.fromCenter(center: Offset(cx - 4, cy - 22), width: 4, height: 10), gunPaint);
+    canvas.drawRect(Rect.fromCenter(center: Offset(cx + 4, cy - 22), width: 4, height: 10), gunPaint);
+
+    // Bridge + eyes
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy - 5), width: 13, height: 11),
+        Paint()..color = _hullColor[p].withAlpha(220));
+    canvas.drawCircle(Offset(cx - 3.5, cy - 5), 3.5, Paint()..color = _eyeColor[p]);
+    canvas.drawCircle(Offset(cx + 3.5, cy - 5), 3.5, Paint()..color = _eyeColor[p]);
+
+    // Engine ports
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - 4, cy + 21), width: 6, height: 4),
+        Paint()..color = _hullColor[p].withAlpha(200));
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx + 4, cy + 21), width: 6, height: 4),
+        Paint()..color = _hullColor[p].withAlpha(200));
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - 4, cy + 22), width: 4, height: 3),
+        Paint()..color = _engineColor[p]);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx + 4, cy + 22), width: 4, height: 3),
+        Paint()..color = _engineColor[p]);
   }
 
   // Phase 0 — dark red capital warship

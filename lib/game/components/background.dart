@@ -5,39 +5,60 @@ import 'package:flame/components.dart';
 
 import '../novabolt_game.dart';
 
-// Phase 0: Deep Space
+// ── Phase 0: Deep Space ───────────────────────────────────────────────────────
 const _deepSpaceColor = Color(0xFFBEC8FF);
 
-// Phase 1: Alien Planet Sky
+// ── Phase 1: Alien Planet Sky ─────────────────────────────────────────────────
 const _alienCloudColors = [
-  Color(0xFF0D3A22), // dark jade
-  Color(0xFF0A2E2E), // dark teal
-  Color(0xFF193D28), // forest green
-  Color(0xFF1A5C3A), // medium jade
-  Color(0xFF145050), // medium teal
+  Color(0xFF0D3A22), Color(0xFF0A2E2E), Color(0xFF193D28),
+  Color(0xFF1A5C3A), Color(0xFF145050),
 ];
 const _alienMoteColors = [
-  Color(0xFF7FFFD4), // aquamarine
-  Color(0xFF00FA9A), // spring green
-  Color(0xFFADFF2F), // chartreuse
-  Color(0xFFFAFAD2), // pale yellow (sun-glint)
+  Color(0xFF7FFFD4), Color(0xFF00FA9A), Color(0xFFADFF2F), Color(0xFFFAFAD2),
 ];
 
-// Phase 2: Nebula
+// ── Phase 2: Nebula ───────────────────────────────────────────────────────────
 const _nebulaColors = [
-  Color(0xFFD050FF),
-  Color(0xFFFF60B0),
-  Color(0xFF40C4FF),
-  Color(0xFFE0E0FF),
-  Color(0xFF60FFC0),
+  Color(0xFFD050FF), Color(0xFFFF60B0), Color(0xFF40C4FF),
+  Color(0xFFE0E0FF), Color(0xFF60FFC0),
 ];
 
-// Phase 3 (future): Blood Moon — uncomment case 3 in onLoad/render when a 4th boss phase is added
-// const _bloodMoonColors = [
-//   Color(0xFFFF1744),
-//   Color(0xFFFF6D00),
-//   Color(0xFFFF8A65),
-// ];
+// ── Phase 3: Blood Moon ───────────────────────────────────────────────────────
+const _bloodMoonColors = [
+  Color(0xFFFF1744), Color(0xFFFF6D00), Color(0xFFFF8A65),
+];
+
+// ── Phase 4: Void Storm ───────────────────────────────────────────────────────
+const _voidStormColors = [
+  Color(0xFF6600CC), Color(0xFF4400AA), Color(0xFFAA00FF), Color(0xFF330088),
+];
+
+// ── Phase 5: Crystal Cavern ───────────────────────────────────────────────────
+const _crystalColors = [
+  Color(0xFF00FFFF), Color(0xFF80FFFF), Color(0xFF40E0FF),
+  Color(0xFF00E5FF), Color(0xFFFFFFFF),
+];
+
+// ── Phase 6: Solar Flare ──────────────────────────────────────────────────────
+const _solarColors = [
+  Color(0xFFFFAA00), Color(0xFFFF6600), Color(0xFFFFDD00), Color(0xFFFF4400),
+];
+
+// ── Phase 7: Galactic Core ────────────────────────────────────────────────────
+const _galacticColors = [
+  Color(0xFFFFFFFF), Color(0xFFFFEEAA), Color(0xFFAAEEFF),
+  Color(0xFFFFAAFF), Color(0xFFAAFFCC),
+];
+
+// ── Phase 8: Shadow Realm ─────────────────────────────────────────────────────
+const _shadowColors = [
+  Color(0xFF220033), Color(0xFF110022), Color(0xFF330044), Color(0xFF440066),
+];
+
+// ── Phase 9: Singularity ──────────────────────────────────────────────────────
+const _singularityColors = [
+  Color(0xFFFFFFFF), Color(0xFFCCCCFF), Color(0xFFAAFFFF),
+];
 
 class StarBackground extends Component with HasGameReference<NovaboltGame> {
   final _stars = <_Star>[];
@@ -49,73 +70,136 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
     _stars.clear();
     _clouds.clear();
     final sz = game.size;
+    final phase = game.bossPhase % 10;
 
-    switch (game.bossPhase.clamp(0, 2)) {
+    switch (phase) {
       case 1: // Alien Planet Sky
-        // Large background cloud formations — slow, very transparent
         for (int i = 0; i < 5; i++) {
           _clouds.add(_Cloud(
-            x: _rng.nextDouble() * sz.x,
-            y: _rng.nextDouble() * sz.y,
-            w: _rng.nextDouble() * 150 + 90,
-            h: _rng.nextDouble() * 30 + 15,
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            w: _rng.nextDouble() * 150 + 90, h: _rng.nextDouble() * 30 + 15,
             speed: _rng.nextDouble() * 7 + 4,
             alpha: _rng.nextDouble() * 0.10 + 0.07,
-            colorIndex: _rng.nextInt(3), // dark shades only
-            isLarge: true,
+            colorIndex: _rng.nextInt(3), isLarge: true,
           ));
         }
-        // Medium cloud formations
         for (int i = 0; i < 8; i++) {
           _clouds.add(_Cloud(
-            x: _rng.nextDouble() * sz.x,
-            y: _rng.nextDouble() * sz.y,
-            w: _rng.nextDouble() * 100 + 55,
-            h: _rng.nextDouble() * 20 + 10,
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            w: _rng.nextDouble() * 100 + 55, h: _rng.nextDouble() * 20 + 10,
             speed: _rng.nextDouble() * 14 + 12,
             alpha: _rng.nextDouble() * 0.14 + 0.09,
-            colorIndex: _rng.nextInt(_alienCloudColors.length),
-            isLarge: false,
+            colorIndex: _rng.nextInt(_alienCloudColors.length), isLarge: false,
           ));
         }
-        // Atmospheric motes — spores, pollen, alien particles
         for (int i = 0; i < 35; i++) {
           _stars.add(_Star(
-            x: _rng.nextDouble() * sz.x,
-            y: _rng.nextDouble() * sz.y,
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
             radius: _rng.nextDouble() * 1.6 + 0.5,
             speed: _rng.nextDouble() * 40 + 20,
             alpha: _rng.nextDouble() * 0.45 + 0.25,
             colorIndex: _rng.nextInt(_alienMoteColors.length),
           ));
         }
+
       case 2: // Nebula — rich multicolour star field
         for (int i = 0; i < 150; i++) {
           _stars.add(_Star(
-            x: _rng.nextDouble() * sz.x,
-            y: _rng.nextDouble() * sz.y,
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
             radius: _rng.nextDouble() * 1.5 + 0.2,
             speed: _rng.nextDouble() * 16 + 3,
             alpha: _rng.nextDouble() * 0.6 + 0.2,
             colorIndex: _rng.nextInt(_nebulaColors.length),
           ));
         }
-      // case 3: // Blood Moon — red/orange sparse stars (Phase 3, future)
-      //   for (int i = 0; i < 70; i++) {
-      //     _stars.add(_Star(
-      //       x: _rng.nextDouble() * sz.x,
-      //       y: _rng.nextDouble() * sz.y,
-      //       radius: _rng.nextDouble() * 2.0 + 0.4,
-      //       speed: _rng.nextDouble() * 10 + 2,
-      //       alpha: _rng.nextDouble() * 0.7 + 0.2,
-      //       colorIndex: _rng.nextInt(_bloodMoonColors.length),
-      //     ));
-      //   }
-      default: // Deep Space — pale blue, dense
+
+      case 3: // Blood Moon — red/orange sparse stars
+        for (int i = 0; i < 70; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: _rng.nextDouble() * 2.0 + 0.4,
+            speed: _rng.nextDouble() * 10 + 2,
+            alpha: _rng.nextDouble() * 0.7 + 0.2,
+            colorIndex: _rng.nextInt(_bloodMoonColors.length),
+          ));
+        }
+
+      case 4: // Void Storm — dense purple field, some large energy nodes
+        for (int i = 0; i < 100; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: i < 10
+                ? _rng.nextDouble() * 3.5 + 2.0  // large energy nodes
+                : _rng.nextDouble() * 1.2 + 0.3,
+            speed: _rng.nextDouble() * 12 + 3,
+            alpha: i < 10 ? _rng.nextDouble() * 0.5 + 0.3 : _rng.nextDouble() * 0.55 + 0.2,
+            colorIndex: _rng.nextInt(_voidStormColors.length),
+          ));
+        }
+
+      case 5: // Crystal Cavern — icy blue sparkles with large crystal nodes
         for (int i = 0; i < 120; i++) {
           _stars.add(_Star(
-            x: _rng.nextDouble() * sz.x,
-            y: _rng.nextDouble() * sz.y,
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: i < 15
+                ? _rng.nextDouble() * 2.8 + 1.5  // crystal facets
+                : _rng.nextDouble() * 1.0 + 0.3,
+            speed: _rng.nextDouble() * 14 + 4,
+            alpha: i < 15 ? _rng.nextDouble() * 0.6 + 0.3 : _rng.nextDouble() * 0.5 + 0.2,
+            colorIndex: _rng.nextInt(_crystalColors.length),
+          ));
+        }
+
+      case 6: // Solar Flare — golden/orange sparse particles, large glowing blobs
+        for (int i = 0; i < 80; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: i < 12
+                ? _rng.nextDouble() * 4.0 + 2.5  // solar plasma blobs
+                : _rng.nextDouble() * 1.5 + 0.4,
+            speed: _rng.nextDouble() * 8 + 2,
+            alpha: i < 12 ? _rng.nextDouble() * 0.4 + 0.2 : _rng.nextDouble() * 0.6 + 0.25,
+            colorIndex: _rng.nextInt(_solarColors.length),
+          ));
+        }
+
+      case 7: // Galactic Core — very dense multi-colour star field
+        for (int i = 0; i < 300; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: _rng.nextDouble() * 1.2 + 0.2,
+            speed: _rng.nextDouble() * 18 + 4,
+            alpha: _rng.nextDouble() * 0.7 + 0.2,
+            colorIndex: _rng.nextInt(_galacticColors.length),
+          ));
+        }
+
+      case 8: // Shadow Realm — barely visible deep indigo wisps
+        for (int i = 0; i < 45; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: _rng.nextDouble() * 2.5 + 0.8,
+            speed: _rng.nextDouble() * 6 + 1,
+            alpha: _rng.nextDouble() * 0.25 + 0.08,
+            colorIndex: _rng.nextInt(_shadowColors.length),
+          ));
+        }
+
+      case 9: // Singularity — sparse white stars + event horizon effect
+        for (int i = 0; i < 60; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
+            radius: _rng.nextDouble() * 1.4 + 0.3,
+            speed: _rng.nextDouble() * 20 + 5,
+            alpha: _rng.nextDouble() * 0.8 + 0.2,
+            colorIndex: _rng.nextInt(_singularityColors.length),
+          ));
+        }
+
+      default: // Phase 0 — Deep Space, pale blue, dense
+        for (int i = 0; i < 120; i++) {
+          _stars.add(_Star(
+            x: _rng.nextDouble() * sz.x, y: _rng.nextDouble() * sz.y,
             radius: _rng.nextDouble() * 1.3 + 0.2,
             speed: _rng.nextDouble() * 15 + 4,
             alpha: _rng.nextDouble() * 0.55 + 0.15,
@@ -140,22 +224,30 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
 
   @override
   void render(Canvas canvas) {
-    final phase = game.bossPhase.clamp(0, 2);
+    final phase = game.bossPhase % 10;
 
     if (phase == 1) {
       _renderAlienSky(canvas);
       return;
     }
+    if (phase == 9) {
+      _renderSingularity(canvas);
+      return;
+    }
 
-    // Space phases (0, 2, and future 3)
     final paint = Paint();
     for (final s in _stars) {
-      final Color baseColor = switch (phase) {
+      final Color c = switch (phase) {
         2 => _nebulaColors[s.colorIndex],
-        // 3 => _bloodMoonColors[s.colorIndex], // Phase 3 (future)
+        3 => _bloodMoonColors[s.colorIndex],
+        4 => _voidStormColors[s.colorIndex],
+        5 => _crystalColors[s.colorIndex],
+        6 => _solarColors[s.colorIndex],
+        7 => _galacticColors[s.colorIndex],
+        8 => _shadowColors[s.colorIndex],
         _ => _deepSpaceColor,
       };
-      paint.color = baseColor.withAlpha((s.alpha * 255).round());
+      paint.color = c.withAlpha((s.alpha * 255).round());
       canvas.drawCircle(Offset(s.x, s.y), s.radius, paint);
     }
   }
@@ -164,33 +256,23 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
     final sz = game.size;
     final paint = Paint();
 
-    // Sky gradient — dark teal-black from top to slightly lighter at bottom
     canvas.drawRect(
       Rect.fromLTWH(0, 0, sz.x, sz.y),
-      Paint()
-        ..shader = Gradient.linear(
-          Offset.zero,
-          Offset(0, sz.y),
-          [const Color(0xFF010C06), const Color(0xFF041E10)],
-        ),
+      Paint()..shader = Gradient.linear(
+        Offset.zero, Offset(0, sz.y),
+        [const Color(0xFF010C06), const Color(0xFF041E10)],
+      ),
     );
 
-    // Cloud formations — large ones get a halo layer for softness
     for (final c in _clouds) {
       final color = _alienCloudColors[c.colorIndex];
       if (c.isLarge) {
-        // Outer halo — wider, more transparent
         paint.color = color.withAlpha(((c.alpha * 0.45) * 255).round());
         canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(c.x, c.y),
-            width: c.w * 1.45,
-            height: c.h * 1.6,
-          ),
+          Rect.fromCenter(center: Offset(c.x, c.y), width: c.w * 1.45, height: c.h * 1.6),
           paint,
         );
       }
-      // Core
       paint.color = color.withAlpha((c.alpha * 255).round());
       canvas.drawOval(
         Rect.fromCenter(center: Offset(c.x, c.y), width: c.w, height: c.h),
@@ -198,23 +280,40 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
       );
     }
 
-    // Atmospheric ground haze — suggests a distant surface below
     canvas.drawRect(
       Rect.fromLTWH(0, sz.y * 0.60, sz.x, sz.y * 0.40),
-      Paint()
-        ..shader = Gradient.linear(
-          Offset(0, sz.y * 0.60),
-          Offset(0, sz.y),
-          [const Color(0x00000000), const Color(0x1A1A7040)],
-        ),
+      Paint()..shader = Gradient.linear(
+        Offset(0, sz.y * 0.60), Offset(0, sz.y),
+        [const Color(0x00000000), const Color(0x1A1A7040)],
+      ),
     );
 
-    // Atmospheric motes
     for (final s in _stars) {
-      paint.color =
-          _alienMoteColors[s.colorIndex].withAlpha((s.alpha * 255).round());
+      paint.color = _alienMoteColors[s.colorIndex].withAlpha((s.alpha * 255).round());
       canvas.drawCircle(Offset(s.x, s.y), s.radius, paint);
     }
+  }
+
+  void _renderSingularity(Canvas canvas) {
+    final sz = game.size;
+    final paint = Paint();
+
+    // Draw stars
+    for (final s in _stars) {
+      paint.color = _singularityColors[s.colorIndex].withAlpha((s.alpha * 255).round());
+      canvas.drawCircle(Offset(s.x, s.y), s.radius, paint);
+    }
+
+    // Distant event horizon rings at screen edges for atmosphere
+    final cx = sz.x / 2;
+    final cy = sz.y * 0.35;
+    final ringPaint = Paint()
+      ..color = const Color(0x22FFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawCircle(Offset(cx, cy), sz.x * 0.55, ringPaint);
+    ringPaint.color = const Color(0x11FFFFFF);
+    canvas.drawCircle(Offset(cx, cy), sz.x * 0.75, ringPaint);
   }
 }
 
@@ -222,12 +321,8 @@ class _Star {
   double x, y, radius, speed, alpha;
   int colorIndex;
   _Star({
-    required this.x,
-    required this.y,
-    required this.radius,
-    required this.speed,
-    required this.alpha,
-    required this.colorIndex,
+    required this.x, required this.y, required this.radius,
+    required this.speed, required this.alpha, required this.colorIndex,
   });
 }
 
@@ -236,13 +331,8 @@ class _Cloud {
   int colorIndex;
   bool isLarge;
   _Cloud({
-    required this.x,
-    required this.y,
-    required this.w,
-    required this.h,
-    required this.speed,
-    required this.alpha,
-    required this.colorIndex,
-    required this.isLarge,
+    required this.x, required this.y, required this.w, required this.h,
+    required this.speed, required this.alpha,
+    required this.colorIndex, required this.isLarge,
   });
 }

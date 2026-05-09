@@ -46,12 +46,21 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   Set<NovaMode> unlockedNovaModes = {NovaMode.laser};
   NovaMode? pendingInheritMode;
 
+  // Visual phase cycles through 10 distinct backgrounds.
+  int get _visualPhase => bossPhase % 10;
+
   @override
-  Color backgroundColor() => switch (bossPhase.clamp(0, 2)) {
+  Color backgroundColor() => switch (_visualPhase) {
+        0 => const Color(0xFF0D0D2B),  // deep space
         1 => const Color(0xFF010C06),  // alien planet sky
         2 => const Color(0xFF0A0018),  // nebula purple
-        // 3 => const Color(0xFF150000),  // blood moon red (Phase 3, future)
-        _ => const Color(0xFF0D0D2B),  // deep space
+        3 => const Color(0xFF150000),  // blood moon red
+        4 => const Color(0xFF08000F),  // void storm
+        5 => const Color(0xFF001520),  // crystal cavern
+        6 => const Color(0xFF1A0800),  // solar flare
+        7 => const Color(0xFF000505),  // galactic core
+        8 => const Color(0xFF020006),  // shadow realm
+        _ => const Color(0xFF000000),  // singularity
       };
 
   @override
@@ -133,7 +142,12 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void _showLevelUp(int level) {
-    picksTotal = (bossPhase + 1).clamp(1, 5);
+    picksTotal = switch (bossPhase) {
+      < 3  => 2,
+      < 6  => 3,
+      < 10 => 4,
+      _    => 5,
+    };
     _picksRemaining = picksTotal;
     currentCards = generateUpgradeCards(this);
     bonusCards = rollBonusCards(this);
@@ -162,6 +176,55 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
           shotCount: 16,
           color: const Color(0xFFFF00CC),
           damage: 4.0,
+        ));
+      case NovaMode.leviathan:
+        world.add(PlayerNovaBurst(
+          shotCount: 24,
+          color: const Color(0xFF00CCFF),
+          damage: 5.0,
+        ));
+      case NovaMode.bloodColossus:
+        world.add(PlayerNovaBurst(
+          shotCount: 24,
+          color: const Color(0xFFCC1100),
+          damage: 6.0,
+        ));
+      case NovaMode.stormPhantom:
+        // X-pattern: 4 groups of 4 at 90° intervals
+        world.add(PlayerNovaBurst(
+          shotCount: 16,
+          color: const Color(0xFF00FFFF),
+          damage: 4.5,
+        ));
+      case NovaMode.cosmicBehemoth:
+        world.add(PlayerNovaBurst(
+          shotCount: 32,
+          color: const Color(0xFF4444FF),
+          damage: 7.0,
+        ));
+      case NovaMode.shadowReaper:
+        world.add(PlayerNovaBurst(
+          shotCount: 20,
+          color: const Color(0xFF6600CC),
+          damage: 5.5,
+        ));
+      case NovaMode.solarTitan:
+        world.add(PlayerNovaBurst(
+          shotCount: 24,
+          color: const Color(0xFFFFAA00),
+          damage: 6.0,
+        ));
+      case NovaMode.voidEmperor:
+        world.add(PlayerNovaBurst(
+          shotCount: 28,
+          color: const Color(0xFF8800CC),
+          damage: 6.5,
+        ));
+      case NovaMode.singularity:
+        world.add(PlayerNovaBurst(
+          shotCount: 40,
+          color: const Color(0xFFFFFFFF),
+          damage: 8.0,
         ));
     }
   }

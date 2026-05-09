@@ -33,27 +33,68 @@ class MonsterGrunt extends Monster {
     return path..close();
   }
 
+  static const _deathColors = [
+    Color(0xFF8B7355), Color(0xFF78909C), Color(0xFFCC00FF),
+    Color(0xFFBB2200), Color(0xFF7722CC), Color(0xFF00DDFF),
+    Color(0xFFFFAA00), Color(0xFFFFFFFF), Color(0xFF4400AA), Color(0xFFFFFFFF),
+  ];
+
   @override
-  Color get deathColor {
-    return switch (game.bossPhase.clamp(0, 2)) {
-      1 => const Color(0xFF78909C),
-      2 => const Color(0xFFCC00FF),
-      _ => const Color(0xFF8B7355),
-    };
-  }
+  Color get deathColor => _deathColors[(game.bossPhase % 10).clamp(0, 9)];
 
   @override
   void render(Canvas canvas) {
-    switch (game.bossPhase.clamp(0, 2)) {
+    switch (game.bossPhase % 10) {
       case 1:
         _renderMechanical(canvas);
       case 2:
         _renderVoid(canvas);
       default:
-        _renderOrganic(canvas);
+        _renderThemed(canvas);
     }
     renderHpBar(canvas);
     renderFlash(canvas);
+  }
+
+  // Phases 0, 3-9 — same jagged shape with per-phase colour scheme.
+  static const _themeBody = [
+    Color(0xFF7A6652), Color(0xFF546E7A), Color(0xFF0D0020), // 0-2 (2 unused here)
+    Color(0xFF3D0000), Color(0xFF1A0033), Color(0xFF001A33), // 3-5
+    Color(0xFF2A1500), Color(0xFF030808), Color(0xFF05000A), Color(0xFF000000), // 6-9
+  ];
+  static const _themeOutline = [
+    Color(0xFF9A8268), Color(0xFF90A4AE), Color(0xFFCC00FF),
+    Color(0xFF880000), Color(0xFF6600CC), Color(0xFF00AAFF),
+    Color(0xFFCC7700), Color(0xFF00FFCC), Color(0xFF330066), Color(0xFF888888),
+  ];
+  static const _themeGlow = [
+    Color(0x004A3A2A), Color(0x00263238), Color(0x55CC00FF),
+    Color(0x88FF2200), Color(0x886600CC), Color(0x8800DDFF),
+    Color(0x88FF8800), Color(0x8800FFCC), Color(0x884400AA), Color(0xAAFFFFFF),
+  ];
+
+  void _renderThemed(Canvas canvas) {
+    final p = (game.bossPhase % 10).clamp(0, 9);
+    final cx = size.x / 2;
+    final cy = size.y / 2;
+    final path = _buildJaggedPath(cx, cy);
+
+    final glow = _themeGlow[p];
+    if (glow.a > 0) {
+      canvas.drawPath(path, Paint()
+        ..color = glow
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    }
+    canvas.drawPath(path, Paint()..color = _themeBody[p]);
+    canvas.drawPath(path, Paint()
+      ..color = _themeOutline[p]
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5);
+
+    // Pulsing core for phases with glow
+    if (glow.a > 0) {
+      canvas.drawCircle(Offset(cx, cy), 3, Paint()..color = _themeOutline[p].withAlpha(180));
+    }
   }
 
   // Phase 0 — rocky asteroid

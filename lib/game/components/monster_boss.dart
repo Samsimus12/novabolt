@@ -68,7 +68,7 @@ abstract class BossMonster extends Monster {
         if (_chargeTimer >= _chargeDuration) {
           _chargeTimer = -1;
           _specialAttacksUsed++;
-          _fireSpecialAttack();
+          fireSpecialAttack();
         }
       }
     }
@@ -96,7 +96,7 @@ abstract class BossMonster extends Monster {
     }
   }
 
-  void _fireSpecialAttack() {
+  void fireSpecialAttack() {
     for (int i = 0; i < specialBurstCount; i++) {
       final angle = (i / specialBurstCount) * math.pi * 2;
       game.world.add(BossProjectile(

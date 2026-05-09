@@ -126,3 +126,115 @@ const tyrantStats = MonsterStats(
   speedScaleRate: 0.03,
   speedScaleCap: 1.8,
 );
+
+// Boss 3 — Nebula Leviathan
+const leviathanStats = MonsterStats(
+  maxHp: 2400,
+  speed: 35,
+  contactDamagePerSecond: 32,
+  size: 110,
+  xpValue: 0,
+  chargeValue: 60,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.45,
+  speedScaleRate: 0.025,
+  speedScaleCap: 1.6,
+);
+
+// Boss 4 — Blood Colossus
+const colossusStats = MonsterStats(
+  maxHp: 3200,
+  speed: 25,
+  contactDamagePerSecond: 45,
+  size: 130,
+  xpValue: 0,
+  chargeValue: 70,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.45,
+  speedScaleRate: 0.02,
+  speedScaleCap: 1.4,
+);
+
+// Boss 5 — Storm Phantom
+const phantomStats = MonsterStats(
+  maxHp: 2000,
+  speed: 65,
+  contactDamagePerSecond: 28,
+  size: 90,
+  xpValue: 0,
+  chargeValue: 55,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.4,
+  speedScaleRate: 0.035,
+  speedScaleCap: 2.0,
+);
+
+// Boss 6 — Cosmic Behemoth
+const behemothStats = MonsterStats(
+  maxHp: 4000,
+  speed: 20,
+  contactDamagePerSecond: 50,
+  size: 140,
+  xpValue: 0,
+  chargeValue: 80,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.5,
+  speedScaleRate: 0.015,
+  speedScaleCap: 1.3,
+);
+
+// Boss 7 — Shadow Reaper
+const reaperStats = MonsterStats(
+  maxHp: 2800,
+  speed: 55,
+  contactDamagePerSecond: 36,
+  size: 100,
+  xpValue: 0,
+  chargeValue: 65,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.45,
+  speedScaleRate: 0.03,
+  speedScaleCap: 1.8,
+);
+
+// Boss 8 — Solar Titan (note: titanStats name is taken by Void Tyrant)
+const solarTitanStats = MonsterStats(
+  maxHp: 3600,
+  speed: 30,
+  contactDamagePerSecond: 42,
+  size: 120,
+  xpValue: 0,
+  chargeValue: 75,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.5,
+  speedScaleRate: 0.02,
+  speedScaleCap: 1.5,
+);
+
+// Boss 9 — Void Emperor
+const emperorStats = MonsterStats(
+  maxHp: 4800,
+  speed: 40,
+  contactDamagePerSecond: 48,
+  size: 115,
+  xpValue: 0,
+  chargeValue: 85,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.5,
+  speedScaleRate: 0.025,
+  speedScaleCap: 1.6,
+);
+
+// Boss 10 — The Singularity
+const singularityStats = MonsterStats(
+  maxHp: 6000,
+  speed: 15,
+  contactDamagePerSecond: 60,
+  size: 150,
+  xpValue: 0,
+  chargeValue: 100,
+  shieldDropChance: 0.0,
+  hpScaleRate: 0.55,
+  speedScaleRate: 0.01,
+  speedScaleCap: 1.2,
+);

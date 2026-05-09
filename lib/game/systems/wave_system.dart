@@ -2,7 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 
+import '../components/monster_boss.dart';
+import '../components/monster_boss_blood_colossus.dart';
+import '../components/monster_boss_cosmic_behemoth.dart';
 import '../components/monster_boss_dreadnought.dart';
+import '../components/monster_boss_leviathan.dart';
+import '../components/monster_boss_shadow_reaper.dart';
+import '../components/monster_boss_singularity.dart';
+import '../components/monster_boss_solar_titan.dart';
+import '../components/monster_boss_storm_phantom.dart';
+import '../components/monster_boss_void_emperor.dart';
 import '../components/monster_boss_void_tyrant.dart';
 import '../components/monster_caster.dart';
 import '../components/monster_grunt.dart';
@@ -100,9 +109,19 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     _timer = 0;
     _tankTimer = 0;
     final spawnPos = Vector2(game.size.x / 2, -80);
-    final boss = (playerLevel >= 20 && playerLevel % 20 == 0)
-        ? MonsterBossVoidTyrant(position: spawnPos, playerLevel: playerLevel)
-        : MonsterBossDreadnought(position: spawnPos, playerLevel: playerLevel);
+    // Cycle through 10 unique bosses; bossPhase is the count already defeated.
+    final BossMonster boss = switch (game.bossPhase % 10) {
+      0 => MonsterBossDreadnought(position: spawnPos, playerLevel: playerLevel),
+      1 => MonsterBossVoidTyrant(position: spawnPos, playerLevel: playerLevel),
+      2 => MonsterBossLeviathan(position: spawnPos, playerLevel: playerLevel),
+      3 => MonsterBossBloodColossus(position: spawnPos, playerLevel: playerLevel),
+      4 => MonsterBossStormPhantom(position: spawnPos, playerLevel: playerLevel),
+      5 => MonsterBossCosmicBehemoth(position: spawnPos, playerLevel: playerLevel),
+      6 => MonsterBossShadowReaper(position: spawnPos, playerLevel: playerLevel),
+      7 => MonsterBossSolarTitan(position: spawnPos, playerLevel: playerLevel),
+      8 => MonsterBossVoidEmperor(position: spawnPos, playerLevel: playerLevel),
+      _ => MonsterBossSingularity(position: spawnPos, playerLevel: playerLevel),
+    };
     game.activeBoss = boss;
     game.world.add(boss);
   }

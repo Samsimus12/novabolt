@@ -84,7 +84,10 @@ class AdManager {
     VoidCallback? onDismissed,
   }) {
     final ad = _rewardedAd;
-    if (ad == null) return;
+    if (ad == null) {
+      onDismissed?.call();
+      return;
+    }
     _rewardedAd = null;
     rewardedAdReady.value = false;
     ad.fullScreenContentCallback = FullScreenContentCallback(

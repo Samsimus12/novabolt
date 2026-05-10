@@ -16,6 +16,7 @@ class GameOverScreen extends StatefulWidget {
 
 class _GameOverScreenState extends State<GameOverScreen> {
   bool _coinsAwarded = false;
+  bool _isShowingAd = false;
 
   @override
   void initState() {
@@ -40,8 +41,10 @@ class _GameOverScreenState extends State<GameOverScreen> {
   }
 
   void _watchAdAndContinue() {
+    setState(() => _isShowingAd = true);
     AdManager.instance.showRewardedAd(
       onRewarded: () => widget.game.continueWithHalfHp(),
+      onDismissed: () => setState(() => _isShowingAd = false),
     );
   }
 
@@ -58,7 +61,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
   @override
   Widget build(BuildContext context) {
     final adReady = AdManager.instance.rewardedAdReady.value;
-    final canContinue = adReady && !widget.game.hasUsedContinue;
+    final canContinue = adReady && !widget.game.hasUsedContinue && !_isShowingAd;
 
     return Material(
       color: const Color(0xCC000000),

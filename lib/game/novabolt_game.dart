@@ -43,6 +43,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   int picksTotal = 0;
   int _picksRemaining = 0;
   bool isBossReward = false;
+  bool _levelUpPendingAfterContinue = false;
 
   NovaMode activeNovaMode = NovaMode.laser;
   Set<NovaMode> unlockedNovaModes = {NovaMode.laser};
@@ -144,11 +145,13 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   void _showLevelUp(int level, {bool isBossKill = false}) {
+    if (isGameOver) return;
     isBossReward = isBossKill;
     if (isBossKill) {
       picksTotal = 3;
     } else {
-      picksTotal = math.Random().nextDouble() < 0.20 ? 2 : 1;
+      final luckyChance = bossPhase == 0 ? 0.10 : 0.20 + (bossPhase - 1) * 0.025;
+      picksTotal = math.Random().nextDouble() < luckyChance ? 2 : 1;
     }
     _picksRemaining = picksTotal;
     currentCards = generateUpgradeCards(this);
@@ -234,6 +237,11 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   void onPlayerDeath() {
     if (isGameOver) return;
     isGameOver = true;
+    // Level-up can fire in the same collision frame as death — game over wins.
+    if (overlays.isActive('LevelUp')) {
+      overlays.remove('LevelUp');
+      _levelUpPendingAfterContinue = true;
+    }
     isNewBest = StatsManager.instance.submitRun(
       level: xpSystem.currentLevel,
       kills: killCount,
@@ -248,7 +256,13 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _hasUsedContinue = true;
     overlays.remove('GameOver');
     player.currentHp = player.maxHp * 0.5;
-    resumeEngine();
+    if (_levelUpPendingAfterContinue) {
+      _levelUpPendingAfterContinue = false;
+      // Show the level-up that was interrupted by death; engine stays paused.
+      overlays.add('LevelUp');
+    } else {
+      resumeEngine();
+    }
   }
 
   void resumeFromLevelUp() {
@@ -289,6 +303,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     activeBoss = null;
     picksTotal = 0;
     _picksRemaining = 0;
+    _levelUpPendingAfterContinue = false;
     xpSystem.reset();
     superchargeSystem.reset();
     player.position = size / 2;

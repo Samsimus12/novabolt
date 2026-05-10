@@ -78,8 +78,9 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
 
   void _drawXpBar(Canvas canvas, double screenW, double screenH) {
     const x = 16.0;
-    const h = 10.0;
-    final y = screenH - h - 14;
+    const novaBarBottom = 114.0 + 20.0 + 6.0 + 18.0;
+    const y = novaBarBottom + 4.0;
+    const h = 6.0;
     final w = screenW - 32;
     final fraction = game.xpSystem.xpFraction;
     _drawBar(canvas,

@@ -55,7 +55,9 @@ const _adCoinsReward = 75;
 // ── Shop screen ───────────────────────────────────────────────────────────────
 
 class ShopScreen extends StatefulWidget {
-  const ShopScreen({super.key});
+  /// 0 ships, 1 shields, 2 Nova beams.
+  final int initialTab;
+  const ShopScreen({super.key, this.initialTab = 0});
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -65,8 +67,8 @@ class _ShopScreenState extends State<ShopScreen> {
   final _mgr = CoinManager.instance;
   final _ads = AdManager.instance;
 
-  _Tab _tab = _Tab.ships;
-  late _Item _focus = _equipped(_Tab.ships);
+  late _Tab _tab = _Tab.values[widget.initialTab.clamp(0, _Tab.values.length - 1)];
+  late _Item _focus = _equipped(_tab);
   int _purchaseFlash = 0;
 
   List<_Item> _items(_Tab t) => switch (t) {
@@ -226,10 +228,14 @@ class _ShopScreenState extends State<ShopScreen> {
       _Tab.beams => ShipPreview(palette: palette, scale: 2.2, beam: novaBeamColorFor(f.selectId), pad: false),
     };
     return SizedBox(
-      height: 270,
+      height: 290,
       child: Stack(
         children: [
-          Positioned.fill(
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 58,
             child: KeyedSubtree(
               key: ValueKey('${_tab.name}-${f.ownId}'),
               child: preview.animate().fadeIn(duration: 260.ms).scaleXY(begin: 0.94, end: 1, duration: 320.ms, curve: NbMotion.easeOut),

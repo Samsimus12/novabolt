@@ -47,6 +47,7 @@ import '../screens/game_over_screen.dart';
 import '../screens/level_up_screen.dart';
 import '../screens/shop_screen.dart';
 import '../stats/stats_manager.dart';
+import '../ui/theme/app_theme.dart';
 
 // Compile-time defaults; a SharedPreferences value (dev_scene / dev_phase)
 // wins so one simulator build can be relaunched into each scene, e.g.
@@ -70,11 +71,12 @@ void main() async {
   await StatsManager.instance.init();
   if (_scene == 'shop') {
     if (CoinManager.instance.totalCoins < 600) await CoinManager.instance.addCoins(640);
-    runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: ShopScreen()));
+    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: ShopScreen(initialTab: _phase)));
     return;
   }
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
+    theme: buildNovaboltTheme(),
     home: GameWidget<NovaboltGame>.controlled(
       gameFactory: _DevGame.new,
       initialActiveOverlays: const ['GameControls'],

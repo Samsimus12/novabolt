@@ -3,7 +3,7 @@
 //
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
-// SCENE: menu | shop | waves | nova | boss | levelup | bossreward | gameover | countdown
+// SCENE: menu | shop | waves | nova | flow | boss | levelup | bossreward | gameover | countdown
 // PHASE: 0-9, the visual/boss phase to start in (default 0)
 //
 // Uses only the game's public API; the player regenerates hull every frame
@@ -197,6 +197,13 @@ class _DevGame extends NovaboltGame {
         killCount = 212;
         _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         Future.delayed(const Duration(milliseconds: 600), onPlayerDeath);
+      case 'flow':
+        // Smoke test: die, continue, countdown, die again, restart.
+        _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
+        Future.delayed(const Duration(milliseconds: 500), onPlayerDeath);
+        Future.delayed(const Duration(milliseconds: 1500), continueWithHalfHp);
+        Future.delayed(const Duration(milliseconds: 5800), onPlayerDeath);
+        Future.delayed(const Duration(milliseconds: 6800), restart);
       case 'countdown':
         _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         Future.delayed(const Duration(milliseconds: 300), () {

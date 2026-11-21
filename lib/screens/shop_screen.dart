@@ -1,164 +1,56 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
 import '../coins/coin_manager.dart';
+import '../game/fx/glow.dart';
+import '../game/render/ship_art.dart';
+import '../ui/ui.dart';
+import '../ui/widgets/ship_preview.dart';
 
-// ── Item definitions ──────────────────────────────────────────────────────────
+// ── Catalogue ─────────────────────────────────────────────────────────────────
 
-class _SkinItem {
-  final String id;
+enum _Tab { ships, shields, beams }
+
+class _Item {
+  /// The id passed to CoinManager.purchase / owns.
+  final String ownId;
+  /// The id passed to the matching CoinManager.select* call.
+  final String selectId;
   final String name;
   final int price;
-  final Color primary;
-  final Color wing;
-  final Color cockpit;
-  const _SkinItem({
-    required this.id,
-    required this.name,
-    required this.price,
-    required this.primary,
-    required this.wing,
-    required this.cockpit,
-  });
+  const _Item(this.ownId, this.selectId, this.name, this.price);
 }
 
-class _ShieldItem {
-  final String id;
-  final String name;
-  final int price;
-  final Color color;
-  const _ShieldItem({
-    required this.id,
-    required this.name,
-    required this.price,
-    required this.color,
-  });
-}
-
-class _NovaItem {
-  final String id;
-  final String name;
-  final int price;
-  final Color color;
-  const _NovaItem({
-    required this.id,
-    required this.name,
-    required this.price,
-    required this.color,
-  });
-}
-
-const _skins = [
-  _SkinItem(
-    id: 'default',
-    name: 'Gold Fighter',
-    price: 0,
-    primary: Color(0xFFFFD700),
-    wing: Color(0xFFDDB500),
-    cockpit: Color(0xFF00E5FF),
-  ),
-  _SkinItem(
-    id: 'ice',
-    name: 'Ice Falcon',
-    price: 300,
-    primary: Color(0xFF4DD0E1),
-    wing: Color(0xFF0097A7),
-    cockpit: Color(0xFFE0F7FA),
-  ),
-  _SkinItem(
-    id: 'flame',
-    name: 'Flame Hawk',
-    price: 500,
-    primary: Color(0xFFFF5722),
-    wing: Color(0xFFBF360C),
-    cockpit: Color(0xFFFFAB91),
-  ),
-  _SkinItem(
-    id: 'shadow',
-    name: 'Shadow Viper',
-    price: 700,
-    primary: Color(0xFF9C27B0),
-    wing: Color(0xFF4A0072),
-    cockpit: Color(0xFFEA80FC),
-  ),
-  _SkinItem(
-    id: 'solar',
-    name: 'Solar Flare',
-    price: 900,
-    primary: Color(0xFFFFD600),
-    wing: Color(0xFFF57F17),
-    cockpit: Color(0xFFFFFFFF),
-  ),
-  _SkinItem(
-    id: 'void',
-    name: 'Void Phantom',
-    price: 1200,
-    primary: Color(0xFF00B0FF),
-    wing: Color(0xFF0D47A1),
-    cockpit: Color(0xFF80D8FF),
-  ),
+const _ships = [
+  _Item('skin_default', 'default', 'Gold Fighter', 0),
+  _Item('skin_ice', 'ice', 'Ice Falcon', 300),
+  _Item('skin_flame', 'flame', 'Flame Hawk', 500),
+  _Item('skin_shadow', 'shadow', 'Shadow Viper', 700),
+  _Item('skin_solar', 'solar', 'Solar Flare', 900),
+  _Item('skin_void', 'void', 'Void Phantom', 1200),
 ];
 
 const _shields = [
-  _ShieldItem(
-    id: 'shield_default',
-    name: 'Energy Barrier',
-    price: 0,
-    color: Color(0xFF00E5FF),
-  ),
-  _ShieldItem(
-    id: 'shield_plasma',
-    name: 'Plasma Guard',
-    price: 250,
-    color: Color(0xFFFF6B35),
-  ),
-  _ShieldItem(
-    id: 'shield_void',
-    name: 'Void Ward',
-    price: 500,
-    color: Color(0xFFCC00FF),
-  ),
-  _ShieldItem(
-    id: 'shield_gold',
-    name: 'Gold Guard',
-    price: 750,
-    color: Color(0xFFFFD700),
-  ),
+  _Item('shield_default', 'shield_default', 'Energy Barrier', 0),
+  _Item('shield_plasma', 'shield_plasma', 'Plasma Guard', 250),
+  _Item('shield_void', 'shield_void', 'Void Ward', 500),
+  _Item('shield_gold', 'shield_gold', 'Gold Guard', 750),
 ];
 
-const _novaThemes = [
-  _NovaItem(
-    id: 'nova_default',
-    name: 'Cyan Beam',
-    price: 0,
-    color: Color(0xFF00E5FF),
-  ),
-  _NovaItem(
-    id: 'nova_inferno',
-    name: 'Inferno',
-    price: 350,
-    color: Color(0xFFFF3D00),
-  ),
-  _NovaItem(
-    id: 'nova_void',
-    name: 'Void Pulse',
-    price: 650,
-    color: Color(0xFFFF00FF),
-  ),
-  _NovaItem(
-    id: 'nova_eclipse',
-    name: 'Eclipse',
-    price: 950,
-    color: Color(0xFFFFD700),
-  ),
+const _beams = [
+  _Item('nova_default', 'nova_default', 'Cyan Beam', 0),
+  _Item('nova_inferno', 'nova_inferno', 'Inferno', 350),
+  _Item('nova_void', 'nova_void', 'Void Pulse', 650),
+  _Item('nova_eclipse', 'nova_eclipse', 'Eclipse', 950),
 ];
 
 const _adCoinsReward = 75;
-const _cardWidth = 120.0;
-const _cardListHeight = 195.0;
 
 // ── Shop screen ───────────────────────────────────────────────────────────────
 
@@ -173,42 +65,49 @@ class _ShopScreenState extends State<ShopScreen> {
   final _mgr = CoinManager.instance;
   final _ads = AdManager.instance;
 
-  Future<void> _buySkin(String id, int price) async {
-    final ok = await _mgr.purchase('skin_$id', price);
-    if (ok) {
-      await _mgr.selectSkin(id);
-      if (mounted) setState(() {});
+  _Tab _tab = _Tab.ships;
+  late _Item _focus = _equipped(_Tab.ships);
+  int _purchaseFlash = 0;
+
+  List<_Item> _items(_Tab t) => switch (t) {
+        _Tab.ships => _ships,
+        _Tab.shields => _shields,
+        _Tab.beams => _beams,
+      };
+
+  String _selectedId(_Tab t) => switch (t) {
+        _Tab.ships => _mgr.selectedSkin,
+        _Tab.shields => _mgr.selectedShieldSkin,
+        _Tab.beams => _mgr.selectedNovaTheme,
+      };
+
+  _Item _equipped(_Tab t) =>
+      _items(t).firstWhere((i) => i.selectId == _selectedId(t), orElse: () => _items(t).first);
+
+  bool _isEquipped(_Item i) => _selectedId(_tab) == i.selectId;
+
+  Future<void> _select(_Item i) async {
+    switch (_tab) {
+      case _Tab.ships:
+        await _mgr.selectSkin(i.selectId);
+      case _Tab.shields:
+        await _mgr.selectShieldSkin(i.selectId);
+      case _Tab.beams:
+        await _mgr.selectNovaTheme(i.selectId);
     }
   }
 
-  Future<void> _equipSkin(String id) async {
-    await _mgr.selectSkin(id);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _buyShield(String id, int price) async {
-    final ok = await _mgr.purchase(id, price);
+  Future<void> _buy(_Item i) async {
+    final ok = await _mgr.purchase(i.ownId, i.price);
     if (ok) {
-      await _mgr.selectShieldSkin(id);
-      if (mounted) setState(() {});
+      HapticFeedback.mediumImpact();
+      await _select(i);
+      if (mounted) setState(() => _purchaseFlash++);
     }
   }
 
-  Future<void> _equipShield(String id) async {
-    await _mgr.selectShieldSkin(id);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _buyNova(String id, int price) async {
-    final ok = await _mgr.purchase(id, price);
-    if (ok) {
-      await _mgr.selectNovaTheme(id);
-      if (mounted) setState(() {});
-    }
-  }
-
-  Future<void> _equipNova(String id) async {
-    await _mgr.selectNovaTheme(id);
+  Future<void> _equip(_Item i) async {
+    await _select(i);
     if (mounted) setState(() {});
   }
 
@@ -222,130 +121,75 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
+  void _setTab(_Tab t) {
+    if (t == _tab) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _tab = t;
+      _focus = _equipped(t);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final items = _items(_tab);
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D0D2B), Color(0xFF060612)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildTopBar(context),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: SpaceBackdrop(speed: 0.4)),
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildTopBar(context),
+                const SizedBox(height: NbSpace.sm),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: NbSpace.gutter),
+                  child: _Segmented(value: _tab, onChanged: _setTab),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(NbSpace.gutter, 0, NbSpace.gutter, NbSpace.lg),
                     children: [
-                      _buildEarnNovaSection(),
-                      const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _sectionHeader('SHIP SKINS'),
+                      _buildStage(),
+                      const SizedBox(height: NbSpace.md),
+                      _buildAction(),
+                      const SizedBox(height: NbSpace.lg),
+                      GridView.count(
+                        crossAxisCount: 3,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: NbSpace.xs,
+                        crossAxisSpacing: NbSpace.xs,
+                        childAspectRatio: 0.82,
+                        children: [
+                          for (var i = 0; i < items.length; i++)
+                            _ItemTile(
+                              key: ValueKey(items[i].ownId),
+                              tab: _tab,
+                              item: items[i],
+                              focused: _focus.ownId == items[i].ownId,
+                              owned: _mgr.owns(items[i].ownId),
+                              equipped: _isEquipped(items[i]),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _focus = items[i]);
+                              },
+                            )
+                                .animate(key: ValueKey('${_tab.name}$i'))
+                                .fadeIn(delay: (40 * i).ms, duration: 220.ms)
+                                .moveY(begin: 10, end: 0, curve: NbMotion.easeOut),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                      _buildHorizontalList(
-                        itemCount: _skins.length,
-                        builder: (i) {
-                          final s = _skins[i];
-                          return _SkinCard(
-                            item: s,
-                            owned: _mgr.owns('skin_${s.id}'),
-                            equipped: _mgr.selectedSkin == s.id,
-                            canAfford: _mgr.totalCoins >= s.price,
-                            onBuy: () => _buySkin(s.id, s.price),
-                            onEquip: () => _equipSkin(s.id),
-                          );
-                        },
+                      const SizedBox(height: NbSpace.lg),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _ads.rewardedAdReady,
+                        builder: (_, ready, _) => _EarnStrip(ready: ready, onWatch: _watchAdForCoins),
                       ),
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _sectionHeader('SHIELD SKINS'),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildHorizontalList(
-                        itemCount: _shields.length,
-                        builder: (i) {
-                          final sh = _shields[i];
-                          return _ShieldCard(
-                            item: sh,
-                            owned: _mgr.owns(sh.id),
-                            equipped: _mgr.selectedShieldSkin == sh.id,
-                            canAfford: _mgr.totalCoins >= sh.price,
-                            onBuy: () => _buyShield(sh.id, sh.price),
-                            onEquip: () => _equipShield(sh.id),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _sectionHeader('NOVA BEAM'),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildHorizontalList(
-                        itemCount: _novaThemes.length,
-                        builder: (i) {
-                          final n = _novaThemes[i];
-                          return _NovaCard(
-                            item: n,
-                            owned: _mgr.owns(n.id),
-                            equipped: _mgr.selectedNovaTheme == n.id,
-                            canAfford: _mgr.totalCoins >= n.price,
-                            onBuy: () => _buyNova(n.id, n.price),
-                            onEquip: () => _equipNova(n.id),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHorizontalList({
-    required int itemCount,
-    required Widget Function(int) builder,
-  }) {
-    return SizedBox(
-      height: _cardListHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: itemCount,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) => SizedBox(width: _cardWidth, child: builder(i)),
-      ),
-    );
-  }
-
-  Widget _buildEarnNovaSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeader('EARN NOVA'),
-          const SizedBox(height: 10),
-          ValueListenableBuilder<bool>(
-            valueListenable: _ads.rewardedAdReady,
-            builder: (_, ready, __) => _AdBanner(
-              ready: ready,
-              onWatch: _watchAdForCoins,
+              ],
             ),
           ),
         ],
@@ -355,44 +199,54 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Widget _buildTopBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(12, 6, NbSpace.gutter, 0),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xAAF5F5DC)),
+          NbIconButton(
+            icon: PhosphorIconsBold.caretLeft,
+            semanticLabel: 'Back',
             onPressed: () => Navigator.pop(context),
           ),
-          const Expanded(
-            child: Text(
-              'SHOP',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFFFFD700),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 6,
-              ),
+          const SizedBox(width: NbSpace.sm),
+          const Expanded(child: Text('Shop', style: NbType.title)),
+          CoinBalanceChip(_mgr.totalCoins)
+              .animate(key: ValueKey(_purchaseFlash), autoPlay: _purchaseFlash > 0)
+              .shimmer(duration: 600.ms, color: Colors.white),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStage() {
+    final f = _focus;
+    final palette = shipPaletteFor(_tab == _Tab.ships ? f.selectId : _mgr.selectedSkin);
+    final preview = switch (_tab) {
+      _Tab.ships => ShipPreview(palette: palette, scale: 3.2),
+      _Tab.shields => ShipPreview(palette: palette, scale: 2.6, shield: shieldColorFor(f.selectId)),
+      _Tab.beams => ShipPreview(palette: palette, scale: 2.2, beam: novaBeamColorFor(f.selectId), pad: false),
+    };
+    return SizedBox(
+      height: 270,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: KeyedSubtree(
+              key: ValueKey('${_tab.name}-${f.ownId}'),
+              child: preview.animate().fadeIn(duration: 260.ms).scaleXY(begin: 0.94, end: 1, duration: 320.ms, curve: NbMotion.easeOut),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0x22FFD700),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0x55FFD700)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Column(
               children: [
-                const Text('⚡', style: TextStyle(fontSize: 14)),
-                const SizedBox(width: 4),
-                Text(
-                  '${_mgr.totalCoins}',
-                  style: const TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Text(f.name, style: NbType.title, textAlign: TextAlign.center),
+                const SizedBox(height: 4),
+                _StatusLine(
+                  owned: _mgr.owns(f.ownId),
+                  equipped: _isEquipped(f),
+                  price: f.price,
                 ),
               ],
             ),
@@ -402,491 +256,289 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _sectionHeader(String label) {
-    return Row(
-      children: [
-        Expanded(child: Divider(color: Colors.white.withAlpha(30))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0x99F5F5DC),
-              fontSize: 11,
-              letterSpacing: 3,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        Expanded(child: Divider(color: Colors.white.withAlpha(30))),
-      ],
+  Widget _buildAction() {
+    final f = _focus;
+    final owned = _mgr.owns(f.ownId);
+    if (_isEquipped(f)) {
+      return const NbButton.secondary(
+        label: 'Equipped',
+        icon: PhosphorIconsBold.check,
+        onPressed: null,
+        expand: true,
+      );
+    }
+    if (owned || f.price == 0) {
+      return NbButton(
+        label: 'Equip',
+        color: NbColors.ion,
+        expand: true,
+        onPressed: () => owned ? _equip(f) : _buy(f),
+      );
+    }
+    final short = f.price - _mgr.totalCoins;
+    if (short > 0) {
+      return NbButton(
+        label: 'Need ${formatThousands(short)} more',
+        icon: PhosphorIconsBold.lock,
+        expand: true,
+        onPressed: null,
+      );
+    }
+    return NbButton(
+      label: 'Buy for ${formatThousands(f.price)}',
+      icon: PhosphorIconsBold.shoppingBagOpen,
+      expand: true,
+      onPressed: () => _buy(f),
     );
   }
 }
 
-// ── Ad banner ─────────────────────────────────────────────────────────────────
+// ── Pieces ────────────────────────────────────────────────────────────────────
 
-class _AdBanner extends StatelessWidget {
-  final bool ready;
-  final VoidCallback onWatch;
-  const _AdBanner({required this.ready, required this.onWatch});
+class _StatusLine extends StatelessWidget {
+  final bool owned;
+  final bool equipped;
+  final int price;
+  const _StatusLine({required this.owned, required this.equipped, required this.price});
+
+  @override
+  Widget build(BuildContext context) {
+    if (equipped) {
+      return Text('Equipped', style: NbType.label.copyWith(color: NbColors.ion));
+    }
+    if (owned || price == 0) return const Text('Owned', style: NbType.label);
+    return CoinAmount(price, size: 15);
+  }
+}
+
+class _Segmented extends StatelessWidget {
+  final _Tab value;
+  final ValueChanged<_Tab> onChanged;
+  const _Segmented({required this.value, required this.onChanged});
+
+  static const _labels = {
+    _Tab.ships: 'Ships',
+    _Tab.shields: 'Shields',
+    _Tab.beams: 'Nova beams',
+  };
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1A12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: ready ? const Color(0x88FFD700) : const Color(0x33FFFFFF),
-        ),
+      height: 44,
+      padding: const EdgeInsets.all(3),
+      decoration: const ShapeDecoration(
+        color: NbColors.glass,
+        shape: ChamferBorder(cut: 9, side: BorderSide(color: NbColors.line)),
       ),
       child: Row(
         children: [
-          const Text('📺', style: TextStyle(fontSize: 24)),
-          const SizedBox(width: 12),
-          const Expanded(
+          for (final t in _Tab.values)
+            Expanded(
+              child: Semantics(
+                selected: t == value,
+                button: true,
+                label: _labels[t],
+                excludeSemantics: true,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(t),
+                  child: AnimatedContainer(
+                    duration: NbMotion.quick,
+                    curve: NbMotion.easeOut,
+                    decoration: ShapeDecoration(
+                      color: t == value ? NbColors.ion.withValues(alpha: 0.16) : Colors.transparent,
+                      shape: ChamferBorder(
+                        cut: 7,
+                        side: BorderSide(color: t == value ? NbColors.ion.withValues(alpha: 0.8) : Colors.transparent),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _labels[t]!,
+                      style: NbType.bodyStrong.copyWith(
+                        color: t == value ? NbColors.ion : NbColors.haze,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemTile extends StatelessWidget {
+  final _Tab tab;
+  final _Item item;
+  final bool focused;
+  final bool owned;
+  final bool equipped;
+  final VoidCallback onTap;
+
+  const _ItemTile({
+    super.key,
+    required this.tab,
+    required this.item,
+    required this.focused,
+    required this.owned,
+    required this.equipped,
+    required this.onTap,
+  });
+
+  Color get _accent => switch (tab) {
+        _Tab.ships => shipPaletteFor(item.selectId).wing,
+        _Tab.shields => shieldColorFor(item.selectId),
+        _Tab.beams => novaBeamColorFor(item.selectId),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final status = equipped
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(PhosphorIconsBold.checkCircle, size: 13, color: NbColors.ion),
+              const SizedBox(width: 4),
+              Text('Equipped', style: NbType.caption.copyWith(color: NbColors.ion)),
+            ],
+          )
+        : owned || item.price == 0
+            ? Text('Owned', style: NbType.caption.copyWith(color: NbColors.haze))
+            : CoinAmount(item.price, size: 12);
+
+    return Semantics(
+      button: true,
+      selected: focused,
+      label: '${item.name}, ${equipped ? 'equipped' : owned ? 'owned' : '${item.price} NOVA'}',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: NbPanel(
+          accent: focused ? _accent : null,
+          glow: focused,
+          cut: 12,
+          padding: const EdgeInsets.fromLTRB(6, 8, 6, 10),
+          fill: focused ? NbColors.glassHi : NbColors.glass,
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomPaint(
+                  painter: _MiniPainter(tab, item.selectId),
+                  size: Size.infinite,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item.name,
+                style: NbType.label.copyWith(color: NbColors.starlight),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 3),
+              status,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Static thumbnail for a grid tile (no ticker — six of these are on screen).
+class _MiniPainter extends CustomPainter {
+  final _Tab tab;
+  final String id;
+  const _MiniPainter(this.tab, this.id);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    switch (tab) {
+      case _Tab.ships:
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        canvas.scale(size.shortestSide / 52);
+        ShipArt.paint(canvas, shipPaletteFor(id), time: 0.4, thrust: 0.4);
+        canvas.restore();
+      case _Tab.shields:
+        final col = shieldColorFor(id);
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        canvas.scale(size.shortestSide / 72);
+        ShipArt.paint(canvas, shipPaletteFor(CoinManager.instance.selectedSkin), time: 0.4, thrust: 0.2);
+        ShieldArt.paint(canvas, 28, col, strength: 0.9, time: 0.6);
+        canvas.restore();
+      case _Tab.beams:
+        final col = novaBeamColorFor(id);
+        final w = size.width * 0.16;
+        final r = Rect.fromLTRB(c.dx - w, 0, c.dx + w, size.height);
+        canvas.drawRect(
+          r,
+          Paint()
+            ..blendMode = BlendMode.plus
+            ..shader = ui.Gradient.linear(
+              r.bottomCenter,
+              r.topCenter,
+              [col.withValues(alpha: 0.85), col.withValues(alpha: 0)],
+            ),
+        );
+        Glow.drawOval(canvas, r.inflate(w), col.withValues(alpha: 0.35));
+        canvas.drawLine(
+          r.bottomCenter,
+          r.topCenter,
+          Paint()
+            ..strokeWidth = 1.6
+            ..color = const Color(0xEEFFFFFF),
+        );
+        Glow.draw(canvas, r.bottomCenter - const Offset(0, 4), w * 1.8, col, hot: true);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MiniPainter old) => old.tab != tab || old.id != id;
+}
+
+class _EarnStrip extends StatelessWidget {
+  final bool ready;
+  final VoidCallback onWatch;
+  const _EarnStrip({required this.ready, required this.onWatch});
+
+  @override
+  Widget build(BuildContext context) {
+    return NbPanel(
+      cut: 12,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          const Icon(PhosphorIconsBold.monitorPlay, color: NbColors.gold, size: 22),
+          const SizedBox(width: NbSpace.sm),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Watch an ad',
-                  style: TextStyle(
-                    color: Color(0xEEF5F5DC),
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Earn $_adCoinsReward ⚡ NOVA instantly',
-                  style: TextStyle(color: Color(0x99F5F5DC), fontSize: 12),
+                const Text('Earn NOVA', style: NbType.bodyStrong),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(ready ? 'Watch a short ad for ' : 'Loading an ad for ', style: NbType.label),
+                    const CoinAmount(_adCoinsReward, size: 13),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          TextButton(
+          NbButton.secondary(
+            label: 'Watch',
+            color: NbColors.gold,
+            height: 40,
             onPressed: ready ? onWatch : null,
-            style: TextButton.styleFrom(
-              backgroundColor:
-                  ready ? const Color(0x33FFD700) : const Color(0x11FFFFFF),
-              foregroundColor:
-                  ready ? const Color(0xFFFFD700) : const Color(0x55FFFFFF),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-                side: BorderSide(
-                  color: ready
-                      ? const Color(0x88FFD700)
-                      : const Color(0x22FFFFFF),
-                ),
-              ),
-            ),
-            child: Text(
-              ready ? 'WATCH' : 'LOADING',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
-            ),
           ),
         ],
       ),
     );
   }
-}
-
-// ── Skin card ─────────────────────────────────────────────────────────────────
-
-class _SkinCard extends StatelessWidget {
-  final _SkinItem item;
-  final bool owned, equipped, canAfford;
-  final VoidCallback onBuy, onEquip;
-
-  const _SkinCard({
-    required this.item,
-    required this.owned,
-    required this.equipped,
-    required this.canAfford,
-    required this.onBuy,
-    required this.onEquip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _ItemCard(
-      preview: SizedBox(
-        width: 56,
-        height: 64,
-        child: CustomPaint(
-          painter: _ShipPainter(
-            primary: item.primary,
-            wing: item.wing,
-            cockpit: item.cockpit,
-          ),
-        ),
-      ),
-      name: item.name,
-      price: item.price,
-      owned: owned,
-      equipped: equipped,
-      canAfford: canAfford,
-      accentColor: item.primary,
-      onBuy: onBuy,
-      onEquip: onEquip,
-    );
-  }
-}
-
-// ── Shield card ───────────────────────────────────────────────────────────────
-
-class _ShieldCard extends StatelessWidget {
-  final _ShieldItem item;
-  final bool owned, equipped, canAfford;
-  final VoidCallback onBuy, onEquip;
-
-  const _ShieldCard({
-    required this.item,
-    required this.owned,
-    required this.equipped,
-    required this.canAfford,
-    required this.onBuy,
-    required this.onEquip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _ItemCard(
-      preview: SizedBox(
-        width: 56,
-        height: 64,
-        child: CustomPaint(
-          painter: _ShieldPainter(color: item.color),
-        ),
-      ),
-      name: item.name,
-      price: item.price,
-      owned: owned,
-      equipped: equipped,
-      canAfford: canAfford,
-      accentColor: item.color,
-      onBuy: onBuy,
-      onEquip: onEquip,
-    );
-  }
-}
-
-// ── Nova card ─────────────────────────────────────────────────────────────────
-
-class _NovaCard extends StatelessWidget {
-  final _NovaItem item;
-  final bool owned, equipped, canAfford;
-  final VoidCallback onBuy, onEquip;
-
-  const _NovaCard({
-    required this.item,
-    required this.owned,
-    required this.equipped,
-    required this.canAfford,
-    required this.onBuy,
-    required this.onEquip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _ItemCard(
-      preview: SizedBox(
-        width: 56,
-        height: 64,
-        child: CustomPaint(
-          painter: _NovaPainter(color: item.color),
-        ),
-      ),
-      name: item.name,
-      price: item.price,
-      owned: owned,
-      equipped: equipped,
-      canAfford: canAfford,
-      accentColor: item.color,
-      onBuy: onBuy,
-      onEquip: onEquip,
-    );
-  }
-}
-
-// ── Shared item card ──────────────────────────────────────────────────────────
-
-class _ItemCard extends StatelessWidget {
-  final Widget preview;
-  final String name;
-  final int price;
-  final bool owned, equipped, canAfford;
-  final Color accentColor;
-  final VoidCallback onBuy, onEquip;
-
-  const _ItemCard({
-    required this.preview,
-    required this.name,
-    required this.price,
-    required this.owned,
-    required this.equipped,
-    required this.canAfford,
-    required this.accentColor,
-    required this.onBuy,
-    required this.onEquip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      decoration: BoxDecoration(
-        color: equipped ? accentColor.withAlpha(25) : const Color(0xFF12082A),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: equipped
-              ? accentColor.withAlpha(140)
-              : const Color(0x339B59B6),
-          width: equipped ? 1.5 : 1,
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          preview,
-          const SizedBox(height: 8),
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xEEF5F5DC),
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildButton() {
-    if (equipped) return _badge('EQUIPPED', const Color(0xFF00E5FF));
-    if (owned) return _actionButton('EQUIP', const Color(0xFF9B59B6), onEquip);
-    if (price == 0) return _actionButton('GET', const Color(0xFF27AE60), onBuy);
-    return _actionButton(
-      '⚡ $price',
-      canAfford ? const Color(0xFF27AE60) : const Color(0xFF555555),
-      canAfford ? onBuy : () {},
-    );
-  }
-
-  Widget _badge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withAlpha(30),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withAlpha(120)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-
-  Widget _actionButton(String label, Color color, VoidCallback onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          backgroundColor: color.withAlpha(40),
-          foregroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: color.withAlpha(100)),
-          ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Painters ──────────────────────────────────────────────────────────────────
-
-class _ShipPainter extends CustomPainter {
-  final Color primary, wing, cockpit;
-  const _ShipPainter({required this.primary, required this.wing, required this.cockpit});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.width * 0.48,
-      Paint()
-        ..color = primary.withAlpha(35)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-
-    canvas.drawPath(
-      Path()
-        ..moveTo(cx - 4, cy - 1)
-        ..lineTo(cx - 19, cy + 9)
-        ..lineTo(cx - 8, cy + 10)
-        ..close()
-        ..moveTo(cx + 4, cy - 1)
-        ..lineTo(cx + 19, cy + 9)
-        ..lineTo(cx + 8, cy + 10)
-        ..close(),
-      Paint()..color = wing,
-    );
-
-    canvas.drawPath(
-      Path()
-        ..moveTo(cx, cy - 18)
-        ..lineTo(cx + 7, cy - 3)
-        ..lineTo(cx + 7, cy + 11)
-        ..lineTo(cx, cy + 7)
-        ..lineTo(cx - 7, cy + 11)
-        ..lineTo(cx - 7, cy - 3)
-        ..close(),
-      Paint()..color = primary,
-    );
-
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy - 6), width: 8, height: 10),
-      Paint()..color = cockpit,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ShipPainter old) =>
-      old.primary != primary || old.wing != wing || old.cockpit != cockpit;
-}
-
-class _ShieldPainter extends CustomPainter {
-  final Color color;
-  const _ShieldPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    // Ship silhouette (dark)
-    canvas.drawPath(
-      Path()
-        ..moveTo(cx, cy - 16)
-        ..lineTo(cx + 6, cy - 2)
-        ..lineTo(cx + 6, cy + 10)
-        ..lineTo(cx, cy + 6)
-        ..lineTo(cx - 6, cy + 10)
-        ..lineTo(cx - 6, cy - 2)
-        ..close(),
-      Paint()..color = const Color(0x88AAAACC),
-    );
-
-    // Shield glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      22,
-      Paint()
-        ..color = color.withAlpha(40)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 12
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-
-    // Shield ring
-    canvas.drawCircle(
-      Offset(cx, cy),
-      22,
-      Paint()
-        ..color = color.withAlpha(200)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ShieldPainter old) => old.color != color;
-}
-
-class _NovaPainter extends CustomPainter {
-  final Color color;
-  const _NovaPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-
-    // Dark background
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0xFF08081A),
-    );
-
-    // Outer glow beam
-    final beamRect = Rect.fromLTWH(cx - 14, 0, 28, size.height);
-    canvas.drawRect(
-      beamRect,
-      Paint()
-        ..color = color.withAlpha(30)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-
-    // Beam gradient from bottom to top
-    canvas.drawRect(
-      Rect.fromLTWH(cx - 9, 0, 18, size.height),
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(cx, size.height),
-          Offset(cx, 0),
-          [color.withAlpha(160), color.withAlpha(0)],
-        ),
-    );
-
-    // Core line
-    canvas.drawLine(
-      Offset(cx, size.height),
-      Offset(cx, 0),
-      Paint()
-        ..color = const Color(0xCCFFFFFF)
-        ..strokeWidth = 2,
-    );
-
-    // Origin flash
-    canvas.drawCircle(
-      Offset(cx, size.height - 6),
-      8,
-      Paint()
-        ..color = color.withAlpha(180)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_NovaPainter old) => old.color != color;
 }

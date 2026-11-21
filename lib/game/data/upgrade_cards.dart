@@ -12,10 +12,27 @@ import '../novabolt_game.dart';
 
 enum UpgradeCategory { weapon, nova, mobility }
 
+/// Presentation-only: which icon a card shows on the level-up screen.
+enum CardGlyph {
+  laser, scatter, pulse, homing, field, rocket, emp,
+  targeting, overcharge, novaCharge, novaDuration, novaDamage,
+  afterburner, hull, repair,
+}
+
+CardGlyph glyphForWeapon(Weapon w) => switch (w) {
+      WeaponSpreadShot() => CardGlyph.scatter,
+      WeaponRapidFire() => CardGlyph.pulse,
+      WeaponHomingBolt() => CardGlyph.homing,
+      WeaponSwordAura() => CardGlyph.field,
+      WeaponExplosiveBolt() => CardGlyph.rocket,
+      WeaponFrostShard() => CardGlyph.emp,
+      _ => CardGlyph.laser,
+    };
+
 abstract class UpgradeCard {
   String get title;
   String get description;
-  String get iconLabel;
+  CardGlyph get glyph;
   UpgradeCategory get category;
   void apply(NovaboltGame game);
 }
@@ -29,7 +46,7 @@ class WeaponUpgradeCard extends UpgradeCard {
   @override
   String get description => weapon.nextUpgradeDescription;
   @override
-  String get iconLabel => '⬆';
+  CardGlyph get glyph => glyphForWeapon(weapon);
   @override
   UpgradeCategory get category => UpgradeCategory.weapon;
   @override
@@ -40,11 +57,14 @@ class NewWeaponCard extends UpgradeCard {
   final String _title;
   final String _description;
   final Weapon Function() factory;
+  @override
+  final CardGlyph glyph;
 
   NewWeaponCard({
     required String title,
     required String description,
     required this.factory,
+    required this.glyph,
   })  : _title = title,
         _description = description;
 
@@ -52,8 +72,6 @@ class NewWeaponCard extends UpgradeCard {
   String get title => _title;
   @override
   String get description => _description;
-  @override
-  String get iconLabel => '✦';
   @override
   UpgradeCategory get category => UpgradeCategory.weapon;
   @override
@@ -63,7 +81,10 @@ class NewWeaponCard extends UpgradeCard {
 class StatBuffCard extends UpgradeCard {
   final String _title;
   final String _description;
-  final String _icon;
+  @override
+  final CardGlyph glyph;
+  /// Presentation-only: the card only appears on a low-probability roll.
+  final bool rare;
   final UpgradeCategory _category;
   final void Function(NovaboltGame) _apply;
 
@@ -72,19 +93,17 @@ class StatBuffCard extends UpgradeCard {
     required String description,
     required UpgradeCategory category,
     required void Function(NovaboltGame) apply,
-    String icon = '★',
+    required this.glyph,
+    this.rare = false,
   })  : _title = title,
         _description = description,
         _category = category,
-        _icon = icon,
         _apply = apply;
 
   @override
   String get title => _title;
   @override
   String get description => _description;
-  @override
-  String get iconLabel => _icon;
   @override
   UpgradeCategory get category => _category;
   @override
@@ -122,6 +141,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Scatter Cannon',
       description: 'Fires 3 laser blasts in a wide arc',
       factory: WeaponSpreadShot.new,
+      glyph: CardGlyph.scatter,
     ));
   }
   if (!player.hasWeapon<WeaponRapidFire>()) {
@@ -129,6 +149,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Pulse Cannon',
       description: '4 pulses/sec at 60% power each',
       factory: WeaponRapidFire.new,
+      glyph: CardGlyph.pulse,
     ));
   }
   if (!player.hasWeapon<WeaponHomingBolt>()) {
@@ -136,6 +157,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Homing Missile',
       description: 'Self-guided missile seeks the nearest target',
       factory: WeaponHomingBolt.new,
+      glyph: CardGlyph.homing,
     ));
   }
   if (!player.hasWeapon<WeaponSwordAura>()) {
@@ -143,6 +165,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Force Field',
       description: 'Energy ring shreds nearby enemies continuously',
       factory: WeaponSwordAura.new,
+      glyph: CardGlyph.field,
     ));
   }
   if (!player.hasWeapon<WeaponExplosiveBolt>()) {
@@ -150,6 +173,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Plasma Rocket',
       description: 'Detonates on impact, blasting all nearby enemies',
       factory: WeaponExplosiveBolt.new,
+      glyph: CardGlyph.rocket,
     ));
   }
   if (!player.hasWeapon<WeaponFrostShard>()) {
@@ -157,6 +181,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'EMP Burst',
       description: 'EMP pulse slows targets to 40% speed for 2s',
       factory: WeaponFrostShard.new,
+      glyph: CardGlyph.emp,
     ));
   }
 
@@ -166,6 +191,8 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Targeting Array',
       description: 'All weapons deal +$weaponDmgPct% damage',
       category: UpgradeCategory.weapon,
+      glyph: CardGlyph.targeting,
+      rare: true,
       apply: (g) {
         for (final w in g.player.activeWeapons) {
           w.damage *= weaponDmgMult;
@@ -178,6 +205,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
     title: 'Overcharge',
     description: 'Fire rate +$fireRatePct% for all weapons',
     category: UpgradeCategory.weapon,
+    glyph: CardGlyph.overcharge,
     apply: (g) {
       for (final w in g.player.activeWeapons) {
         w.fireRate *= fireRateMult;
@@ -193,12 +221,14 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Nova Accelerator',
       description: 'Charge rate +$chargePct% faster',
       category: UpgradeCategory.nova,
+      glyph: CardGlyph.novaCharge,
       apply: (g) => g.superchargeSystem.chargeMultiplier += chargeBonus,
     ),
     StatBuffCard(
       title: 'Extended Beam',
       description: 'Nova lasts $beamPct% longer',
       category: UpgradeCategory.nova,
+      glyph: CardGlyph.novaDuration,
       apply: (g) => g.superchargeSystem.depleteMultiplier =
           (g.superchargeSystem.depleteMultiplier - beamBonus).clamp(0.2, 1.0),
     ),
@@ -206,7 +236,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Nova Overload',
       description: 'Nova damage +$novaDmgPct%',
       category: UpgradeCategory.nova,
-      icon: '⚡',
+      glyph: CardGlyph.novaDamage,
       apply: (g) => g.superchargeSystem.damageMultiplier += novaDmgBonus,
     ),
   ]);
@@ -218,6 +248,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
       title: 'Afterburner',
       description: 'Thrust upgrade — move speed +25%',
       category: UpgradeCategory.mobility,
+      glyph: CardGlyph.afterburner,
       apply: (g) {
         g.player.moveSpeed *= 1.25;
         g.player.afterburnerStacks++;
@@ -257,7 +288,7 @@ List<StatBuffCard> rollBonusCards(NovaboltGame game) {
       title: '+25 Hull Plating',
       description: 'Reinforce hull for +25 max HP',
       category: UpgradeCategory.mobility,
-      icon: '♥',
+      glyph: CardGlyph.hull,
       apply: (g) {
         g.player.maxHp += 25;
         g.player.currentHp = (g.player.currentHp + 25).clamp(0, g.player.maxHp);
@@ -269,7 +300,7 @@ List<StatBuffCard> rollBonusCards(NovaboltGame game) {
       title: 'Repair Drones',
       description: 'Emergency repair restores 40 HP',
       category: UpgradeCategory.mobility,
-      icon: '♥',
+      glyph: CardGlyph.repair,
       apply: (g) {
         g.player.currentHp = (g.player.currentHp + 40).clamp(0, g.player.maxHp);
       },

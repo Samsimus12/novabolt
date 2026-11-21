@@ -1,10 +1,15 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
 import '../coins/coin_manager.dart';
 import '../game/novabolt_game.dart';
 import '../stats/stats_manager.dart';
+import '../ui/ui.dart';
 
 class GameOverScreen extends StatefulWidget {
   final NovaboltGame game;
@@ -35,8 +40,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
   int get _coinsEarned => widget.game.xpSystem.currentLevel * 10;
 
-  String get _playTime {
-    final total = widget.game.playTimeSeconds.toInt();
+  static String _clock(num seconds) {
+    final total = seconds.toInt();
     final m = total ~/ 60;
     final s = total % 60;
     return '$m:${s.toString().padLeft(2, '0')}';
@@ -71,126 +76,184 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final game = widget.game;
     final adReady = AdManager.instance.rewardedAdReady.value;
-    final canContinue = adReady && !widget.game.hasUsedContinue && !_isShowingAd;
+    final canContinue = adReady && !game.hasUsedContinue && !_isShowingAd;
+    final stats = StatsManager.instance;
 
     return Material(
-      color: const Color(0xCC000000),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'GAME OVER',
-              style: TextStyle(
-                color: Color(0xFFCC2936),
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
-              ),
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: ColoredBox(color: NbColors.scrim.withValues(alpha: 0.85)),
             ),
-            if (widget.game.isNewBest) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          ).animate().fadeIn(duration: 400.ms),
+          // A low red wash: the one place the whole screen takes on threat colour.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFD700),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'NEW BEST!',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
+                  gradient: RadialGradient(
+                    center: const Alignment(0, -0.55),
+                    radius: 0.9,
+                    colors: [NbColors.flare.withValues(alpha: 0.22), NbColors.flare.withValues(alpha: 0)],
                   ),
                 ),
               ),
-            ],
-            const SizedBox(height: 14),
-            // Run stats
-            Text(
-              'Level ${widget.game.xpSystem.currentLevel}  ·  ${widget.game.killCount} kills  ·  $_playTime',
-              style: const TextStyle(
-                color: Color(0xFFF5F5DC),
-                fontSize: 22,
-              ),
             ),
-            const SizedBox(height: 8),
-            // All-time records
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 16),
-                const SizedBox(width: 5),
-                Text(
-                  'Best: Lv ${StatsManager.instance.bestLevel}  ·  ${StatsManager.instance.bestKills} kills',
-                  style: const TextStyle(
-                    color: Color(0xAAF5F5DC),
-                    fontSize: 14,
+          ).animate().fadeIn(duration: 900.ms),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: NbSpace.gutter, vertical: NbSpace.lg),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Ship destroyed',
+                        textAlign: TextAlign.center,
+                        style: NbType.hero.copyWith(color: NbColors.flare),
+                      )
+                          .animate()
+                          .fadeIn(duration: 300.ms)
+                          .scaleXY(begin: 1.15, end: 1, duration: 500.ms, curve: Curves.easeOutCubic)
+                          .shake(hz: 5, offset: const Offset(3, 0), duration: 350.ms),
+                      if (game.isNewBest) ...[
+                        const SizedBox(height: NbSpace.sm),
+                        Center(child: _NewBestBadge())
+                            .animate()
+                            .fadeIn(delay: 900.ms, duration: 200.ms)
+                            .scaleXY(begin: 1.6, end: 1, delay: 900.ms, duration: 350.ms, curve: Curves.easeOutBack),
+                      ],
+                      const SizedBox(height: NbSpace.lg),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: NbStatTile(
+                              icon: PhosphorIconsBold.trendUp,
+                              label: 'Level',
+                              value: game.xpSystem.currentLevel,
+                              color: NbColors.gold,
+                            ),
+                          ),
+                          const SizedBox(width: NbSpace.xs),
+                          Expanded(
+                            child: NbStatTile(
+                              icon: PhosphorIconsBold.crosshair,
+                              label: 'Kills',
+                              value: game.killCount,
+                              delay: 120.ms,
+                            ),
+                          ),
+                          const SizedBox(width: NbSpace.xs),
+                          Expanded(
+                            child: NbStatTile(
+                              icon: PhosphorIconsBold.clock,
+                              label: 'Time',
+                              value: game.playTimeSeconds,
+                              format: _clock,
+                              delay: 240.ms,
+                            ),
+                          ),
+                        ],
+                      ).animate().fadeIn(delay: 200.ms, duration: 350.ms).moveY(begin: 12, end: 0),
+                      const SizedBox(height: NbSpace.sm),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(PhosphorIconsBold.trophy, size: 15, color: NbColors.haze),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Best  Lv ${stats.bestLevel},  ${formatThousands(stats.bestKills)} kills',
+                                style: NbType.label,
+                              ),
+                            ],
+                          ),
+                          CoinAmount(_coinsEarned, prefix: '+', size: 16),
+                        ],
+                      ).animate().fadeIn(delay: 450.ms, duration: 350.ms),
+                      const SizedBox(height: NbSpace.xl),
+                      if (canContinue) ...[
+                        NbButton(
+                          label: 'Continue',
+                          caption: 'Watch an ad, return with half hull',
+                          icon: PhosphorIconsFill.playCircle,
+                          color: NbColors.ion,
+                          expand: true,
+                          height: 64,
+                          onPressed: _watchAdAndContinue,
+                        )
+                            .animate()
+                            .fadeIn(delay: 550.ms, duration: 300.ms)
+                            .moveY(begin: 12, end: 0, curve: NbMotion.easeOut)
+                            .then(delay: 400.ms)
+                            .shimmer(duration: 900.ms, color: Colors.white.withValues(alpha: 0.6)),
+                        const SizedBox(height: NbSpace.sm),
+                      ],
+                      (canContinue
+                              ? NbButton.secondary(
+                                  label: 'Play again',
+                                  icon: PhosphorIconsBold.arrowsClockwise,
+                                  color: NbColors.gold,
+                                  expand: true,
+                                  onPressed: _playAgain,
+                                )
+                              : NbButton(
+                                  label: 'Play again',
+                                  icon: PhosphorIconsBold.arrowsClockwise,
+                                  expand: true,
+                                  height: 60,
+                                  onPressed: _playAgain,
+                                ))
+                          .animate()
+                          .fadeIn(delay: 650.ms, duration: 300.ms)
+                          .moveY(begin: 12, end: 0, curve: NbMotion.easeOut),
+                      const SizedBox(height: NbSpace.xs),
+                      Center(
+                        child: NbButton.ghost(
+                          label: 'Main menu',
+                          icon: PhosphorIconsBold.house,
+                          onPressed: _goToMenu,
+                        ),
+                      ).animate().fadeIn(delay: 750.ms, duration: 300.ms),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('⚡', style: TextStyle(fontSize: 15)),
-                const SizedBox(width: 5),
-                Text(
-                  '+$_coinsEarned NOVA',
-                  style: const TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-            if (canContinue) ...[
-              ElevatedButton.icon(
-                onPressed: _watchAdAndContinue,
-                icon: const Icon(Icons.play_circle_outline, size: 22),
-                label: const Text('Watch Ad — Continue (50% HP)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A7A3C),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 16),
-                  textStyle: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            ElevatedButton(
-              onPressed: _playAgain,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF9B59B6),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 48, vertical: 18),
-                textStyle: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              child: const Text('PLAY AGAIN'),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: _goToMenu,
-              child: const Text(
-                'Main Menu',
-                style: TextStyle(
-                  color: Color(0xAAF5F5DC),
-                  fontSize: 16,
-                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewBestBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: const ShapeDecoration(
+        gradient: LinearGradient(colors: [Color(0xFFFFE7A0), NbColors.gold]),
+        shape: ChamferBorder(cut: 6, corners: ChamferCorners.all),
+        shadows: [BoxShadow(color: Color(0x88FFC23D), blurRadius: 18)],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(PhosphorIconsFill.crown, size: 15, color: NbColors.abyss),
+          const SizedBox(width: 6),
+          Text('New personal best', style: NbType.label.copyWith(color: NbColors.abyss, fontWeight: FontWeight.w700)),
+        ],
       ),
     );
   }

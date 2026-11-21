@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import '../novabolt_game.dart';
 import 'player.dart';
 
@@ -13,7 +14,6 @@ class ShieldPickup extends PositionComponent
   static const double _lifetime = 8.0;
 
   double _timer = 0;
-  double _pulse = 0;
 
   ShieldPickup({required Vector2 position})
       : super(
@@ -32,7 +32,6 @@ class ShieldPickup extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _timer += dt;
-    _pulse += dt * 4.0;
     if (_timer >= _lifetime) removeFromParent();
   }
 
@@ -48,46 +47,47 @@ class ShieldPickup extends PositionComponent
 
   @override
   void render(Canvas canvas) {
-    final remaining = (1.0 - _timer / _lifetime).clamp(0.0, 1.0);
-    final pulse = math.sin(_pulse) * 0.15 + 0.85;
-    final alpha = (remaining * pulse * 220).toInt().clamp(0, 255);
     final r = size.x / 2;
-    final center = Offset(r, r);
+    paintPickup(canvas, Offset(r, r), r, const Color(0xFF4DE8FF), _timer, _lifetime, (canvas, ink) {
+      final shield = Path()
+        ..moveTo(0, -6.5)
+        ..lineTo(5.5, -4)
+        ..cubicTo(5.5, 1.5, 3.5, 5, 0, 7)
+        ..cubicTo(-3.5, 5, -5.5, 1.5, -5.5, -4)
+        ..close();
+      canvas.drawPath(shield, Paint()..color = ink);
+    });
+  }
 
-    // Outer glow
-    canvas.drawCircle(
-      center,
-      r,
+  // Shared pickup look: a slowly turning chamfered diamond holding a glyph,
+  // bobbing in place; blinks during its last two seconds.
+  static void paintPickup(Canvas canvas, Offset c, double r, Color color, double timer, double lifetime,
+      void Function(Canvas canvas, Color ink) glyph) {
+    final left = lifetime - timer;
+    if (left < 2 && (left * 8).floor().isOdd) return;
+    final bob = math.sin(timer * 3) * 2;
+    final center = c.translate(0, bob);
+    Glow.draw(canvas, center, r * 2.2, color.withValues(alpha: 0.45 + 0.15 * math.sin(timer * 5)));
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.save();
+    canvas.rotate(timer * 0.8);
+    final d = Path()
+      ..moveTo(0, -r)
+      ..lineTo(r, 0)
+      ..lineTo(0, r)
+      ..lineTo(-r, 0)
+      ..close();
+    canvas.drawPath(d, Paint()..color = const Color(0xE6050817));
+    canvas.drawPath(
+      d,
       Paint()
-        ..color = Color.fromARGB(alpha ~/ 3, 0, 229, 255)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-
-    // Outer ring
-    canvas.drawCircle(
-      center,
-      r * 0.88,
-      Paint()
-        ..color = Color.fromARGB(alpha, 0, 229, 255)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8,
+        ..strokeWidth = 1.6
+        ..color = color,
     );
-
-    // Inner ring
-    canvas.drawCircle(
-      center,
-      r * 0.55,
-      Paint()
-        ..color = Color.fromARGB((alpha * 0.7).toInt(), 100, 240, 255)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
-
-    // Center dot
-    canvas.drawCircle(
-      center,
-      r * 0.2,
-      Paint()..color = Color.fromARGB(alpha, 180, 248, 255),
-    );
+    canvas.restore();
+    glyph(canvas, color);
+    canvas.restore();
   }
 }

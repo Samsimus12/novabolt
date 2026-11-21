@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/shot_art.dart';
 import 'player.dart';
 import 'projectile.dart';
 
@@ -11,16 +12,14 @@ class BossProjectile extends Projectile {
   BossProjectile({
     required super.position,
     required super.direction,
-    required double damage,
-    double speed = 280,
-    double size = 14,
+    required super.damage,
+    super.speed = 280,
+    super.size = 14,
     Color color = const Color(0xFFFF3300),
-  })  : _color = color,
-        super(speed: speed, damage: damage, size: size);
+  })  : _color = color;
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Player) {
       other.takeDamage(damage);
       removeFromParent();
@@ -29,19 +28,6 @@ class BossProjectile extends Projectile {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2 + 4,
-      Paint()
-        ..color = _color.withAlpha(170)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2,
-      Paint()..color = _color,
-    );
+    ShotArt.orb(canvas, Offset(size.x / 2, size.y / 2), size.x / 2, _color, time: lifetime);
   }
 }

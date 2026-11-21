@@ -5,12 +5,13 @@ import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossStormPhantom extends BossMonster {
-  MonsterBossStormPhantom({required super.position, int playerLevel = 1})
-      : super(stats: phantomStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossStormPhantom({required super.position, super.playerLevel})
+      : super(stats: phantomStats.scaled(playerLevel));
 
   @override
   String get displayName => 'STORM PHANTOM';
@@ -78,12 +79,7 @@ class MonsterBossStormPhantom extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Speed glow behind engines
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx + 4, cy + 32), width: 22, height: 14),
-      Paint()
-        ..color = const Color(0xAA00AAFF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx + 4, cy + 32), width: 22, height: 14).inflate(10), const Color(0xAA00AAFF));
 
     // Left swept-back wing (asymmetric, angular)
     final leftWing = Path()
@@ -174,13 +170,7 @@ class MonsterBossStormPhantom extends BossMonster {
     canvas.drawLine(Offset(cx - 6, cy - 28), Offset(cx + 8, cy - 20), lightningPaint);
 
     // Bright cyan cockpit orb at front
-    canvas.drawCircle(
-      Offset(cx, cy - 30),
-      9,
-      Paint()
-        ..color = const Color(0xFF00CCFF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
+    Glow.draw(canvas, Offset(cx, cy - 30), 9 + 6, const Color(0xFF00CCFF));
     canvas.drawCircle(Offset(cx, cy - 30), 6, Paint()..color = const Color(0xFF00FFFF));
     canvas.drawCircle(Offset(cx, cy - 30), 3, Paint()..color = const Color(0xFFFFFFFF));
 
@@ -189,12 +179,7 @@ class MonsterBossStormPhantom extends BossMonster {
       Rect.fromCenter(center: Offset(cx + 4, cy + 32), width: 10, height: 6),
       Paint()..color = const Color(0xFF001122),
     );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx + 4, cy + 34), width: 7, height: 4),
-      Paint()
-        ..color = const Color(0xFF0088FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx + 4, cy + 34), width: 7, height: 4).inflate(3), const Color(0xFF0088FF));
 
     canvas.restore();
 

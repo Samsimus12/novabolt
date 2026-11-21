@@ -4,7 +4,9 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../../coins/coin_manager.dart';
+import '../fx/glow.dart';
 import '../novabolt_game.dart';
+import '../render/ship_art.dart';
 import 'monster.dart';
 
 class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
@@ -13,15 +15,14 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
 
   SuperchargeLaser() : super(priority: 4);
 
-  Color get _beamColor => switch (CoinManager.instance.selectedNovaTheme) {
-        'nova_inferno' => const Color(0xFFFF3D00),
-        'nova_void'    => const Color(0xFFFF00FF),
-        'nova_eclipse' => const Color(0xFFFFD700),
-        _              => const Color(0xFF00E5FF),
-      };
+  Color get _beamColor => novaBeamColorFor(CoinManager.instance.selectedNovaTheme);
+
+  double _t = 0;
 
   @override
   void update(double dt) {
+    _t += dt;
+    game.rumble(0.3);
     if (game.superchargeSystem.deplete(dt)) {
       removeFromParent();
       return;
@@ -43,59 +44,61 @@ class SuperchargeLaser extends Component with HasGameReference<NovaboltGame> {
     }
   }
 
+  static final _beam = Paint()..blendMode = BlendMode.plus;
+  static final _bands = Paint()
+    ..blendMode = BlendMode.plus
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = 3;
+
   @override
   void render(Canvas canvas) {
     final origin = game.player.position;
     final dir = game.player.aimDirection;
     final color = _beamColor;
+    final hot = Color.lerp(color, const Color(0xFFFFFFFF), 0.7)!;
 
     final screenW = game.size.x;
     final screenH = game.size.y;
-    final maxLen = math.sqrt(screenW * screenW + screenH * screenH);
+    final len = math.sqrt(screenW * screenW + screenH * screenH);
+    // Ramp in over the first 0.15 s, then breathe.
+    final open = (_t / 0.15).clamp(0.0, 1.0);
+    final w = halfWidth * open * (1 + 0.08 * math.sin(_t * 42));
 
-    final endX = origin.x + dir.x * maxLen;
-    final endY = origin.y + dir.y * maxLen;
+    canvas.save();
+    canvas.translate(origin.x, origin.y);
+    canvas.rotate(math.atan2(dir.y, dir.x));
 
-    final perpX = -dir.y * halfWidth;
-    final perpY = dir.x * halfWidth;
+    // Outer field: wide, soft, coloured.
+    _beam.shader = Gradient.linear(Offset(0, -w * 2.6), Offset(0, w * 2.6), [
+      color.withValues(alpha: 0),
+      color.withValues(alpha: 0.35),
+      color.withValues(alpha: 0.8),
+      color.withValues(alpha: 0.35),
+      color.withValues(alpha: 0),
+    ], const [0, 0.3, 0.5, 0.7, 1]);
+    canvas.drawRect(Rect.fromLTWH(0, -w * 2.6, len, w * 5.2), _beam);
+    // Core: white-hot centre.
+    _beam.shader = Gradient.linear(Offset(0, -w * 0.55), Offset(0, w * 0.55), [
+      hot.withValues(alpha: 0),
+      const Color(0xFFFFFFFF),
+      hot.withValues(alpha: 0),
+    ], const [0, 0.5, 1]);
+    canvas.drawRect(Rect.fromLTWH(0, -w * 0.55, len, w * 1.1), _beam);
+    _beam.shader = null;
 
-    // Outer glow
-    canvas.drawPath(
-      Path()
-        ..moveTo(origin.x + perpX * 2, origin.y + perpY * 2)
-        ..lineTo(endX + perpX * 2, endY + perpY * 2)
-        ..lineTo(endX - perpX * 2, endY - perpY * 2)
-        ..lineTo(origin.x - perpX * 2, origin.y - perpY * 2)
-        ..close(),
-      Paint()
-        ..color = color.withAlpha(68)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
-    );
+    // Energy bands racing outward along the beam.
+    const spacing = 46.0;
+    final offset = (_t * 900) % spacing;
+    _bands.color = const Color(0xCCFFFFFF);
+    for (var x = offset; x < len; x += spacing) {
+      canvas.drawLine(Offset(x, -w * 0.9), Offset(x + 14, -w * 0.9), _bands);
+      canvas.drawLine(Offset(x + spacing / 2, w * 0.9), Offset(x + spacing / 2 + 14, w * 0.9), _bands);
+    }
 
-    // Beam fill with gradient fade
-    canvas.drawPath(
-      Path()
-        ..moveTo(origin.x + perpX, origin.y + perpY)
-        ..lineTo(endX + perpX, endY + perpY)
-        ..lineTo(endX - perpX, endY - perpY)
-        ..lineTo(origin.x - perpX, origin.y - perpY)
-        ..close(),
-      Paint()
-        ..shader = Gradient.linear(
-          Offset(origin.x, origin.y),
-          Offset(endX, endY),
-          [color.withAlpha(187), color.withAlpha(0)],
-        ),
-    );
-
-    // White core line
-    canvas.drawLine(
-      Offset(origin.x, origin.y),
-      Offset(endX, endY),
-      Paint()
-        ..color = const Color(0xAAFFFFFF)
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round,
-    );
+    // Muzzle bloom
+    final flick = 0.85 + 0.15 * math.sin(_t * 57);
+    Glow.draw(canvas, const Offset(12, 0), w * 3.2 * flick, color);
+    Glow.draw(canvas, const Offset(10, 0), w * 1.4 * flick, const Color(0xFFFFFFFF), hot: true);
+    canvas.restore();
   }
 }

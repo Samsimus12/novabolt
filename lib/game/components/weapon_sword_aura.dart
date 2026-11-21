@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import 'monster.dart';
 import 'weapon.dart';
 
@@ -34,57 +35,56 @@ class WeaponSwordAura extends Weapon {
   @override
   void fire(Vector2 playerPos, Vector2 direction) {}
 
+  static final _ring = Paint()
+    ..style = PaintingStyle.stroke
+    ..blendMode = BlendMode.plus;
+
   @override
   void render(Canvas canvas) {
-    final cx = game.player.size.x / 2;
-    final cy = game.player.size.y / 2;
+    final c = Offset(game.player.size.x / 2, game.player.size.y / 2);
+    const gold = Color(0xFFFFC23D);
 
-    // Glow
+    // Faint field disc + crisp rim.
     canvas.drawCircle(
-      Offset(cx, cy),
+      c,
       _radius,
       Paint()
-        ..color = const Color(0x44FFD700)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 14
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+        ..shader = Gradient.radial(c, _radius, [
+          const Color(0x00FFC23D),
+          const Color(0x00FFC23D),
+          const Color(0x26FFC23D),
+        ], const [0, 0.75, 1]),
     );
+    _ring
+      ..strokeWidth = 1.5
+      ..color = gold.withValues(alpha: 0.75);
+    canvas.drawCircle(c, _radius, _ring);
+    // Rotating segmented outer arcs.
+    _ring
+      ..strokeWidth = 3
+      ..color = gold.withValues(alpha: 0.55);
+    final rect = Rect.fromCircle(center: c, radius: _radius + 4);
+    for (var i = 0; i < 6; i++) {
+      canvas.drawArc(rect, _angle * 0.6 + i * math.pi / 3, 0.5, false, _ring);
+    }
 
-    // Ring
-    canvas.drawCircle(
-      Offset(cx, cy),
-      _radius,
-      Paint()
-        ..color = const Color(0xCCFFD700)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-
-    // 3 spinning rune dots
-    final dotPaint = Paint()..color = const Color(0xFFFFD700);
+    // Three orbiting nodes
     for (int i = 0; i < 3; i++) {
       final a = _angle + (i * math.pi * 2 / 3);
-      canvas.drawCircle(
-        Offset(cx + math.cos(a) * _radius, cy + math.sin(a) * _radius),
-        4.5,
-        dotPaint,
-      );
+      final p = c + Offset(math.cos(a), math.sin(a)) * _radius;
+      Glow.draw(canvas, p, 14, gold);
+      Glow.draw(canvas, p, 5, const Color(0xFFFFFFFF), hot: true);
     }
 
     // Upgrade balls — one per level beyond 1, counter-orbiting on inner ring
     final extraBalls = upgradeLevel - 1;
     if (extraBalls > 0) {
       const innerR = _radius * 0.65;
-      final glowPaint = Paint()
-        ..color = const Color(0x88FFD700)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-      final ballPaint = Paint()..color = const Color(0xFFFFFFAA);
       for (int i = 0; i < extraBalls; i++) {
         final a = -_angle * 1.5 + (i * math.pi * 2 / extraBalls);
-        final bx = cx + math.cos(a) * innerR;
-        final by = cy + math.sin(a) * innerR;
-        canvas.drawCircle(Offset(bx, by), 5.0, glowPaint);
-        canvas.drawCircle(Offset(bx, by), 3.0, ballPaint);
+        final p = c + Offset(math.cos(a), math.sin(a)) * innerR;
+        Glow.draw(canvas, p, 10, const Color(0xFFFFE08A));
+        Glow.draw(canvas, p, 4, const Color(0xFFFFFFFF), hot: true);
       }
     }
   }

@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
@@ -34,12 +36,11 @@ class ExplosiveBolt extends Projectile {
   ExplosiveBolt({
     required super.position,
     required super.direction,
-    required double damage,
-  }) : super(speed: 250, damage: damage, size: 13);
+    required super.damage,
+  }) : super(speed: 250, size: 13);
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Monster) {
       for (final m in game.world.children.whereType<Monster>()) {
         if (m.position.distanceTo(position) <= _aoeRadius) {
@@ -53,25 +54,17 @@ class ExplosiveBolt extends Projectile {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2 + 7,
-      Paint()
-        ..color = const Color(0x66FFD700)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    final c = Offset(size.x / 2, size.y / 2);
+    final pulse = 1 + 0.15 * math.sin(lifetime * 30);
+    Glow.draw(canvas, c, size.x * 1.9 * pulse, const Color(0xFFFF8C00));
+    final a = math.atan2(direction.y, direction.x);
+    Glow.drawOval(
+      canvas,
+      Rect.fromCenter(center: c - Offset(math.cos(a), math.sin(a)) * 10, width: 18, height: 18),
+      const Color(0x88FF5A1F),
     );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2,
-      Paint()..color = const Color(0xFFFF8C00),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 3.5,
-      Paint()..color = const Color(0xFFFFD700),
-    );
+    canvas.drawCircle(c, size.x * 0.45, Paint()..color = const Color(0xFFFFB238));
+    Glow.draw(canvas, c, size.x * 0.6, const Color(0xFFFFFFFF), hot: true);
   }
 }
 
@@ -94,29 +87,21 @@ class AoeBlast extends PositionComponent {
   @override
   void render(Canvas canvas) {
     final t = (_elapsed / _duration).clamp(0.0, 1.0);
-    final r = radius * t;
-    final alpha = ((1 - t) * 220).round();
-
-    canvas.drawCircle(
-      Offset.zero,
-      r * 0.55,
-      Paint()..color = Color(0xFFFFD700).withAlpha((alpha * 0.25).round()),
-    );
-    canvas.drawCircle(
-      Offset.zero,
-      r,
-      Paint()
-        ..color = Color(0xFFFFD700).withAlpha(alpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (4 * (1 - t)).clamp(0.5, 4),
-    );
-    canvas.drawCircle(
-      Offset.zero,
-      r * 0.7,
-      Paint()
-        ..color = Color(0xFFFF8C00).withAlpha((alpha * 0.4).round())
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (2 * (1 - t)).clamp(0.5, 2),
-    );
+    final e = 1 - (1 - t) * (1 - t) * (1 - t);
+    final r = radius * e;
+    final fade = 1 - t;
+    // Fireball bloom, white-hot early then orange.
+    Glow.draw(canvas, Offset.zero, radius * (0.5 + 0.7 * e), Color.lerp(const Color(0xFFFFFFFF), const Color(0xFFFF8C00), t)!.withValues(alpha: fade), hot: t < 0.3);
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..blendMode = BlendMode.plus;
+    ring
+      ..strokeWidth = 5 * fade + 0.5
+      ..color = const Color(0xFFFFD27A).withValues(alpha: fade);
+    canvas.drawCircle(Offset.zero, r, ring);
+    ring
+      ..strokeWidth = 2 * fade + 0.5
+      ..color = const Color(0xFFFF6A1F).withValues(alpha: fade * 0.7);
+    canvas.drawCircle(Offset.zero, r * 0.72, ring);
   }
 }

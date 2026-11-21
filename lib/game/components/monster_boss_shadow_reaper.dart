@@ -5,12 +5,13 @@ import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossShadowReaper extends BossMonster {
-  MonsterBossShadowReaper({required super.position, int playerLevel = 1})
-      : super(stats: reaperStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossShadowReaper({required super.position, super.playerLevel})
+      : super(stats: reaperStats.scaled(playerLevel));
 
   @override
   String get displayName => 'SHADOW REAPER';
@@ -97,13 +98,7 @@ class MonsterBossShadowReaper extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Indigo aura glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      42,
-      Paint()
-        ..color = const Color(0x445500AA)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-    );
+    Glow.draw(canvas, Offset(cx, cy), 42 + 18, const Color(0x445500AA));
 
     // Dark tendrils extending from back
     final tendrilPaint = Paint()

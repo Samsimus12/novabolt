@@ -1,104 +1,106 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
-class LoadingScreen extends StatefulWidget {
+import '../ui/ui.dart';
+
+/// Cold-boot screen (init happens in main.dart). The wordmark sits where the
+/// menu will put it, so the hand-off to the menu is a quiet cross-fade.
+class LoadingScreen extends StatelessWidget {
   const LoadingScreen({super.key});
 
   @override
-  State<LoadingScreen> createState() => _LoadingScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          const Positioned.fill(child: SpaceBackdrop()),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: NbSpace.gutter),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ShaderMask(
+                      blendMode: BlendMode.srcIn,
+                      shaderCallback: (r) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFFFFF3D0), NbColors.gold, NbColors.goldDeep],
+                        stops: [0, 0.55, 1],
+                      ).createShader(r),
+                      child: const Text('NOVABOLT', style: NbType.wordmark),
+                    ),
+                  ).animate().fadeIn(duration: 600.ms),
+                  const SizedBox(height: NbSpace.xl),
+                  const SizedBox(width: 140, child: _ScanBar()),
+                  const SizedBox(height: NbSpace.sm),
+                  Text('Warming up engines', style: NbType.caption.copyWith(color: NbColors.haze)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _LoadingScreenState extends State<LoadingScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _glow;
+/// Indeterminate progress: a short ion pulse sweeping a hairline track.
+class _ScanBar extends StatefulWidget {
+  const _ScanBar();
 
   @override
-  void initState() {
-    super.initState();
-    _glow = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
-  }
+  State<_ScanBar> createState() => _ScanBarState();
+}
+
+class _ScanBarState extends State<_ScanBar> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1300))..repeat();
 
   @override
   void dispose() {
-    _glow.dispose();
+    _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D0D2B), Color(0xFF060612)],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedBuilder(
-                animation: _glow,
-                builder: (_, __) => Text(
-                  'NOVABOLT',
-                  style: TextStyle(
-                    color: const Color(0xFFFFD700),
-                    fontSize: 54,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 10,
-                    shadows: [
-                      Shadow(
-                        color: Color.fromRGBO(
-                            255, 215, 0, 0.35 + _glow.value * 0.45),
-                        blurRadius: 22 + _glow.value * 22,
-                      ),
-                      Shadow(
-                        color: Color.fromRGBO(
-                            244, 168, 0, 0.15 + _glow.value * 0.2),
-                        blurRadius: 60,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'SURVIVE · UPGRADE · CONQUER',
-                style: TextStyle(
-                  color: Color(0x99F5F5DC),
-                  fontSize: 12,
-                  letterSpacing: 3.5,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-              const SizedBox(height: 64),
-              const SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(Color(0xFF9B59B6)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'LOADING',
-                style: TextStyle(
-                  color: Color(0x55F5F5DC),
-                  fontSize: 11,
-                  letterSpacing: 4,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-            ],
-          ),
+    return Semantics(
+      label: 'Loading',
+      child: SizedBox(
+        height: 2,
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (_, _) => CustomPaint(painter: _ScanPainter(Curves.easeInOutCubic.transform(_c.value))),
         ),
       ),
     );
   }
+}
+
+class _ScanPainter extends CustomPainter {
+  final double t;
+  _ScanPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = NbColors.line);
+    final w = size.width * 0.35;
+    final x = -w + (size.width + w) * t;
+    final r = Rect.fromLTWH(x, 0, w, size.height);
+    canvas.drawRect(
+      r,
+      Paint()
+        ..shader = LinearGradient(colors: [
+          NbColors.ion.withValues(alpha: 0),
+          NbColors.ion,
+          NbColors.ion.withValues(alpha: 0),
+        ]).createShader(r),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ScanPainter old) => old.t != t;
 }

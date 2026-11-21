@@ -5,12 +5,13 @@ import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossSolarTitan extends BossMonster {
-  MonsterBossSolarTitan({required super.position, int playerLevel = 1})
-      : super(stats: solarTitanStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossSolarTitan({required super.position, super.playerLevel})
+      : super(stats: solarTitanStats.scaled(playerLevel));
 
   @override
   String get displayName => 'SOLAR TITAN';
@@ -91,13 +92,7 @@ class MonsterBossSolarTitan extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Outer solar corona glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      48,
-      Paint()
-        ..color = const Color(0x66FF8800)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
-    );
+    Glow.draw(canvas, Offset(cx, cy), 48 + 20, const Color(0x66FF8800));
 
     // 8 triangular solar spike fins radiating outward
     const spikeCount = 8;
@@ -173,13 +168,7 @@ class MonsterBossSolarTitan extends BossMonster {
     }
 
     // Glowing orange core circle
-    canvas.drawCircle(
-      Offset(cx, cy),
-      14,
-      Paint()
-        ..color = const Color(0xFFFF6600)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    Glow.draw(canvas, Offset(cx, cy), 14 + 8, const Color(0xFFFF6600));
     canvas.drawCircle(Offset(cx, cy), 10, Paint()..color = const Color(0xFFFF6600));
     // Bright inner core
     canvas.drawCircle(Offset(cx, cy), 5, Paint()..color = const Color(0xFFFFCC66));

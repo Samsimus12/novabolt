@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
@@ -26,12 +27,11 @@ class FrostShard extends Projectile {
   FrostShard({
     required super.position,
     required super.direction,
-    required double damage,
-  }) : super(speed: 280, damage: damage, size: 9);
+    required super.damage,
+  }) : super(speed: 280, size: 9);
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Monster) {
       other.takeDamage(damage);
       other.applySlow(0.4, 2.0);
@@ -41,24 +41,28 @@ class FrostShard extends Projectile {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2 + 5,
+    final c = Offset(size.x / 2, size.y / 2);
+    const ice = Color(0xFF9BE8FF);
+    Glow.draw(canvas, c, size.x * 1.6, ice.withValues(alpha: 0.7));
+    // Spinning ice diamond
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(lifetime * 9);
+    final r = size.x * 0.7;
+    final d = Path()
+      ..moveTo(0, -r)
+      ..lineTo(r * 0.55, 0)
+      ..lineTo(0, r)
+      ..lineTo(-r * 0.55, 0)
+      ..close();
+    canvas.drawPath(d, Paint()..color = const Color(0xFFE8FBFF));
+    canvas.drawPath(
+      d,
       Paint()
-        ..color = const Color(0x5588D8F0)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = ice,
     );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2,
-      Paint()..color = const Color(0xFF88D8F0),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 3,
-      Paint()..color = const Color(0xFFFFFFFF),
-    );
+    canvas.restore();
   }
 }

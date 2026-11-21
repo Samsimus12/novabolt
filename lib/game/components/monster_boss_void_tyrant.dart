@@ -3,11 +3,12 @@ import 'dart:ui';
 
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'monster_boss.dart';
 
 class MonsterBossVoidTyrant extends BossMonster {
-  MonsterBossVoidTyrant({required super.position, int playerLevel = 1})
-      : super(stats: tyrantStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossVoidTyrant({required super.position, super.playerLevel})
+      : super(stats: tyrantStats.scaled(playerLevel));
 
   @override
   String get displayName => 'VOID TYRANT';
@@ -58,12 +59,7 @@ class MonsterBossVoidTyrant extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Engine exhaust glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 48), width: 56, height: 30),
-      Paint()
-        ..color = const Color(0xAACC0000)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 48), width: 56, height: 30).inflate(18), const Color(0xAACC0000));
 
     // Outer swept wings
     final leftWing = Path()

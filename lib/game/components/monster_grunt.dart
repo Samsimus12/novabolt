@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import 'monster.dart';
 
 class MonsterGrunt extends Monster {
@@ -27,8 +28,11 @@ class MonsterGrunt extends Monster {
       final r = _baseR * _rFactors[i];
       final x = cx + r * math.cos(a);
       final y = cy + r * math.sin(a);
-      if (i == 0) path.moveTo(x, y);
-      else path.lineTo(x, y);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
     return path..close();
   }
@@ -83,9 +87,7 @@ class MonsterGrunt extends Monster {
 
     final glow = _themeGlow[p];
     if (glow.a > 0) {
-      canvas.drawPath(path, Paint()
-        ..color = glow
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+      Glow.draw(canvas, Offset(cx, cy), _baseR + 12, glow);
     }
     canvas.drawPath(path, Paint()..color = _themeBody[p]);
     canvas.drawPath(path, Paint()
@@ -133,8 +135,11 @@ class MonsterGrunt extends Monster {
     for (int i = 0; i < 8; i++) {
       final a = _rotAngle + (i / 8) * 2 * math.pi;
       final r = _baseR * radii8[i];
-      if (i == 0) path.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
-      else path.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      if (i == 0) {
+        path.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      } else {
+        path.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      }
     }
     path.close();
 
@@ -167,9 +172,7 @@ class MonsterGrunt extends Monster {
     final path = _buildJaggedPath(cx, cy);
 
     // Glow aura
-    canvas.drawPath(path, Paint()
-      ..color = const Color(0x55CC00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    Glow.draw(canvas, Offset(cx, cy), _baseR + 12, const Color(0x55CC00FF));
 
     canvas.drawPath(path, Paint()..color = const Color(0xFF0D0020));
     canvas.drawPath(path, Paint()
@@ -178,9 +181,7 @@ class MonsterGrunt extends Monster {
       ..strokeWidth = 1.5);
 
     // Pulsing inner core
-    canvas.drawCircle(Offset(cx, cy), 5, Paint()
-      ..color = const Color(0xAACC00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+    Glow.draw(canvas, Offset(cx, cy), 5 + 5, const Color(0xAACC00FF));
     canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = const Color(0xFFFF00FF));
   }
 }

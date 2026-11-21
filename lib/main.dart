@@ -16,6 +16,7 @@ import 'screens/game_over_screen.dart';
 import 'screens/level_up_screen.dart';
 import 'screens/loading_screen.dart';
 import 'screens/main_menu_screen.dart';
+import 'ui/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,8 +73,11 @@ class _NovaboltAppState extends State<NovaboltApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: buildNovaboltTheme(),
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
         child: _loaded
             ? (_inGame
                 ? _buildGame()

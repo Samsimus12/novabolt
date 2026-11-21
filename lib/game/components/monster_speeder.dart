@@ -70,7 +70,7 @@ class MonsterSpeeder extends Monster {
   static const _glowColor = [
     Color(0xAAFF4400), Color(0xAA00E5FF), Color(0xAAFF00FF),
     Color(0xAACC0000), Color(0xAA7700FF), Color(0xAA00CCFF),
-    Color(0xAAAA6600), Color(0xAA00FFAA), Color(0xAA5500BB), Color(0xAAAAAAAAAA),
+    Color(0xAAAA6600), Color(0xAA00FFAA), Color(0xAA5500BB), Color(0xAAAAAAAA),
   ];
 
   void _renderThemed(Canvas canvas, double cx, double cy) {

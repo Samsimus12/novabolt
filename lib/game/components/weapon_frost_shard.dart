@@ -2,10 +2,10 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
-import '../fx/glow.dart';
 
 class WeaponFrostShard extends Weapon {
   WeaponFrostShard() : super(damage: 10, fireRate: 1.2);
@@ -27,12 +27,11 @@ class FrostShard extends Projectile {
   FrostShard({
     required super.position,
     required super.direction,
-    required double damage,
-  }) : super(speed: 280, damage: damage, size: 9);
+    required super.damage,
+  }) : super(speed: 280, size: 9);
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Monster) {
       other.takeDamage(damage);
       other.applySlow(0.4, 2.0);

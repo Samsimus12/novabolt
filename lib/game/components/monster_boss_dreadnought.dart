@@ -2,13 +2,13 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
-import '../fx/glow.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'monster_boss.dart';
 
 class MonsterBossDreadnought extends BossMonster {
-  MonsterBossDreadnought({required super.position, int playerLevel = 1})
-      : super(stats: bossStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossDreadnought({required super.position, super.playerLevel})
+      : super(stats: bossStats.scaled(playerLevel));
 
   @override
   String get displayName => 'DREADNOUGHT';

@@ -4,14 +4,14 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
-import '../fx/glow.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossSingularity extends BossMonster {
-  MonsterBossSingularity({required super.position, int playerLevel = 1})
-      : super(stats: singularityStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossSingularity({required super.position, super.playerLevel})
+      : super(stats: singularityStats.scaled(playerLevel));
 
   @override
   String get displayName => 'THE SINGULARITY';

@@ -1,15 +1,14 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
-import 'dart:typed_data';
-
 import '../../coins/coin_manager.dart';
 import '../fx/glow.dart';
-import '../render/ship_art.dart';
 import '../novabolt_game.dart';
+import '../render/ship_art.dart';
 import 'monster.dart';
 import 'monster_boss.dart';
 import 'weapon.dart';

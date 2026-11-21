@@ -4,14 +4,14 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
-import '../fx/glow.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossLeviathan extends BossMonster {
-  MonsterBossLeviathan({required super.position, int playerLevel = 1})
-      : super(stats: leviathanStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossLeviathan({required super.position, super.playerLevel})
+      : super(stats: leviathanStats.scaled(playerLevel));
 
   @override
   String get displayName => 'NEBULA LEVIATHAN';

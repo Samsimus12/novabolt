@@ -1,13 +1,13 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
-import 'dart:math' as math;
-import '../fx/glow.dart';
 
 class WeaponHomingBolt extends Weapon {
   WeaponHomingBolt() : super(damage: 12, fireRate: 1.5);
@@ -33,8 +33,8 @@ class HomingBolt extends Projectile {
   HomingBolt({
     required super.position,
     required super.direction,
-    required double damage,
-  }) : super(speed: 220, damage: damage, size: 11) {
+    required super.damage,
+  }) : super(speed: 220, size: 11) {
     _velocity = direction * 220;
   }
 
@@ -75,8 +75,7 @@ class HomingBolt extends Projectile {
   }
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Monster) {
       other.takeDamage(damage);
       removeFromParent();

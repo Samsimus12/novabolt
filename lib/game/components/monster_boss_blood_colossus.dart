@@ -9,8 +9,8 @@ import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossBloodColossus extends BossMonster {
-  MonsterBossBloodColossus({required super.position, int playerLevel = 1})
-      : super(stats: colossusStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossBloodColossus({required super.position, super.playerLevel})
+      : super(stats: colossusStats.scaled(playerLevel));
 
   @override
   String get displayName => 'BLOOD COLOSSUS';

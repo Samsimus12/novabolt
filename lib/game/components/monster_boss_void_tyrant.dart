@@ -2,13 +2,13 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
-import '../fx/glow.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'monster_boss.dart';
 
 class MonsterBossVoidTyrant extends BossMonster {
-  MonsterBossVoidTyrant({required super.position, int playerLevel = 1})
-      : super(stats: tyrantStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossVoidTyrant({required super.position, super.playerLevel})
+      : super(stats: tyrantStats.scaled(playerLevel));
 
   @override
   String get displayName => 'VOID TYRANT';

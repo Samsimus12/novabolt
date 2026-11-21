@@ -1,11 +1,11 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/shot_art.dart';
 import 'projectile.dart';
 import 'weapon.dart';
-import 'dart:math' as math;
-import '../fx/shot_art.dart';
 
 // ── Weapon ──────────────────────────────────────────────────────────────────
 
@@ -33,11 +33,11 @@ class MagicBolt extends Projectile {
   MagicBolt({
     required super.position,
     required super.direction,
-    required double damage,
+    required super.damage,
     this.color = const Color(0xFF00E5FF),
-    double speed = 300,
+    super.speed = 300,
     double boltSize = 10,
-  }) : super(speed: speed, damage: damage, size: boltSize);
+  }) : super(size: boltSize);
 
   @override
   void render(Canvas canvas) {

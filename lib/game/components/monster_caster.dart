@@ -89,8 +89,11 @@ class MonsterCaster extends Monster {
       final a = math.pi / 6 + i * math.pi / 3;
       final x = cx + r * math.cos(a);
       final y = cy + r * math.sin(a);
-      if (i == 0) hex.moveTo(x, y);
-      else hex.lineTo(x, y);
+      if (i == 0) {
+        hex.moveTo(x, y);
+      } else {
+        hex.lineTo(x, y);
+      }
     }
     hex.close();
     canvas.drawPath(hex, Paint()..color = const Color(0xFF311B92));
@@ -148,8 +151,11 @@ class MonsterCaster extends Monster {
       final a = i * math.pi / 4;
       final x = cx + r * math.cos(a);
       final y = cy + r * math.sin(a);
-      if (i == 0) oct.moveTo(x, y);
-      else oct.lineTo(x, y);
+      if (i == 0) {
+        oct.moveTo(x, y);
+      } else {
+        oct.lineTo(x, y);
+      }
     }
     oct.close();
     canvas.drawPath(oct, Paint()..color = const Color(0xFF455A64));
@@ -257,8 +263,11 @@ class MonsterCaster extends Monster {
     final hex = Path();
     for (int i = 0; i < 6; i++) {
       final a = math.pi / 6 + i * math.pi / 3;
-      if (i == 0) hex.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
-      else hex.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      if (i == 0) {
+        hex.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      } else {
+        hex.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      }
     }
     hex.close();
     canvas.drawPath(hex, Paint()..color = _hexBodyColor[p]);

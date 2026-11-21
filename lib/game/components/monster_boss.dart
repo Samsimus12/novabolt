@@ -3,7 +3,6 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
-import '../data/monster_data.dart';
 import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster.dart';
@@ -39,9 +38,9 @@ abstract class BossMonster extends Monster {
 
   BossMonster({
     required super.position,
-    required MonsterStats stats,
+    required super.stats,
     this.playerLevel = 1,
-  }) : super(stats: stats);
+  });
 
   @override
   Future<void> onLoad() async {

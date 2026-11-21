@@ -2,9 +2,9 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/shot_art.dart';
 import 'player.dart';
 import 'projectile.dart';
-import '../fx/shot_art.dart';
 
 class CasterProjectile extends Projectile {
   CasterProjectile({
@@ -13,8 +13,7 @@ class CasterProjectile extends Projectile {
   }) : super(speed: 220, damage: 12, size: 10);
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Player) {
       other.takeDamage(damage);
       removeFromParent();

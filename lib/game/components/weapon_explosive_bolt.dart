@@ -1,12 +1,12 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../fx/glow.dart';
 import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
-import 'dart:math' as math;
-import '../fx/glow.dart';
 
 class WeaponExplosiveBolt extends Weapon {
   WeaponExplosiveBolt() : super(damage: 25, fireRate: 0.8);
@@ -36,12 +36,11 @@ class ExplosiveBolt extends Projectile {
   ExplosiveBolt({
     required super.position,
     required super.direction,
-    required double damage,
-  }) : super(speed: 250, damage: damage, size: 13);
+    required super.damage,
+  }) : super(speed: 250, size: 13);
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onHit(PositionComponent other) {
     if (other is Monster) {
       for (final m in game.world.children.whereType<Monster>()) {
         if (m.position.distanceTo(position) <= _aoeRadius) {

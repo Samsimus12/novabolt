@@ -9,13 +9,13 @@ import 'ads/ad_manager.dart';
 import 'audio/audio_manager.dart';
 import 'coins/coin_manager.dart';
 import 'game/novabolt_game.dart';
-import 'stats/stats_manager.dart';
 import 'screens/countdown_overlay.dart';
 import 'screens/game_controls_overlay.dart';
 import 'screens/game_over_screen.dart';
 import 'screens/level_up_screen.dart';
 import 'screens/loading_screen.dart';
 import 'screens/main_menu_screen.dart';
+import 'stats/stats_manager.dart';
 import 'ui/theme/app_theme.dart';
 
 void main() async {

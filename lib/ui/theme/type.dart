@@ -4,7 +4,6 @@
 // panels; it is reserved for the wordmark, headlines, numerals that are the
 // point of a screen, and button labels. Barlow Semi Condensed (UI) is a
 // DIN-like instrument face for everything that has to be read quickly.
-
 import 'package:flutter/painting.dart';
 
 import 'tokens.dart';

@@ -4,14 +4,14 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
-import '../fx/glow.dart';
 import '../data/nova_mode.dart';
+import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
 
 class MonsterBossStormPhantom extends BossMonster {
-  MonsterBossStormPhantom({required super.position, int playerLevel = 1})
-      : super(stats: phantomStats.scaled(playerLevel), playerLevel: playerLevel);
+  MonsterBossStormPhantom({required super.position, super.playerLevel})
+      : super(stats: phantomStats.scaled(playerLevel));
 
   @override
   String get displayName => 'STORM PHANTOM';

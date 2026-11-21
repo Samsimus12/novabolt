@@ -28,8 +28,11 @@ class MonsterGrunt extends Monster {
       final r = _baseR * _rFactors[i];
       final x = cx + r * math.cos(a);
       final y = cy + r * math.sin(a);
-      if (i == 0) path.moveTo(x, y);
-      else path.lineTo(x, y);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
     return path..close();
   }
@@ -132,8 +135,11 @@ class MonsterGrunt extends Monster {
     for (int i = 0; i < 8; i++) {
       final a = _rotAngle + (i / 8) * 2 * math.pi;
       final r = _baseR * radii8[i];
-      if (i == 0) path.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
-      else path.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      if (i == 0) {
+        path.moveTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      } else {
+        path.lineTo(cx + r * math.cos(a), cy + r * math.sin(a));
+      }
     }
     path.close();
 

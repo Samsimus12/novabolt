@@ -44,6 +44,12 @@ class Projectile extends PositionComponent
   void onCollisionStart(
       Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
+    onHit(other);
+  }
+
+  /// What happens when this projectile touches [other]. Player shots damage
+  /// monsters; hostile subclasses override this to hit the player instead.
+  void onHit(PositionComponent other) {
     if (other is Monster) {
       other.takeDamage(damage);
       removeFromParent();

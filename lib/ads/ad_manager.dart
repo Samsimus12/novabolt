@@ -104,7 +104,7 @@ class AdManager {
         _loadRewardedAd();
       },
     );
-    ad.show(onUserEarnedReward: (_, __) => onRewarded());
+    ad.show(onUserEarnedReward: (_, _) => onRewarded());
   }
 
   void showInterstitialAd({VoidCallback? onDismissed}) {

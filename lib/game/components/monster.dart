@@ -5,8 +5,8 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
-import '../novabolt_game.dart';
 import '../fx/glow.dart';
+import '../novabolt_game.dart';
 import 'death_particles.dart';
 import 'health_pickup.dart';
 import 'monster_boss.dart';

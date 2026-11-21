@@ -9,6 +9,7 @@ import '../audio/audio_manager.dart';
 import '../stats/stats_manager.dart';
 import 'components/background.dart';
 import 'components/hud.dart';
+import 'components/joystick.dart';
 import 'components/monster.dart';
 import 'components/monster_boss.dart';
 import 'components/player.dart';
@@ -74,29 +75,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     await super.onLoad();
     camera.viewfinder.anchor = Anchor.topLeft;
 
-    joystick = JoystickComponent(
-      knob: CircleComponent(
-        radius: 24,
-        paint: Paint()..color = const Color(0x99FFD700),
-      ),
-      background: CircleComponent(
-        radius: 56,
-        paint: Paint()..color = const Color(0x33FFD700),
-      ),
-      margin: const EdgeInsets.only(left: 56, bottom: 80),
-    );
-
-    aimJoystick = JoystickComponent(
-      knob: CircleComponent(
-        radius: 24,
-        paint: Paint()..color = const Color(0x9900E5FF),
-      ),
-      background: CircleComponent(
-        radius: 56,
-        paint: Paint()..color = const Color(0x3300E5FF),
-      ),
-      margin: const EdgeInsets.only(right: 56, bottom: 80),
-    );
+    joystick = createMoveStick();
+    aimJoystick = createAimStick();
 
     player = Player(position: size / 2);
     _waveSystem = WaveSystem();
@@ -109,10 +89,62 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     camera.viewport.add(Hud());
   }
 
+  /// Left stick. Overridable so debug harnesses can inject input.
+  JoystickComponent createMoveStick() => NovaJoystick(
+        color: const Color(0xFFD8DEFF),
+        aim: false,
+        margin: const EdgeInsets.only(left: 56, bottom: 80),
+      );
+
+  /// Right stick (aim + fire).
+  JoystickComponent createAimStick() => NovaJoystick(
+        color: const Color(0xFF4DE8FF),
+        aim: true,
+        margin: const EdgeInsets.only(right: 56, bottom: 80),
+      );
+
+  // ── Game feel: screen shake + hit-stop ────────────────────────────────────
+  // Purely presentational. Shake offsets the camera by a few pixels (the
+  // viewfinder anchor stays top-left); hit-stop slows simulated time for a
+  // few frames on heavy impacts.
+  double _trauma = 0;
+  double _hitStop = 0;
+  double _slowMo = 0;
+  final _shakeRng = math.Random();
+
+  /// Add screen shake. [amount] 0–1; trauma is squared so small hits stay
+  /// subtle and big ones read as big.
+  void shake(double amount) => _trauma = math.min(1, _trauma + amount);
+
+  /// Freeze the simulation for [seconds] (capped) — sells a heavy hit.
+  void hitStop(double seconds) => _hitStop = math.max(_hitStop, math.min(seconds, 0.12));
+
+  /// Run at quarter speed for [seconds] (boss kills).
+  void slowMo(double seconds) => _slowMo = math.max(_slowMo, seconds);
+
   @override
   void update(double dt) {
-    super.update(dt);
+    var scaled = dt;
+    if (_hitStop > 0) {
+      _hitStop -= dt;
+      scaled = dt * 0.04;
+    } else if (_slowMo > 0) {
+      _slowMo -= dt;
+      scaled = dt * 0.3;
+    }
+    super.update(scaled);
     if (!isGameOver) _playTimeSeconds += dt;
+
+    if (_trauma > 0) {
+      _trauma = math.max(0, _trauma - dt * 1.8);
+      final t2 = _trauma * _trauma;
+      camera.viewfinder.position = Vector2(
+        (_shakeRng.nextDouble() * 2 - 1) * 9 * t2,
+        (_shakeRng.nextDouble() * 2 - 1) * 9 * t2,
+      );
+    } else if (!camera.viewfinder.position.isZero()) {
+      camera.viewfinder.position = Vector2.zero();
+    }
   }
 
   void onMonsterKilled(int xpValue, int chargeValue) {
@@ -144,6 +176,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     }
     player.currentHp = player.maxHp;
     AudioManager.instance.playGame();
+    shake(0.9);
 
     world.children.whereType<Monster>().toList().forEach((m) => m.removeFromParent());
     world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
@@ -295,6 +328,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     isGameOver = false;
     _hasUsedContinue = false;
     isNewBest = false;
+    _trauma = 0;
+    _hitStop = 0;
+    _slowMo = 0;
     killCount = 0;
     bossPhase = 0;
     _playTimeSeconds = 0;

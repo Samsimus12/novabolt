@@ -34,6 +34,7 @@ import '../game/components/monster_boss_void_tyrant.dart';
 import '../game/components/monster_caster.dart';
 import '../game/components/monster_grunt.dart';
 import '../game/components/monster_speeder.dart';
+import '../game/components/joystick.dart';
 import '../game/components/monster_tank.dart';
 import '../game/components/weapon_spread_shot.dart';
 import '../game/components/weapon_sword_aura.dart';
@@ -97,17 +98,10 @@ class _DevGame extends NovaboltGame {
   Future<void> onLoad() async {
     bossPhase = _phase;
     await super.onLoad();
-    final old = aimJoystick;
-    final k = old.knob! as CircleComponent;
-    final b = old.background! as CircleComponent;
-    aimJoystick = _AutoAimJoystick(
-      knob: CircleComponent(radius: k.radius, paint: k.paint),
-      background: CircleComponent(radius: b.radius, paint: b.paint),
-      margin: const EdgeInsets.only(right: 56, bottom: 80),
-    );
-    old.removeFromParent();
-    camera.viewport.add(aimJoystick);
   }
+
+  @override
+  JoystickComponent createAimStick() => _AutoAimJoystick();
 
   @override
   void update(double dt) {
@@ -144,6 +138,7 @@ class _DevGame extends NovaboltGame {
     switch (_scene) {
       case 'waves':
         xpSystem.currentLevel = 8;
+        xpSystem.currentXp = -100000000;
         player.add(WeaponSpreadShot());
         player.add(WeaponSwordAura());
         player.shieldHp = 30;
@@ -154,6 +149,7 @@ class _DevGame extends NovaboltGame {
         _spawnRing(2, (p) => MonsterCaster(position: p, playerLevel: lvl));
       case 'boss':
         xpSystem.currentLevel = 10;
+        xpSystem.currentXp = -100000000;
         player.add(WeaponSpreadShot());
         superchargeSystem.addCharge(100);
         final pos = Vector2(size.x / 2, size.y * 0.28);
@@ -196,9 +192,10 @@ class _DevGame extends NovaboltGame {
   }
 }
 
-class _AutoAimJoystick extends JoystickComponent {
+class _AutoAimJoystick extends NovaJoystick {
   Vector2? forced;
-  _AutoAimJoystick({required super.knob, super.background, super.margin});
+  _AutoAimJoystick()
+      : super(color: const Color(0xFF4DE8FF), aim: true, margin: const EdgeInsets.only(right: 56, bottom: 80));
 
   @override
   Vector2 get relativeDelta => forced ?? super.relativeDelta;

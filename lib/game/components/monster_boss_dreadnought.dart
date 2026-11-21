@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import '../data/nova_mode.dart';
 import 'monster_boss.dart';
 
@@ -58,12 +59,7 @@ class MonsterBossDreadnought extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Engine exhaust glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 38), width: 44, height: 26),
-      Paint()
-        ..color = const Color(0xAAFF4400)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 38), width: 44, height: 26).inflate(14), const Color(0xAAFF4400));
 
     // Outer swept wings
     final leftWing = Path()

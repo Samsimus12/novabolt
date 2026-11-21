@@ -6,6 +6,8 @@ import 'package:flame/components.dart';
 import 'monster.dart';
 import 'projectile.dart';
 import 'weapon.dart';
+import 'dart:math' as math;
+import '../fx/glow.dart';
 
 class WeaponHomingBolt extends Weapon {
   WeaponHomingBolt() : super(damage: 12, fireRate: 1.5);
@@ -83,24 +85,27 @@ class HomingBolt extends Projectile {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2 + 6,
-      Paint()
-        ..color = const Color(0x669B59B6)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2,
-      Paint()..color = const Color(0xFF9B59B6),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 4,
-      Paint()..color = const Color(0xFFD7BDE2),
-    );
+    final c = Offset(size.x / 2, size.y / 2);
+    final a = math.atan2(_velocity.y, _velocity.x);
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(a);
+    // Exhaust plume behind the missile.
+    final flicker = 0.8 + 0.2 * math.sin(lifetime * 60);
+    Glow.drawOval(canvas, Rect.fromLTRB(-24 * flicker, -5, -2, 5), const Color(0xFFB98CFF));
+    Glow.drawOval(canvas, Rect.fromLTRB(-12 * flicker, -2.5, -2, 2.5), const Color(0xFFFFFFFF), hot: true);
+    // Body
+    final body = Path()
+      ..moveTo(7, 0)
+      ..lineTo(2, -2.6)
+      ..lineTo(-5, -2.6)
+      ..lineTo(-7, -4.5)
+      ..lineTo(-7, 4.5)
+      ..lineTo(-5, 2.6)
+      ..lineTo(2, 2.6)
+      ..close();
+    canvas.drawPath(body, Paint()..color = const Color(0xFFE6DAFF));
+    canvas.drawCircle(const Offset(5, 0), 1.6, Paint()..color = const Color(0xFFA07CFF));
+    canvas.restore();
   }
 }

@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import '../data/nova_mode.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
@@ -75,12 +76,7 @@ class MonsterBossLeviathan extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Engine exhaust glow at bottom
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 44), width: 38, height: 22),
-      Paint()
-        ..color = const Color(0xAA0066FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 44), width: 38, height: 22).inflate(16), const Color(0xAA0066FF));
 
     // Swept energy fins — left
     final leftFin = Path()
@@ -147,13 +143,7 @@ class MonsterBossLeviathan extends BossMonster {
     );
 
     // Large cyan eye in bridge dome
-    canvas.drawCircle(
-      Offset(cx, cy - 28),
-      9,
-      Paint()
-        ..color = const Color(0xFF0088CC)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-    );
+    Glow.draw(canvas, Offset(cx, cy - 28), 9 + 4, const Color(0xFF0088CC));
     canvas.drawCircle(Offset(cx, cy - 28), 7, Paint()..color = const Color(0xFF00CCFF));
     canvas.drawCircle(Offset(cx, cy - 28), 3, Paint()..color = const Color(0xFFFFFFFF));
 

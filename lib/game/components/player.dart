@@ -4,72 +4,63 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import 'dart:typed_data';
+
 import '../../coins/coin_manager.dart';
+import '../fx/glow.dart';
+import '../render/ship_art.dart';
 import '../novabolt_game.dart';
 import 'monster.dart';
 import 'monster_boss.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
 
-class _SkinPalette {
-  final Color fuselage;
-  final Color wings;
-  final Color cockpit;
-  final Color glow;
-  final Color highlight;
-  const _SkinPalette({
-    required this.fuselage,
-    required this.wings,
-    required this.cockpit,
-    required this.glow,
-    required this.highlight,
-  });
-}
+/// Fading ribbon behind the engines, in world space so it streams away as
+/// the ship moves.
+class EngineTrail extends Component {
+  final Player player;
+  static const _n = 16;
+  final _xs = List<double>.filled(_n, 0);
+  final _ys = List<double>.filled(_n, 0);
+  int _count = 0;
 
-_SkinPalette _paletteForSkin(String skin) => switch (skin) {
-      'ice' => const _SkinPalette(
-          fuselage: Color(0xFF4DD0E1),
-          wings: Color(0xFF0097A7),
-          cockpit: Color(0xFFE0F7FA),
-          glow: Color(0xAA00B8D4),
-          highlight: Color(0xFF80DEEA),
-        ),
-      'flame' => const _SkinPalette(
-          fuselage: Color(0xFFFF5722),
-          wings: Color(0xFFBF360C),
-          cockpit: Color(0xFFFFAB91),
-          glow: Color(0xAADD2C00),
-          highlight: Color(0xFFFF8A65),
-        ),
-      'shadow' => const _SkinPalette(
-          fuselage: Color(0xFF9C27B0),
-          wings: Color(0xFF4A0072),
-          cockpit: Color(0xFFEA80FC),
-          glow: Color(0xAA7B1FA2),
-          highlight: Color(0xFFCE93D8),
-        ),
-      'solar' => const _SkinPalette(
-          fuselage: Color(0xFFFFD600),
-          wings: Color(0xFFF57F17),
-          cockpit: Color(0xFFFFFFFF),
-          glow: Color(0xAAFF8F00),
-          highlight: Color(0xFFFFF176),
-        ),
-      'void' => const _SkinPalette(
-          fuselage: Color(0xFF00B0FF),
-          wings: Color(0xFF0D47A1),
-          cockpit: Color(0xFF80D8FF),
-          glow: Color(0xAA0091EA),
-          highlight: Color(0xFFB3E5FC),
-        ),
-      _ => const _SkinPalette(
-          fuselage: Color(0xFFFFD700),
-          wings: Color(0xFFDDB500),
-          cockpit: Color(0xFF00E5FF),
-          glow: Color(0xAAFF7700),
-          highlight: Color(0xFFFFEE88),
-        ),
-    };
+  EngineTrail(this.player) : super(priority: 2);
+
+  @override
+  void update(double dt) {
+    if (player.isRemoved) {
+      removeFromParent();
+      return;
+    }
+    final a = player.facingAngle;
+    final x = player.position.x - math.sin(a) * 14;
+    final y = player.position.y + math.cos(a) * 14;
+    if (_count > 0 && ((x - _xs[0]).abs() + (y - _ys[0]).abs()) > 80) _count = 0; // teleported (restart)
+    for (var i = math.min(_count, _n - 1); i > 0; i--) {
+      _xs[i] = _xs[i - 1];
+      _ys[i] = _ys[i - 1];
+    }
+    _xs[0] = x;
+    _ys[0] = y;
+    _count = math.min(_count + 1, _n);
+  }
+
+  static final _paint = Paint()
+    ..strokeCap = StrokeCap.round
+    ..blendMode = BlendMode.plus;
+
+  @override
+  void render(Canvas canvas) {
+    final c = shipPaletteFor(CoinManager.instance.selectedSkin).engine;
+    for (var i = 1; i < _count; i++) {
+      final f = 1 - i / _n;
+      _paint
+        ..strokeWidth = 7 * f + 1
+        ..color = c.withValues(alpha: 0.5 * f * f);
+      canvas.drawLine(Offset(_xs[i - 1], _ys[i - 1]), Offset(_xs[i], _ys[i]), _paint);
+    }
+  }
+}
 
 class Player extends PositionComponent
     with HasGameReference<NovaboltGame>, CollisionCallbacks {
@@ -88,10 +79,17 @@ class Player extends PositionComponent
   Player({required super.position})
       : super(size: Vector2.all(44), anchor: Anchor.center, priority: 3);
 
+  /// Heading of the nose in radians (0 = up), driven by the aim stick.
+  double get facingAngle => _facingAngle;
+
+  /// 0–1: how hard the move stick is pushed; drives engine plume length.
+  double get thrust => game.joystick.intensity.clamp(0.0, 1.0);
+
   @override
   Future<void> onLoad() async {
     add(CircleHitbox()..collisionType = CollisionType.active);
     add(WeaponMagicBolt());
+    game.world.add(EngineTrail(this));
   }
 
   @override
@@ -143,6 +141,7 @@ class Player extends PositionComponent
 
   void takeDamage(double damage) {
     if (game.isGameOver) return;
+    game.shake(math.min(0.45, damage / 45));
     if (shieldHp > 0) {
       _shieldFlashTimer = 0.12;
       final absorbed = damage.clamp(0.0, shieldHp);
@@ -150,6 +149,7 @@ class Player extends PositionComponent
       damage -= absorbed;
       if (damage <= 0) return;
     }
+    if (damage >= 14) game.hitStop(0.05);
     currentHp = (currentHp - damage).clamp(0, maxHp);
     if (currentHp <= 0) game.onPlayerDeath();
   }
@@ -171,119 +171,72 @@ class Player extends PositionComponent
     add(WeaponMagicBolt());
   }
 
+  static final _aimPaint = Paint()
+    ..strokeWidth = 2
+    ..strokeCap = StrokeCap.round;
+  static final _aimPts = Float32List(14 * 4);
+
   @override
   void render(Canvas canvas) {
     final cx = size.x / 2;
     final cy = size.y / 2;
 
-    // Aim direction line — fades out toward the end
+    // Aim guide: dashes that thin out with distance.
     final aimDelta = game.aimJoystick.relativeDelta;
     if (aimDelta.length > 0.05) {
-      final dir = aimDelta.normalized();
-      const len = 220.0;
-      final endX = cx + dir.x * len;
-      final endY = cy + dir.y * len;
-      canvas.drawLine(
-        Offset(cx, cy),
-        Offset(endX, endY),
-        Paint()
-          ..strokeWidth = 1.5
-          ..strokeCap = StrokeCap.round
-          ..shader = Gradient.linear(
-            Offset(cx, cy),
-            Offset(endX, endY),
-            [const Color(0x9900E5FF), const Color(0x0000E5FF)],
-          ),
-      );
+      final d = aimDelta.normalized();
+      var n = 0;
+      for (var i = 0; i < 14; i++) {
+        final s0 = 34.0 + i * 14;
+        final s1 = s0 + 6 - i * 0.3;
+        _aimPts[n++] = cx + d.x * s0;
+        _aimPts[n++] = cy + d.y * s0;
+        _aimPts[n++] = cx + d.x * s1;
+        _aimPts[n++] = cy + d.y * s1;
+      }
+      _aimPaint.color = const Color(0x664DE8FF);
+      canvas.drawRawPoints(PointMode.lines, _aimPts, _aimPaint);
     }
-
-    final pal = _paletteForSkin(CoinManager.instance.selectedSkin);
 
     canvas.save();
     canvas.translate(cx, cy);
     canvas.rotate(_facingAngle);
-    canvas.translate(-cx, -cy);
-
-    // Engine exhaust glow
-    final glowPaint = Paint()
-      ..color = pal.glow
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawOval(Rect.fromCenter(center: Offset(cx - 5, cy + 16), width: 8, height: 11), glowPaint);
-    canvas.drawOval(Rect.fromCenter(center: Offset(cx + 5, cy + 16), width: 8, height: 11), glowPaint);
-
-    // Swept wings
-    final wingPath = Path()
-      ..moveTo(cx - 5, cy - 1)
-      ..lineTo(cx - 21, cy + 10)
-      ..lineTo(cx - 9, cy + 11)
-      ..close()
-      ..moveTo(cx + 5, cy - 1)
-      ..lineTo(cx + 21, cy + 10)
-      ..lineTo(cx + 9, cy + 11)
-      ..close();
-    canvas.drawPath(wingPath, Paint()..color = pal.wings);
-
-    // Main fuselage
-    final body = Path()
-      ..moveTo(cx, cy - 19)
-      ..lineTo(cx + 7, cy - 4)
-      ..lineTo(cx + 8, cy + 12)
-      ..lineTo(cx, cy + 8)
-      ..lineTo(cx - 8, cy + 12)
-      ..lineTo(cx - 7, cy - 4)
-      ..close();
-    canvas.drawPath(body, Paint()..color = pal.fuselage);
-
-    // Hull highlight stroke
-    canvas.drawPath(
-      body,
-      Paint()
-        ..color = pal.highlight
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
+    ShipArt.paint(
+      canvas,
+      shipPaletteFor(CoinManager.instance.selectedSkin),
+      time: _damageTime,
+      thrust: 0.35 + 0.65 * thrust,
     );
-
-    // Cockpit window
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy - 7), width: 9, height: 11),
-      Paint()..color = pal.cockpit,
-    );
-    // Cockpit glare
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx - 1.5, cy - 10), width: 3, height: 4),
-      Paint()..color = const Color(0xAAFFFFFF),
-    );
-
-    // Engine pods
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx - 5, cy + 13), width: 7, height: 5),
-      Paint()..color = const Color(0xFF1A1A3A),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx + 5, cy + 13), width: 7, height: 5),
-      Paint()..color = const Color(0xFF1A1A3A),
-    );
-
-    // Engine fire cores
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx - 5, cy + 15), width: 5, height: 4),
-      Paint()..color = const Color(0xFFFF9900),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx + 5, cy + 15), width: 5, height: 4),
-      Paint()..color = const Color(0xFFFF9900),
-    );
-
     final hpFraction = (currentHp / maxHp).clamp(0.0, 1.0);
-    if (hpFraction < 0.75) _renderDamage(canvas, cx, cy, hpFraction);
-
+    if (hpFraction < 0.75) _renderDamage(canvas, 0, 0, hpFraction);
     canvas.restore();
 
-    _renderShield(canvas);
+    if (shieldHp > 0) {
+      canvas.save();
+      canvas.translate(cx, cy);
+      ShieldArt.paint(
+        canvas,
+        28,
+        shieldColorFor(CoinManager.instance.selectedShieldSkin),
+        strength: shieldHp / maxShieldHp,
+        time: _damageTime,
+        flash: _shieldFlashTimer > 0,
+      );
+      canvas.restore();
+    }
+  }
+
+  static void _smoke(Canvas canvas, Offset c, double r, int alpha) {
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = Gradient.radial(c, r, [Color.fromARGB(alpha, 40, 40, 48), const Color(0x00282830)]),
+    );
   }
 
   void _renderDamage(Canvas canvas, double cx, double cy, double hpFraction) {
-    // 75% — hairline cracks on fuselage
+    // 75% — hairline cracks on the fuselage
     final crackPaint = Paint()
       ..color = const Color(0xBB000000)
       ..strokeWidth = 0.9
@@ -293,33 +246,26 @@ class Player extends PositionComponent
 
     if (hpFraction >= 0.50) return;
 
-    // 50% — more cracks + dark smoke from right engine
+    // 50% — more cracks + smoke trailing from the right engine
     canvas.drawLine(Offset(cx - 6, cy + 1), Offset(cx - 4, cy + 8), crackPaint);
     canvas.drawLine(Offset(cx + 1, cy - 14), Offset(cx + 5, cy - 9), crackPaint);
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx + 5, cy + 19), width: 9, height: 7),
-      Paint()
-        ..color = const Color(0x77333333)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-    );
+    final drift = (_damageTime * 1.3) % 1.0;
+    _smoke(canvas, Offset(cx + 5, cy + 18 + drift * 8), 6 + drift * 4, (150 * (1 - drift)).round());
 
     if (hpFraction >= 0.25) return;
 
-    // 25% — fire from left engine + scorched wing overlay
+    // 25% — fire from the left engine + scorched wing
     canvas.drawPath(
       Path()
-        ..moveTo(cx - 5, cy - 1)
-        ..lineTo(cx - 21, cy + 10)
-        ..lineTo(cx - 9, cy + 11)
+        ..moveTo(cx - 5, cy - 6)
+        ..lineTo(cx - 21, cy + 9)
+        ..lineTo(cx - 21, cy + 12)
+        ..lineTo(cx - 7, cy + 9)
         ..close(),
-      Paint()..color = const Color(0x66220000),
+      Paint()..color = const Color(0x77220000),
     );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx - 5, cy + 17), width: 10, height: 9),
-      Paint()
-        ..color = const Color(0xCCFF4400)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
+    final flick = 0.8 + 0.2 * math.sin(_damageTime * 31);
+    Glow.draw(canvas, Offset(cx - 5, cy + 17), 10 * flick, const Color(0xCCFF5A00));
     canvas.drawLine(Offset(cx + 1, cy - 6), Offset(cx - 2, cy + 4),
         Paint()
           ..color = const Color(0xFFFF6600)
@@ -330,64 +276,15 @@ class Player extends PositionComponent
 
     // 10% — pulsing red danger glow + both engines on fire
     final pulse = math.sin(_damageTime * 10) * 0.5 + 0.5;
-    final pulseAlpha = (80 + pulse * 120).toInt();
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy - 2), width: 28, height: 42),
-      Paint()
-        ..color = Color.fromARGB(pulseAlpha ~/ 2, 255, 0, 0)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    Glow.drawOval(
+      canvas,
+      Rect.fromCenter(center: Offset(cx, cy - 2), width: 44, height: 60),
+      Color.fromARGB((50 + pulse * 70).toInt(), 255, 30, 40),
     );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx - 5, cy + 19), width: 11, height: 10),
-      Paint()
-        ..color = Color.fromARGB(pulseAlpha, 255, 100, 0)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx + 5, cy + 19), width: 11, height: 10),
-      Paint()
-        ..color = Color.fromARGB(pulseAlpha, 255, 100, 0)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
+    Glow.draw(canvas, Offset(cx - 5, cy + 19), 11, Color.fromARGB((120 + pulse * 120).toInt(), 255, 100, 0));
+    Glow.draw(canvas, Offset(cx + 5, cy + 19), 11, Color.fromARGB((120 + pulse * 120).toInt(), 255, 100, 0));
   }
 
-  Color get _shieldColor => switch (CoinManager.instance.selectedShieldSkin) {
-        'shield_plasma' => const Color(0xFFFF6B35),
-        'shield_void'   => const Color(0xFFCC00FF),
-        'shield_gold'   => const Color(0xFFFFD700),
-        _               => const Color(0xFF00E5FF),
-      };
 
-  void _renderShield(Canvas canvas) {
-    if (shieldHp <= 0) return;
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    final fraction = (shieldHp / maxShieldHp).clamp(0.0, 1.0);
-    final alpha = (fraction * 200 + 30).toInt();
-    final strokeW = fraction * 3.0 + 1.0;
-    const ringRadius = 28.0;
-    final sc = _shieldColor;
 
-    canvas.drawCircle(
-      Offset(cx, cy),
-      ringRadius,
-      Paint()
-        ..color = Color.fromARGB(alpha ~/ 3, sc.red, sc.green, sc.blue)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW + 10
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
-
-    final ringColor = _shieldFlashTimer > 0
-        ? const Color(0xC8FFFFFF)
-        : Color.fromARGB(alpha, sc.red, sc.green, sc.blue);
-    canvas.drawCircle(
-      Offset(cx, cy),
-      ringRadius,
-      Paint()
-        ..color = ringColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW,
-    );
-  }
 }

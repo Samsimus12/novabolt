@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import 'monster.dart';
 
 class MonsterSpeeder extends Monster {
@@ -75,10 +76,7 @@ class MonsterSpeeder extends Monster {
   void _renderThemed(Canvas canvas, double cx, double cy) {
     final p = (game.bossPhase % 10).clamp(0, 9);
 
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 8), width: 6, height: 8),
-      Paint()..color = _glowColor[p]..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 8), width: 6, height: 8).inflate(4), _glowColor[p]);
 
     final wingPath = Path()
       ..moveTo(cx - 2, cy + 1)..lineTo(cx - 9, cy + 7)..lineTo(cx - 3, cy + 7)..close()
@@ -100,12 +98,7 @@ class MonsterSpeeder extends Monster {
 
   // Phase 0 — red-orange scout fighter
   void _renderOrganic(Canvas canvas, double cx, double cy) {
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 8), width: 6, height: 8),
-      Paint()
-        ..color = const Color(0xAAFF4400)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 8), width: 6, height: 8).inflate(4), const Color(0xAAFF4400));
 
     final wingPath = Path()
       ..moveTo(cx - 2, cy + 1)
@@ -145,12 +138,7 @@ class MonsterSpeeder extends Monster {
   // Phase 1 — steel/cyan cyber drone
   void _renderMechanical(Canvas canvas, double cx, double cy) {
     // Cyan engine glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 8), width: 7, height: 9),
-      Paint()
-        ..color = const Color(0xAA00E5FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 8), width: 7, height: 9).inflate(5), const Color(0xAA00E5FF));
 
     // Wider delta wings
     final wingPath = Path()
@@ -207,12 +195,7 @@ class MonsterSpeeder extends Monster {
   // Phase 2 — void dart / lance
   void _renderVoid(Canvas canvas, double cx, double cy) {
     // Magenta trail glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 9), width: 6, height: 12),
-      Paint()
-        ..color = const Color(0xAAFF00FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 9), width: 6, height: 12).inflate(7), const Color(0xAAFF00FF));
 
     // Thin swept wings
     final wingPath = Path()

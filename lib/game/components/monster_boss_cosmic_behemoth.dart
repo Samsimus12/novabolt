@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import '../data/nova_mode.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
@@ -76,13 +77,7 @@ class MonsterBossCosmicBehemoth extends BossMonster {
 
     // Engine glow along underside — multiple soft glows
     for (int i = -3; i <= 3; i++) {
-      canvas.drawCircle(
-        Offset(cx + i * 16.0, cy + 28),
-        10,
-        Paint()
-          ..color = const Color(0x884466FF)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
+      Glow.draw(canvas, Offset(cx + i * 16.0, cy + 28), 10 + 8, const Color(0x884466FF));
     }
 
     // Main wide oval body (wide, low-profile manta shape)

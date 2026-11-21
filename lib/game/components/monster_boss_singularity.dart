@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import '../data/nova_mode.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
@@ -84,13 +85,7 @@ class MonsterBossSingularity extends BossMonster {
     // No rotation transform needed.
 
     // Outer gravitational lensing distortion glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      64,
-      Paint()
-        ..color = const Color(0x22FFFFFF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
-    );
+    Glow.draw(canvas, Offset(cx, cy), 64 + 28, const Color(0x22FFFFFF));
 
     // Accretion disk — wide ellipse at slight angle, semi-transparent white
     final accretionRect = Rect.fromCenter(
@@ -154,13 +149,7 @@ class MonsterBossSingularity extends BossMonster {
     canvas.drawCircle(Offset(cx, cy), 44, Paint()..color = const Color(0xFF000000));
 
     // Intense white core at center
-    canvas.drawCircle(
-      Offset(cx, cy),
-      8,
-      Paint()
-        ..color = const Color(0xFFFFFFFF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
+    Glow.draw(canvas, Offset(cx, cy), 8 + 10, const Color(0xFFFFFFFF));
     canvas.drawCircle(Offset(cx, cy), 4, Paint()..color = const Color(0xFFFFFFFF));
     // Innermost bright point
     canvas.drawCircle(Offset(cx, cy), 2, Paint()..color = const Color(0xFFFFFFFF));

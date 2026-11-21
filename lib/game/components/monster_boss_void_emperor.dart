@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import '../data/nova_mode.dart';
 import 'boss_projectile.dart';
 import 'monster_boss.dart';
@@ -75,13 +76,7 @@ class MonsterBossVoidEmperor extends BossMonster {
     canvas.translate(-cx, -cy);
 
     // Void aura glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      50,
-      Paint()
-        ..color = const Color(0x338800CC)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
-    );
+    Glow.draw(canvas, Offset(cx, cy), 50 + 20, const Color(0x338800CC));
 
     // Void corruption tendrils along edges
     final tendrilPaint = Paint()

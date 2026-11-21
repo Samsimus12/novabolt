@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import 'monster.dart';
 
 class MonsterTank extends Monster {
@@ -77,10 +78,7 @@ class MonsterTank extends Monster {
     final p = (game.bossPhase % 10).clamp(0, 9);
 
     // Engine glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14),
-      Paint()..color = _glowColor[p]..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14).inflate(8), _glowColor[p]);
 
     final leftPod = Path()
       ..moveTo(cx - 14, cy - 6)..lineTo(cx - 22, cy - 2)
@@ -125,12 +123,7 @@ class MonsterTank extends Monster {
 
   // Phase 0 — dark red capital warship
   void _renderOrganic(Canvas canvas, double cx, double cy) {
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14),
-      Paint()
-        ..color = const Color(0xAAFF4400)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14).inflate(8), const Color(0xAAFF4400));
 
     final leftPod = Path()
       ..moveTo(cx - 14, cy - 6)
@@ -204,12 +197,7 @@ class MonsterTank extends Monster {
   // Phase 1 — steel/gray industrial juggernaut
   void _renderMechanical(Canvas canvas, double cx, double cy) {
     // Blue-white engine glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14),
-      Paint()
-        ..color = const Color(0xAA0088FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14).inflate(8), const Color(0xAA0088FF));
 
     // Blockier side pods
     final leftPod = Path()
@@ -301,12 +289,7 @@ class MonsterTank extends Monster {
   // Phase 2 — void-corrupted dreadnought
   void _renderVoid(Canvas canvas, double cx, double cy) {
     // Purple void engine glow
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14),
-      Paint()
-        ..color = const Color(0xAACC00FF)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
+    Glow.drawOval(canvas, Rect.fromCenter(center: Offset(cx, cy + 22), width: 22, height: 14).inflate(10), const Color(0xAACC00FF));
 
     final leftPod = Path()
       ..moveTo(cx - 14, cy - 6)

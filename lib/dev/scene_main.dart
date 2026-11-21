@@ -3,7 +3,7 @@
 //
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
-// SCENE: menu | shop | waves | boss | levelup | bossreward | gameover | countdown
+// SCENE: menu | shop | waves | nova | boss | levelup | bossreward | gameover | countdown
 // PHASE: 0-9, the visual/boss phase to start in (default 0)
 //
 // Uses only the game's public API; the player regenerates hull every frame
@@ -104,10 +104,18 @@ class _DevGame extends NovaboltGame {
   JoystickComponent createAimStick() => _AutoAimJoystick();
 
   @override
+  void onMount() {
+    super.onMount();
+    if (const bool.fromEnvironment('FPS', defaultValue: true)) {
+      camera.viewport.add(FpsTextComponent(position: Vector2(12, size.y - 28), priority: 100));
+    }
+  }
+
+  @override
   void update(double dt) {
     super.update(dt);
     _t += dt;
-    if (!isGameOver) player.currentHp = math.max(player.currentHp, player.maxHp * 0.62);
+    if (!isGameOver && _scene != 'gameover') player.currentHp = math.max(player.currentHp, player.maxHp * 0.62);
     if (!_sceneApplied && _t > 0.4) {
       _sceneApplied = true;
       _applyScene();
@@ -134,7 +142,7 @@ class _DevGame extends NovaboltGame {
   }
 
   void _applyScene() {
-    final lvl = 8 + bossPhase * 8;
+    const lvl = 8;
     switch (_scene) {
       case 'waves':
         xpSystem.currentLevel = 8;
@@ -147,6 +155,13 @@ class _DevGame extends NovaboltGame {
         _spawnRing(3, (p) => MonsterSpeeder(position: p, playerLevel: lvl));
         _spawnRing(2, (p) => MonsterTank(position: p, playerLevel: lvl));
         _spawnRing(2, (p) => MonsterCaster(position: p, playerLevel: lvl));
+      case 'nova':
+        xpSystem.currentLevel = 8;
+        xpSystem.currentXp = -100000000;
+        _spawnRing(8, (p) => MonsterGrunt(position: p, playerLevel: lvl));
+        _spawnRing(3, (p) => MonsterTank(position: p, playerLevel: lvl));
+        superchargeSystem.addCharge(100);
+        activateSupercharge();
       case 'boss':
         xpSystem.currentLevel = 10;
         xpSystem.currentXp = -100000000;

@@ -116,6 +116,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   /// subtle and big ones read as big.
   void shake(double amount) => _trauma = math.min(1, _trauma + amount);
 
+  /// Hold shake at least at [level] (continuous effects like the Nova beam).
+  void rumble(double level) => _trauma = math.max(_trauma, level);
+
   /// Freeze the simulation for [seconds] (capped) — sells a heavy hit.
   void hitStop(double seconds) => _hitStop = math.max(_hitStop, math.min(seconds, 0.12));
 

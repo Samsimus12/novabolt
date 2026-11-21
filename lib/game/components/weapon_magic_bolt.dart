@@ -4,6 +4,8 @@ import 'package:flame/components.dart';
 
 import 'projectile.dart';
 import 'weapon.dart';
+import 'dart:math' as math;
+import '../fx/shot_art.dart';
 
 // ── Weapon ──────────────────────────────────────────────────────────────────
 
@@ -39,20 +41,7 @@ class MagicBolt extends Projectile {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2 + 5,
-      Paint()
-        ..color = color.withAlpha(85)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2,
-      Paint()..color = color,
-    );
+    final c = Offset(size.x / 2, size.y / 2);
+    ShotArt.streak(canvas, c, math.atan2(direction.y, direction.x), size.x * 2.0, size.x * 0.32, color);
   }
 }

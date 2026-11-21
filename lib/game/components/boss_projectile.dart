@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 
 import 'player.dart';
 import 'projectile.dart';
+import '../fx/shot_art.dart';
 
 class BossProjectile extends Projectile {
   final Color _color;
@@ -29,19 +30,6 @@ class BossProjectile extends Projectile {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2 + 4,
-      Paint()
-        ..color = _color.withAlpha(170)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      size.x / 2,
-      Paint()..color = _color,
-    );
+    ShotArt.orb(canvas, Offset(size.x / 2, size.y / 2), size.x / 2, _color, time: lifetime);
   }
 }

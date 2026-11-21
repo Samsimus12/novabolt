@@ -32,6 +32,7 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
   double _t = 0;
   double _safeTop = 0;
   Object? _lastBoss;
+  double _banner = 99;
 
   // ── Text ──────────────────────────────────────────────────────────────────
   final _text = <String, TextPainter>{};
@@ -73,6 +74,7 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
   void update(double dt) {
     super.update(dt);
     _t += dt;
+    _banner += dt;
     final ctx = game.buildContext;
     if (ctx != null) _safeTop = MediaQuery.paddingOf(ctx).top;
 
@@ -110,6 +112,7 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
       if (boss != null) {
         _boss = _bossGhost = 1;
         _bossIn = 0;
+        _banner = 0;
       }
     }
     if (boss != null) {
@@ -153,6 +156,39 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
     _renderNova(canvas, barL, top + 23, barW);
 
     if (_bossIn > 0) _renderBoss(canvas, w, top + 62);
+    if (_banner < 2.6) _renderBanner(canvas, w, h);
+  }
+
+  static const _bannerName = TextStyle(
+    fontFamily: NbFonts.display,
+    fontWeight: FontWeight.w700,
+    fontSize: 30,
+    letterSpacing: 3,
+    color: NbColors.starlight,
+  );
+
+  /// "Boss approaching" card that sweeps open, holds, and fades.
+  void _renderBanner(Canvas canvas, double w, double h) {
+    final t = _banner;
+    final open = Curves.easeOutCubic.transform((t / 0.45).clamp(0.0, 1.0));
+    final a = t < 2.0 ? 1.0 : (1 - (t - 2.0) / 0.6).clamp(0.0, 1.0);
+    final cy = h * 0.34;
+    final half = (w / 2 - 24) * open;
+    final line = Paint()
+      ..strokeWidth = 1.5
+      ..color = NbColors.flare.withValues(alpha: 0.9 * a);
+    canvas.drawLine(Offset(w / 2 - half, cy - 30), Offset(w / 2 + half, cy - 30), line);
+    canvas.drawLine(Offset(w / 2 - half, cy + 30), Offset(w / 2 + half, cy + 30), line);
+    canvas.drawRect(
+      Rect.fromLTRB(w / 2 - half, cy - 30, w / 2 + half, cy + 30),
+      Paint()..color = NbColors.flareDeep.withValues(alpha: 0.18 * a),
+    );
+    if (open < 0.6) return;
+    final ta = a * ((open - 0.6) / 0.4);
+    final cap = _tp('Boss approaching', _smallStyle.copyWith(color: NbColors.flare.withValues(alpha: ta), fontSize: 13));
+    cap.paint(canvas, Offset(w / 2 - cap.width / 2, cy - 24));
+    final name = _tp(game.activeBoss?.displayName ?? '', _bannerName.copyWith(color: NbColors.starlight.withValues(alpha: ta)));
+    name.paint(canvas, Offset(w / 2 - name.width / 2, cy - 6));
   }
 
   void _renderVignette(Canvas canvas, double w, double h) {

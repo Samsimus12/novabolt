@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import 'caster_projectile.dart';
 import 'monster.dart';
 
@@ -81,9 +82,7 @@ class MonsterCaster extends Monster {
 
   // Phase 0 — purple hexagon mage
   void _renderOrganic(Canvas canvas, double cx, double cy, double r, double angle) {
-    canvas.drawCircle(Offset(cx, cy), r + 4, Paint()
-      ..color = const Color(0x557C4DFF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    Glow.draw(canvas, Offset(cx, cy), r + 4 + 8, const Color(0x557C4DFF));
 
     final hex = Path();
     for (int i = 0; i < 6; i++) {
@@ -110,9 +109,7 @@ class MonsterCaster extends Monster {
     canvas.drawCircle(Offset(r - 1, 0), 3, Paint()..color = const Color(0xFF76FF03));
     canvas.restore();
 
-    canvas.drawCircle(Offset(cx, cy), 7, Paint()
-      ..color = const Color(0xAA76FF03)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    Glow.draw(canvas, Offset(cx, cy), 7 + 4, const Color(0xAA76FF03));
     canvas.drawCircle(Offset(cx, cy), 4, Paint()..color = const Color(0xFFB2FF59));
 
     final chargeAlpha = (_fireTimer / _fireInterval * 180).toInt().clamp(0, 180);
@@ -173,9 +170,7 @@ class MonsterCaster extends Monster {
     canvas.restore();
 
     // Cyan inner core
-    canvas.drawCircle(Offset(cx, cy), 7, Paint()
-      ..color = const Color(0xAA00E5FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    Glow.draw(canvas, Offset(cx, cy), 7 + 4, const Color(0xAA00E5FF));
     canvas.drawCircle(Offset(cx, cy), 4, Paint()..color = const Color(0xFF00E5FF));
 
     final chargeAlpha = (_fireTimer / _fireInterval * 180).toInt().clamp(0, 180);
@@ -188,9 +183,7 @@ class MonsterCaster extends Monster {
   // Phase 2 — void eye with tendrils
   void _renderVoid(Canvas canvas, double cx, double cy, double r, double angle) {
     // Void aura
-    canvas.drawCircle(Offset(cx, cy), r + 6, Paint()
-      ..color = const Color(0x55CC00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10));
+    Glow.draw(canvas, Offset(cx, cy), r + 6 + 10, const Color(0x55CC00FF));
 
     // Dark body
     canvas.drawCircle(Offset(cx, cy), r, Paint()..color = const Color(0xFF0D0020));
@@ -224,9 +217,7 @@ class MonsterCaster extends Monster {
     canvas.restore();
 
     // Central void eye
-    canvas.drawCircle(Offset(cx, cy), 7, Paint()
-      ..color = const Color(0xAACC00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+    Glow.draw(canvas, Offset(cx, cy), 7 + 5, const Color(0xAACC00FF));
     canvas.drawCircle(Offset(cx, cy), 5, Paint()..color = const Color(0xFFFF00FF));
     canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = const Color(0xFF000000));
     canvas.drawCircle(Offset(cx, cy), 1, Paint()..color = const Color(0xFFFFFFFF));
@@ -260,9 +251,7 @@ class MonsterCaster extends Monster {
     final coreColor = _coreColor[p];
 
     // Aura
-    canvas.drawCircle(Offset(cx, cy), r + 4, Paint()
-      ..color = outlineColor.withAlpha(80)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    Glow.draw(canvas, Offset(cx, cy), r + 4 + 8, outlineColor.withAlpha(80));
 
     // Hexagon body
     final hex = Path();
@@ -288,9 +277,7 @@ class MonsterCaster extends Monster {
     canvas.restore();
 
     // Core glow + dot
-    canvas.drawCircle(Offset(cx, cy), 7, Paint()
-      ..color = coreColor.withAlpha(160)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    Glow.draw(canvas, Offset(cx, cy), 7 + 4, coreColor.withAlpha(160));
     canvas.drawCircle(Offset(cx, cy), 4, Paint()..color = coreColor);
 
     // Charge ring

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../data/monster_data.dart';
+import '../fx/glow.dart';
 import 'monster.dart';
 
 class MonsterGrunt extends Monster {
@@ -83,9 +84,7 @@ class MonsterGrunt extends Monster {
 
     final glow = _themeGlow[p];
     if (glow.a > 0) {
-      canvas.drawPath(path, Paint()
-        ..color = glow
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+      Glow.draw(canvas, Offset(cx, cy), _baseR + 12, glow);
     }
     canvas.drawPath(path, Paint()..color = _themeBody[p]);
     canvas.drawPath(path, Paint()
@@ -167,9 +166,7 @@ class MonsterGrunt extends Monster {
     final path = _buildJaggedPath(cx, cy);
 
     // Glow aura
-    canvas.drawPath(path, Paint()
-      ..color = const Color(0x55CC00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    Glow.draw(canvas, Offset(cx, cy), _baseR + 12, const Color(0x55CC00FF));
 
     canvas.drawPath(path, Paint()..color = const Color(0xFF0D0020));
     canvas.drawPath(path, Paint()
@@ -178,9 +175,7 @@ class MonsterGrunt extends Monster {
       ..strokeWidth = 1.5);
 
     // Pulsing inner core
-    canvas.drawCircle(Offset(cx, cy), 5, Paint()
-      ..color = const Color(0xAACC00FF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+    Glow.draw(canvas, Offset(cx, cy), 5 + 5, const Color(0xAACC00FF));
     canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = const Color(0xFFFF00FF));
   }
 }

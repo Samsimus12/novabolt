@@ -211,8 +211,8 @@ assets/
 14. **Screen shake** offsets `camera.viewfinder.position` by a few px and resets it to zero; the anchor stays top-left. HUD and joysticks live in the viewport so they don't shake.
 15. **Shared ship art**: change ship/shield/beam looks in `lib/game/render/ship_art.dart` — the player, the shop and the main menu all draw from it, so they can't drift apart.
 16. **Covariant catalogue lists**: `catalogFor(kind)` returns a `List<Cosmetic>` that is really e.g. `List<Cosmetic<ShipPalette>>`. Don't call `firstWhere(..., orElse: ...)` on it — the `orElse` closure fails the runtime type check. Use `findCosmetic(kind, id)`.
-18. **Switching Nova attacks**: the Nova button in `nova_core.dart` — swipe left/right to cycle, or press and hold (260 ms) to open a wheel above the button, slide to a mode and release. The game runs at 0.25× while the wheel is open (`game.novaSelectorOpen`). Mode state lives in `game.nova` (`NovaLoadout`); listen to it rather than polling `activeNovaMode`. The pause panel picker still works too.
 17. **Pause flow**: there is no in-game Back button; "Quit run" is in the pause panel and calls the same `onMenu` callback.
+18. **Switching Nova attacks**: the Nova button in `nova_core.dart` — swipe left/right to cycle, or press and hold (260 ms) to open a wheel above the button, slide to a mode and release. The game runs at 0.25× while the wheel is open (`game.novaSelectorOpen`). Mode state lives in `game.nova` (`NovaLoadout`); listen to it rather than polling `activeNovaMode`. The pause panel picker still works too.
 
 ---
 

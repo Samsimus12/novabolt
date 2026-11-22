@@ -64,3 +64,11 @@ class _FadeThroughBuilder extends PageTransitionsBuilder {
     );
   }
 }
+
+
+/// MaterialApp.builder: one transparent Material above the navigator, so
+/// every page, game overlay and dialog has a Material ancestor. Without one,
+/// Flutter draws text with its yellow double-underline "missing Material"
+/// style (the game overlays sit straight on a GameWidget, not a Scaffold).
+Widget materialRoot(BuildContext context, Widget? child) =>
+    Material(type: MaterialType.transparency, child: child ?? const SizedBox.shrink());

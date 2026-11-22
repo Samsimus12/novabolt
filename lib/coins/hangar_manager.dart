@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/data/balance.dart';
+import '../game/data/ship_class.dart';
 import 'coin_manager.dart';
 
 /// Permanent ship upgrades bought with NOVA coins in the Hangar.
@@ -38,6 +39,30 @@ class HangarManager {
 
   final _levels = <HangarUpgrade, int>{};
 
+  // ── Ship classes ──────────────────────────────────────────────────────────
+  final _ownedClasses = <ShipClass>{ShipClass.vanguard};
+  ShipClass _selectedClass = ShipClass.vanguard;
+  ShipClass get selectedClass => _selectedClass;
+  bool ownsClass(ShipClass c) => _ownedClasses.contains(c);
+
+  /// Buys [c] and selects it. False if already owned or not enough coins.
+  Future<bool> buyClass(ShipClass c) async {
+    if (ownsClass(c)) return false;
+    if (!await CoinManager.instance.spend(c.cost)) return false;
+    _ownedClasses.add(c);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('ship_classes', [for (final o in _ownedClasses) o.name]);
+    await selectClass(c);
+    return true;
+  }
+
+  Future<void> selectClass(ShipClass c) async {
+    if (!ownsClass(c)) return;
+    _selectedClass = c;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ship_class', c.name);
+  }
+
   int level(HangarUpgrade u) => _levels[u] ?? 0;
   int get totalLevels => HangarUpgrade.values.fold(0, (s, u) => s + level(u));
   bool isMaxed(HangarUpgrade u) => level(u) >= u.maxLevel;
@@ -48,6 +73,12 @@ class HangarManager {
     for (final u in HangarUpgrade.values) {
       _levels[u] = (prefs.getInt('hangar_${u.name}') ?? 0).clamp(0, u.maxLevel);
     }
+    _ownedClasses
+      ..clear()
+      ..add(ShipClass.vanguard)
+      ..addAll((prefs.getStringList('ship_classes') ?? const []).map(ShipClass.byName));
+    final sel = ShipClass.byName(prefs.getString('ship_class'));
+    _selectedClass = ownsClass(sel) ? sel : ShipClass.vanguard;
   }
 
   /// Buys the next level. Returns false if maxed or not enough coins.

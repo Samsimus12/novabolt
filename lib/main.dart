@@ -127,6 +127,7 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: buildNovaboltTheme(),
+      builder: materialRoot,
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
         switchInCurve: Curves.easeOutCubic,

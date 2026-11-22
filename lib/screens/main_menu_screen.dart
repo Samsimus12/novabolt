@@ -6,6 +6,7 @@ import '../audio/audio_manager.dart';
 import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
 import '../game/data/daily_challenge.dart';
+import 'daily_briefing.dart';
 import '../stats/mission_manager.dart';
 import '../stats/run_log.dart';
 import '../stats/run_save.dart';
@@ -239,7 +240,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     ).animate().fadeIn(delay: 650.ms, duration: 400.ms),
                   const SizedBox(height: NbSpace.md),
                   if (widget.onPlayDaily != null)
-                    _DailyCard(onTap: () => _startNew(widget.onPlayDaily!))
+                    _DailyCard(
+                      onTap: () async {
+                        if (await showDailyBriefing(context) && mounted) await _startNew(widget.onPlayDaily!);
+                      },
+                    )
                         .animate()
                         .fadeIn(delay: 550.ms, duration: 350.ms)
                         .moveY(

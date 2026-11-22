@@ -15,6 +15,7 @@ class RunRecord {
   final String nova;
   final int relics;
   final int hangarLevels;
+  final String shipClass;
   final bool daily;
   final bool afterRevive;
 
@@ -30,6 +31,7 @@ class RunRecord {
     required this.nova,
     required this.relics,
     required this.hangarLevels,
+    this.shipClass = 'Vanguard',
     required this.daily,
     required this.afterRevive,
   });
@@ -46,6 +48,7 @@ class RunRecord {
         'nova': nova,
         'r': relics,
         'h': hangarLevels,
+        'cls': shipClass,
         'd': daily,
         'rv': afterRevive,
       };
@@ -64,6 +67,7 @@ class RunRecord {
         nova: j['nova'] as String,
         relics: j['r'] as int,
         hangarLevels: j['h'] as int,
+        shipClass: j['cls'] as String? ?? 'Vanguard',
         daily: j['d'] as bool,
         afterRevive: j['rv'] as bool,
       );

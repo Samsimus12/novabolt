@@ -102,7 +102,9 @@ class Player extends PositionComponent
   bool get isDashing => _dashTime > 0;
 
   /// 0 = ready, 1 = just used (for the Dash button's ring).
-  double get dashCooldownFraction => (dashCooldown / Balance.dashCooldown).clamp(0.0, 1.0);
+  /// Full dash cooldown for this ship (the Interceptor's is shorter).
+  double get dashCooldownMax => Balance.dashCooldown * game.shipClass.dashCooldown;
+  double get dashCooldownFraction => (dashCooldown / dashCooldownMax).clamp(0.0, 1.0);
 
   /// Dash in the move-stick direction (or where the ship faces when idle).
   /// Returns false while on cooldown.
@@ -116,7 +118,7 @@ class Player extends PositionComponent
     }
     _dashFrom.setFrom(position);
     _dashTime = Balance.dashDuration;
-    dashCooldown = Balance.dashCooldown;
+    dashCooldown = dashCooldownMax;
     invulnerable = math.max(invulnerable, Balance.dashDuration + Balance.dashGrace);
     SfxManager.instance.play(Sfx.dash);
     SfxManager.instance.light();

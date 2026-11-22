@@ -3,6 +3,7 @@
 //
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
+// CLASS: vanguard | interceptor | bulwark | conduit (owns and flies it)
 // SCENE: menu | shop | hangar | records | missions | waves | nova | novaswitch | flow | revive | overdrive | boss | levelup | bossreward | gameover | countdown
 // PHASE: 0-9, the visual/boss phase to start in (default 0); for shop, the tab
 // Prefs dev_loadout (comma-separated ids to own + equip) and dev_focus (shop
@@ -91,6 +92,12 @@ void main() async {
   await CoinManager.instance.init();
   await AudioManager.instance.init();
   await SfxManager.instance.init();
+  // CLASS=bulwark etc.: own and fly that ship class in this test build.
+  const cls = String.fromEnvironment('CLASS');
+  if (cls.isNotEmpty) {
+    await prefs.setStringList('ship_classes', [cls]);
+    await prefs.setString('ship_class', cls);
+  }
   await HangarManager.instance.init();
   await StatsManager.instance.init();
   await DailyManager.instance.init();
@@ -99,18 +106,18 @@ void main() async {
   // Test scenes never move the real missions (except the missions screen).
   MissionManager.instance.enabled = _scene == 'missions';
   if (_scene == 'missions') {
-    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const MissionsScreen()));
+    runApp(MaterialApp(builder: materialRoot, debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const MissionsScreen()));
     return;
   }
   // --dart-define=STATS=true turns the combat-stats overlay on.
   if (const bool.fromEnvironment('STATS')) await RunLog.instance.setOverlayEnabled(true);
   if (_scene == 'records') {
-    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const RecordsScreen()));
+    runApp(MaterialApp(builder: materialRoot, debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const RecordsScreen()));
     return;
   }
   if (_scene == 'hangar') {
     if (CoinManager.instance.totalCoins < 600) await CoinManager.instance.addCoins(900);
-    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const HangarScreen()));
+    runApp(MaterialApp(builder: materialRoot, debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const HangarScreen()));
     return;
   }
   // Optional loadout: comma-separated item ids to buy (dev coins) and equip,
@@ -136,6 +143,7 @@ void main() async {
     if (CoinManager.instance.totalCoins < 600) await CoinManager.instance.addCoins(640);
     final focus = prefs.getString('dev_focus');
     runApp(MaterialApp(
+      builder: materialRoot,
       debugShowCheckedModeBanner: false,
       theme: buildNovaboltTheme(),
       home: ShopScreen(initialTab: _phase, initialFocus: focus),
@@ -143,6 +151,7 @@ void main() async {
     return;
   }
   runApp(MaterialApp(
+    builder: materialRoot,
     debugShowCheckedModeBanner: false,
     theme: buildNovaboltTheme(),
     home: GameWidget<NovaboltGame>.controlled(

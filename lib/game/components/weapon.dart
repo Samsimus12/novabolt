@@ -21,12 +21,15 @@ abstract class Weapon extends Component with HasGameReference<NovaboltGame> {
 
   /// Shots per second including the run-wide Overcharge bonus.
   double get effectiveFireRate =>
-      fireRate * (1 + game.fireRateBonus) * (game.overdriveActive ? 1 + Balance.overdriveFireRate : 1);
+      fireRate *
+      (1 + game.fireRateBonus) *
+      game.shipClass.fireRate *
+      (game.overdriveActive ? 1 + Balance.overdriveFireRate : 1);
   double get fireInterval => 1.0 / effectiveFireRate;
 
   /// Damage per shot including the run-wide Targeting Array bonus. Weapons
   /// pass this (not [damage]) to what they fire.
-  double get shotDamage => damage * (1 + game.weaponDamageBonus);
+  double get shotDamage => damage * (1 + game.weaponDamageBonus) * game.shipClass.gunDamage;
 
   String get displayName;
   bool get isUpgradeable => true;

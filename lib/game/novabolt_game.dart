@@ -29,6 +29,7 @@ import 'components/supercharge_laser.dart';
 import 'components/weapon_homing_bolt.dart';
 import 'components/weapon_spread_shot.dart';
 import 'data/balance.dart';
+import 'data/ship_class.dart';
 import 'data/daily_challenge.dart';
 import 'data/nova_mode.dart';
 import 'data/relics.dart';
@@ -37,6 +38,7 @@ import '../stats/mission_manager.dart';
 import '../stats/run_log.dart';
 import '../stats/run_save.dart';
 import 'components/weapon.dart';
+import 'components/weapon_sword_aura.dart';
 import 'data/weapon_registry.dart';
 import 'systems/balance_tracker.dart';
 import 'systems/supercharge_system.dart';
@@ -325,6 +327,28 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   double runCoinMultiplier = 1.0;
 
   /// Applies hangar upgrades to a freshly reset run.
+  /// The ship class this run uses (picked in the Hangar).
+  ShipClass shipClass = ShipClass.vanguard;
+
+  /// Run-start effects of the selected class. Call before [_applyHangar]
+  /// (the Hangar's hull bonus adds on top of the class's hull).
+  void _applyClass() {
+    final c = shipClass = HangarManager.instance.selectedClass;
+    player.maxHp = 100 * c.hull;
+    player.currentHp = player.maxHp;
+    player.moveSpeed *= c.speed;
+    damageTakenMultiplier *= c.damageTaken;
+    if (c.startForceField && !player.hasWeapon<WeaponSwordAura>()) player.add(WeaponSwordAura());
+  }
+
+  /// Class effects that depend on systems reset after [_applyClass]
+  /// (Nova): called after [_applyDaily] so a daily Nova rush stacks.
+  void _applyClassNova() {
+    final c = shipClass;
+    superchargeSystem.chargeBase *= c.novaCharge;
+    if (c.startNova > 0) superchargeSystem.addCharge(SuperchargeSystem.maxCharge * c.startNova / superchargeSystem.chargeMultiplier);
+  }
+
   void _applyHangar() {
     final h = HangarManager.instance;
     player.maxHp += h.bonusHull;
@@ -390,8 +414,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     player = Player(position: size / 2);
     _waveSystem = WaveSystem();
     if (_pendingResume == null) {
+      _applyClass();
       _applyHangar();
       _applyDaily();
+      _applyClassNova();
       StatsManager.instance.startRun();
     }
     // Test builds only (--dart-define=START_LEVEL=9): start one kill short of
@@ -700,6 +726,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         'mode': activeNovaMode.name,
         'unl': [for (final m in unlockedNovaModes) m.name],
       },
+      'cls': shipClass.name,
       'mods': {
         'dmg': damageMultiplier,
         'frb': fireRateBonus,
@@ -777,6 +804,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       mode(nova['mode'] as String?),
     );
 
+    // Hull, speed, damage taken and Nova are already in the save; fire rate,
+    // gun damage and dash cooldown are read live from the class.
+    shipClass = ShipClass.byName(s['cls'] as String?);
     final mods = (s['mods'] as Map?) ?? const {};
     damageMultiplier = d(mods, 'dmg', 1);
     fireRateBonus = d(mods, 'frb', 0);
@@ -906,6 +936,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       nova: activeNovaMode.displayName,
       relics: relics.length,
       hangarLevels: HangarManager.instance.totalLevels,
+      shipClass: shipClass.title,
       daily: daily != null,
       afterRevive: _hasUsedContinue || _usedFreeRevive,
     ));
@@ -1052,8 +1083,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     dailyStreakBonus = 0;
     dashKills = 0;
     tracker.reset();
+    _applyClass();
     _applyHangar();
     _applyDaily();
+    _applyClassNova();
     StatsManager.instance.startRun();
     MissionManager.instance.startRun(daily: daily != null);
     clearSave();

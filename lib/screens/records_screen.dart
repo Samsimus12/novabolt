@@ -199,6 +199,7 @@ class _RunRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = run;
     final tags = [
+      r.shipClass,
       if (r.daily) 'daily',
       if (r.afterRevive) 'revived',
       '${r.relics} relics',

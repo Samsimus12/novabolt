@@ -11,6 +11,7 @@ import '../game/fx/glow.dart';
 import '../game/data/nova_mode.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
+import 'daily_briefing.dart';
 import 'nova_core.dart';
 
 class GameControlsOverlay extends StatefulWidget {
@@ -160,6 +161,16 @@ class _PausePanelState extends State<_PausePanel> {
                           style: NbType.body,
                           textAlign: TextAlign.center,
                         ),
+                        if (game.daily != null) ...[
+                          const SizedBox(height: NbSpace.lg),
+                          Text('Daily challenge', style: NbType.label.copyWith(color: NbColors.flare)),
+                          const SizedBox(height: NbSpace.xs),
+                          for (final m in game.daily!.modifiers)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: DailyRuleRow(m, compact: true),
+                            ),
+                        ],
                         if (modes.length > 1) ...[
                           const SizedBox(height: NbSpace.lg),
                           Text('Nova attack', style: NbType.label.copyWith(color: NbColors.ion)),

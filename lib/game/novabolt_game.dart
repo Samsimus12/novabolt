@@ -49,8 +49,15 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   double _playTimeSeconds = 0;
   double get playTimeSeconds => _playTimeSeconds;
 
-  NovaMode activeNovaMode = NovaMode.laser;
-  Set<NovaMode> unlockedNovaModes = {NovaMode.laser};
+  /// Armed Nova attack and the ones earned this run. Listen to it to react
+  /// to switches and unlocks.
+  final nova = NovaLoadout();
+  NovaMode get activeNovaMode => nova.active;
+  set activeNovaMode(NovaMode m) => nova.active = m;
+  List<NovaMode> get unlockedNovaModes => nova.unlocked;
+
+  /// True while the Nova selector wheel is open; the game runs in slow motion.
+  bool novaSelectorOpen = false;
   NovaMode? pendingInheritMode;
 
   // Visual phase cycles through 10 distinct backgrounds.
@@ -134,6 +141,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     } else if (_slowMo > 0) {
       _slowMo -= dt;
       scaled = dt * 0.3;
+    } else if (novaSelectorOpen) {
+      scaled = dt * 0.25;
     }
     super.update(scaled);
     if (!isGameOver) _playTimeSeconds += dt;
@@ -173,8 +182,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
     // Auto-inherit the boss's Nova attack and restore full HP.
     if (pendingInheritMode != null) {
-      activeNovaMode = pendingInheritMode!;
-      unlockedNovaModes.add(pendingInheritMode!);
+      nova.unlock(pendingInheritMode!);
       // pendingInheritMode stays set so the level-up screen can display it.
     }
     player.currentHp = player.maxHp;
@@ -212,70 +220,11 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   void activateSupercharge() {
     if (!superchargeSystem.activate()) return;
-    switch (activeNovaMode) {
-      case NovaMode.laser:
-        world.add(SuperchargeLaser());
-      case NovaMode.dreadnought:
-        world.add(PlayerNovaBurst(
-          shotCount: 12,
-          color: const Color(0xFFFFDD00),
-          damage: 6.0,
-        ));
-      case NovaMode.voidTyrant:
-        world.add(PlayerNovaBurst(
-          shotCount: 16,
-          color: const Color(0xFFFF00CC),
-          damage: 4.0,
-        ));
-      case NovaMode.leviathan:
-        world.add(PlayerNovaBurst(
-          shotCount: 24,
-          color: const Color(0xFF00CCFF),
-          damage: 5.0,
-        ));
-      case NovaMode.bloodColossus:
-        world.add(PlayerNovaBurst(
-          shotCount: 24,
-          color: const Color(0xFFCC1100),
-          damage: 6.0,
-        ));
-      case NovaMode.stormPhantom:
-        // X-pattern: 4 groups of 4 at 90° intervals
-        world.add(PlayerNovaBurst(
-          shotCount: 16,
-          color: const Color(0xFF00FFFF),
-          damage: 4.5,
-        ));
-      case NovaMode.cosmicBehemoth:
-        world.add(PlayerNovaBurst(
-          shotCount: 32,
-          color: const Color(0xFF4444FF),
-          damage: 7.0,
-        ));
-      case NovaMode.shadowReaper:
-        world.add(PlayerNovaBurst(
-          shotCount: 20,
-          color: const Color(0xFF6600CC),
-          damage: 5.5,
-        ));
-      case NovaMode.solarTitan:
-        world.add(PlayerNovaBurst(
-          shotCount: 24,
-          color: const Color(0xFFFFAA00),
-          damage: 6.0,
-        ));
-      case NovaMode.voidEmperor:
-        world.add(PlayerNovaBurst(
-          shotCount: 28,
-          color: const Color(0xFF8800CC),
-          damage: 6.5,
-        ));
-      case NovaMode.singularity:
-        world.add(PlayerNovaBurst(
-          shotCount: 40,
-          color: const Color(0xFFFFFFFF),
-          damage: 8.0,
-        ));
+    final mode = activeNovaMode;
+    if (mode == NovaMode.laser) {
+      world.add(SuperchargeLaser());
+    } else {
+      world.add(PlayerNovaBurst(shotCount: mode.burstCount, color: mode.color, damage: mode.burstDamage));
     }
   }
 
@@ -334,13 +283,13 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _trauma = 0;
     _hitStop = 0;
     _slowMo = 0;
+    novaSelectorOpen = false;
     killCount = 0;
     bossPhase = 0;
     _playTimeSeconds = 0;
     currentCards = [];
     bonusCards = [];
-    activeNovaMode = NovaMode.laser;
-    unlockedNovaModes = {NovaMode.laser};
+    nova.reset();
     pendingInheritMode = null;
     overlays.remove('GameOver');
     overlays.remove('Countdown');

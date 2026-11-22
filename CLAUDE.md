@@ -116,14 +116,15 @@ lib/
 │   │   └── supercharge_system.dart   # chargeMultiplier, depleteMultiplier, damageMultiplier; ValueNotifier state
 │   └── data/
 │       ├── monster_data.dart         # MonsterStats for all 10 boss types + 4 regular enemy types
-│       ├── nova_mode.dart            # 11 NovaMode enum values with displayName/inheritTitle/inheritDescription
+│       ├── nova_mode.dart            # 11 NovaMode values (name, burst count/damage/colour) + NovaLoadout (armed + unlocked, a ChangeNotifier)
 │       ├── weapon_data.dart          # WeaponStats stub (unused)
 │       └── upgrade_cards.dart        # Card pool: 6 weapons + 6 stat buffs (incl. Nova Overload); bonus HP cards; CardGlyph (icon) + rare flag — presentation only
 ├── screens/
 │   ├── loading_screen.dart           # Cold boot splash UI only — init happens in main.dart _initialize()
 │   ├── main_menu_screen.dart         # SpaceBackdrop; live ShipPreview of equipped skin; best-run chips; Play + Shop; settings sheet
 │   ├── shop_screen.dart              # 5 scrolling category tabs, live preview stage, rarity tags, 3-col grid, contextual buy/equip; earn-NOVA ad strip
-│   ├── game_controls_overlay.dart    # Pause button (top-right); Nova core button (charge ring); pause panel with Nova mode picker + Quit run
+│   ├── game_controls_overlay.dart    # Pause button (top-right); NovaCore; pause panel with Nova mode picker + Quit run
+│   ├── nova_core.dart                # Nova button: tap fires, swipe cycles modes, hold opens the selector wheel (slow-mo); mode glyphs
 │   ├── level_up_screen.dart          # Big level numeral; category-coloured cards with Phosphor icons + weapon level pips; auto-applied bonus strips
 │   ├── game_over_screen.dart         # "Ship destroyed" debrief: counting stat tiles, best row, +N NOVA, Continue (ad) / Play again / Main menu
 │   └── countdown_overlay.dart        # "Get ready" 3-2-1 with draining ring, shown over frozen game after second-chance ad
@@ -210,6 +211,7 @@ assets/
 14. **Screen shake** offsets `camera.viewfinder.position` by a few px and resets it to zero; the anchor stays top-left. HUD and joysticks live in the viewport so they don't shake.
 15. **Shared ship art**: change ship/shield/beam looks in `lib/game/render/ship_art.dart` — the player, the shop and the main menu all draw from it, so they can't drift apart.
 16. **Covariant catalogue lists**: `catalogFor(kind)` returns a `List<Cosmetic>` that is really e.g. `List<Cosmetic<ShipPalette>>`. Don't call `firstWhere(..., orElse: ...)` on it — the `orElse` closure fails the runtime type check. Use `findCosmetic(kind, id)`.
+18. **Switching Nova attacks**: the Nova button in `nova_core.dart` — swipe left/right to cycle, or press and hold (260 ms) to open a wheel above the button, slide to a mode and release. The game runs at 0.25× while the wheel is open (`game.novaSelectorOpen`). Mode state lives in `game.nova` (`NovaLoadout`); listen to it rather than polling `activeNovaMode`. The pause panel picker still works too.
 17. **Pause flow**: there is no in-game Back button; "Quit run" is in the pause panel and calls the same `onMenu` callback.
 
 ---
@@ -222,7 +224,7 @@ assets/
 flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=4
 ```
 - Prefs `dev_loadout` (comma-separated item ids to grant + equip, e.g. `nebula,shield_corona,nova_helix,thruster_prism,boom_supernova`) and `dev_focus` (shop item to focus) are optional. Loadouts don't apply to the `menu` scene.
-- `SCENE`: `menu | shop | waves | nova | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `shop`, `PHASE` is the initial tab (0 ships, 1 shields, 2 beams).
+- `SCENE`: `menu | shop | waves | nova | novaswitch | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `shop`, `PHASE` is the initial tab (0 ships, 1 shields, 2 beams). For `novaswitch`, `dev_focus` = `wheel:<slot>` opens the selector wheel, prefix `all:` unlocks every mode.
 - One simulator build can be relaunched into any scene without rebuilding: terminate the app, write `flutter.dev_scene` (string) / `flutter.dev_phase` (int) into the app container's `Library/Preferences/com.sammorrison.novabolt.plist` via `xcrun simctl spawn <udid> defaults write <plist-path> ...`, relaunch with `xcrun simctl launch`, then `xcrun simctl io <udid> screenshot`.
 
 ## Sprites

@@ -1,16 +1,14 @@
-import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import '../game/fx/glow.dart';
+import '../game/data/nova_mode.dart';
 import '../game/novabolt_game.dart';
-import '../game/systems/supercharge_system.dart';
 import '../ui/ui.dart';
+import 'nova_core.dart';
 
 class GameControlsOverlay extends StatefulWidget {
   final NovaboltGame game;
@@ -62,14 +60,7 @@ class _GameControlsOverlayState extends State<GameControlsOverlay> {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 192),
-              child: ValueListenableBuilder<SuperchargeState>(
-                valueListenable: game.superchargeSystem.stateNotifier,
-                builder: (context, state, _) => _NovaCore(
-                  game: game,
-                  state: state,
-                  onFire: state == SuperchargeState.ready ? game.activateSupercharge : null,
-                ),
-              ),
+              child: NovaCore(game: game),
             ),
           ),
         ),
@@ -95,7 +86,7 @@ class _PausePanelState extends State<_PausePanel> {
   @override
   Widget build(BuildContext context) {
     final game = widget.game;
-    final modes = game.unlockedNovaModes.toList();
+    final modes = game.unlockedNovaModes;
     return Positioned.fill(
       child: Stack(
         children: [
@@ -134,7 +125,7 @@ class _PausePanelState extends State<_PausePanel> {
                             Padding(
                               padding: const EdgeInsets.only(bottom: 6),
                               child: _ModeOption(
-                                label: mode.displayName,
+                                mode: mode,
                                 selected: mode == game.activeNovaMode,
                                 onTap: () => setState(() => game.activeNovaMode = mode),
                               ),
@@ -171,14 +162,16 @@ class _PausePanelState extends State<_PausePanel> {
 }
 
 class _ModeOption extends StatelessWidget {
-  final String label;
+  final NovaMode mode;
   final bool selected;
   final VoidCallback onTap;
 
-  const _ModeOption({required this.label, required this.selected, required this.onTap});
+  const _ModeOption({required this.mode, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final label = mode.displayName;
+    final color = novaDisplayColor(mode);
     return Semantics(
       selected: selected,
       button: true,
@@ -195,21 +188,23 @@ class _ModeOption extends StatelessWidget {
           height: 44,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: ShapeDecoration(
-            color: selected ? NbColors.ion.withValues(alpha: 0.14) : NbColors.glass,
+            color: selected ? color.withValues(alpha: 0.14) : NbColors.glass,
             shape: ChamferBorder(
               cut: 7,
-              side: BorderSide(color: selected ? NbColors.ion : NbColors.line),
+              side: BorderSide(color: selected ? color : NbColors.line),
             ),
           ),
           child: Row(
             children: [
-              Icon(
-                selected ? PhosphorIconsFill.radioButton : PhosphorIconsBold.circle,
-                size: 18,
-                color: selected ? NbColors.ion : NbColors.dim,
+              CustomPaint(
+                size: const Size.square(18),
+                painter: _ModeGlyph(mode, selected ? color : NbColors.dim),
               ),
               const SizedBox(width: 10),
-              Text(label, style: NbType.bodyStrong.copyWith(color: selected ? NbColors.ion : NbColors.haze)),
+              Expanded(
+                child: Text(label, style: NbType.bodyStrong.copyWith(color: selected ? color : NbColors.haze)),
+              ),
+              if (selected) Icon(PhosphorIconsBold.check, size: 16, color: color),
             ],
           ),
         ),
@@ -218,151 +213,16 @@ class _ModeOption extends StatelessWidget {
   }
 }
 
-/// The Nova trigger: a circular core whose ring fills with charge. Dim while
-/// charging, breathing and lit when ready, spinning while the attack runs.
-class _NovaCore extends StatefulWidget {
-  final NovaboltGame game;
-  final SuperchargeState state;
-  final VoidCallback? onFire;
+class _ModeGlyph extends CustomPainter {
+  final NovaMode mode;
+  final Color color;
 
-  const _NovaCore({required this.game, required this.state, required this.onFire});
+  _ModeGlyph(this.mode, this.color);
 
   @override
-  State<_NovaCore> createState() => _NovaCoreState();
-}
-
-class _NovaCoreState extends State<_NovaCore> with SingleTickerProviderStateMixin {
-  late final Ticker _ticker;
-  final _t = ValueNotifier<double>(0);
-  bool _down = false;
+  void paint(Canvas canvas, Size size) =>
+      paintNovaGlyph(canvas, size.center(Offset.zero), size.shortestSide / 2, mode, color);
 
   @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker((e) => _t.value = e.inMicroseconds / 1e6)..start();
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    _t.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ready = widget.state == SuperchargeState.ready;
-    final active = widget.state == SuperchargeState.active;
-    return Semantics(
-      button: true,
-      enabled: ready,
-      label: ready ? 'Fire Nova' : active ? 'Nova active' : 'Nova charging',
-      excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _down = true),
-        onTapCancel: () => setState(() => _down = false),
-        onTapUp: (_) => setState(() => _down = false),
-        onTap: widget.onFire == null
-            ? null
-            : () {
-                HapticFeedback.heavyImpact();
-                widget.onFire!();
-              },
-        child: AnimatedScale(
-          scale: _down && ready ? 0.9 : 1,
-          duration: NbMotion.tap,
-          child: SizedBox(
-            width: 84,
-            height: 84,
-            child: CustomPaint(
-              painter: _NovaCorePainter(_t, widget.game, widget.state),
-              child: Center(
-                child: Icon(
-                  PhosphorIconsFill.lightning,
-                  size: 26,
-                  color: ready || active ? NbColors.abyss : NbColors.ion.withValues(alpha: 0.45),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NovaCorePainter extends CustomPainter {
-  final ValueNotifier<double> t;
-  final NovaboltGame game;
-  final SuperchargeState state;
-
-  _NovaCorePainter(this.t, this.game, this.state) : super(repaint: t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final time = t.value;
-    final f = game.superchargeSystem.fraction;
-    final ready = state == SuperchargeState.ready;
-    final active = state == SuperchargeState.active;
-    const r = 30.0;
-
-    if (ready || active) {
-      final breathe = ready ? 0.75 + 0.25 * math.sin(time * 5) : 1.0;
-      Glow.draw(canvas, c, 46 * breathe, NbColors.ion.withValues(alpha: 0.55));
-    }
-
-    // Core disc
-    canvas.drawCircle(
-      c,
-      r - 6,
-      Paint()
-        ..shader = RadialGradient(
-          colors: ready || active
-              ? [Colors.white, NbColors.ion]
-              : [NbColors.raised, NbColors.deep.withValues(alpha: 0.85)],
-        ).createShader(Rect.fromCircle(center: c, radius: r - 6)),
-    );
-
-    // Track + charge arc
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.butt
-      ..color = NbColors.line;
-    canvas.drawCircle(c, r, ring);
-    final rect = Rect.fromCircle(center: c, radius: r);
-    ring
-      ..color = NbColors.ion
-      ..strokeCap = StrokeCap.round;
-    if (active) {
-      canvas.drawArc(rect, time * 6, math.pi * 2 * f, false, ring);
-    } else if (f > 0) {
-      canvas.drawArc(rect, -math.pi / 2, math.pi * 2 * f, false, ring);
-    }
-
-    // 10 segment ticks, matching the HUD's Nova bar.
-    final tick = Paint()
-      ..strokeWidth = 2
-      ..color = NbColors.abyss;
-    for (var i = 0; i < 10; i++) {
-      final a = -math.pi / 2 + i * math.pi / 5;
-      final d = Offset(math.cos(a), math.sin(a));
-      canvas.drawLine(c + d * (r - 3), c + d * (r + 3), tick);
-    }
-
-    // Outer bezel hairline
-    canvas.drawCircle(
-      c,
-      r + 7,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = (ready ? NbColors.ion : NbColors.lineStrong).withValues(alpha: ready ? 0.7 : 0.25),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_NovaCorePainter old) => old.state != state;
+  bool shouldRepaint(_ModeGlyph old) => old.mode != mode || old.color != color;
 }

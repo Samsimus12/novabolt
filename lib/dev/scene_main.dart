@@ -3,7 +3,7 @@
 //
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
-// SCENE: menu | shop | waves | nova | flow | boss | levelup | bossreward | gameover | countdown
+// SCENE: menu | shop | waves | nova | novaswitch | flow | boss | levelup | bossreward | gameover | countdown
 // PHASE: 0-9, the visual/boss phase to start in (default 0); for shop, the tab
 // Prefs dev_loadout (comma-separated ids to own + equip) and dev_focus (shop
 // item to focus) are optional.
@@ -48,6 +48,7 @@ import '../screens/countdown_overlay.dart';
 import '../screens/game_controls_overlay.dart';
 import '../screens/game_over_screen.dart';
 import '../screens/level_up_screen.dart';
+import '../screens/nova_core.dart';
 import '../screens/shop_screen.dart';
 import '../stats/stats_manager.dart';
 import '../ui/theme/app_theme.dart';
@@ -57,6 +58,7 @@ import '../ui/theme/app_theme.dart';
 //   xcrun simctl spawn booted defaults write com.sammorrison.novabolt flutter.dev_scene boss
 var _scene = const String.fromEnvironment('SCENE', defaultValue: 'menu');
 var _phase = const int.fromEnvironment('PHASE', defaultValue: 0);
+String? _focus;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +76,7 @@ void main() async {
   await StatsManager.instance.init();
   // Optional loadout: comma-separated item ids to buy (dev coins) and equip,
   // e.g. 'nebula,shield_corona,nova_helix,thruster_prism,boom_supernova'.
+  _focus = prefs.getString('dev_focus');
   final loadout = prefs.getString('dev_loadout') ?? const String.fromEnvironment('LOADOUT');
   if (loadout.isNotEmpty) {
     final mgr = CoinManager.instance;
@@ -216,6 +219,23 @@ class _DevGame extends NovaboltGame {
         player.add(WeaponSpreadShot());
         _spawnRing(5, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         onMonsterKilled(100000, 0);
+      case 'novaswitch':
+        // dev_focus: "" (just the core), "wheel:<hover>" or "all" / "all:wheel:<hover>"
+        // for every mode unlocked (full ring).
+        final f = _focus ?? '';
+        final extra = f.startsWith('all')
+            ? NovaMode.values.skip(1).toList()
+            : [NovaMode.dreadnought, NovaMode.leviathan, NovaMode.solarTitan, NovaMode.singularity];
+        for (final m in extra) {
+          nova.unlock(m);
+        }
+        nova.active = NovaMode.leviathan;
+        xpSystem.currentLevel = 24;
+        xpSystem.currentXp = -100000000;
+        _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
+        superchargeSystem.addCharge(100);
+        final w = RegExp(r'wheel:(-?\d+)').firstMatch(f);
+        if (w != null) NovaCore.debugWheel.value = int.parse(w.group(1)!);
       case 'bossreward':
         xpSystem.currentLevel = 10;
         pendingInheritMode = NovaMode.dreadnought;

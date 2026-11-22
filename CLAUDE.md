@@ -118,14 +118,15 @@ lib/
 │   │   └── supercharge_system.dart   # chargeMultiplier, depleteMultiplier, damageMultiplier; ValueNotifier state
 │   └── data/
 │       ├── monster_data.dart         # MonsterStats for all 10 boss types + 4 regular enemy types
-│       ├── nova_mode.dart            # 11 NovaMode enum values with displayName/inheritTitle/inheritDescription
+│       ├── nova_mode.dart            # 11 NovaMode values (name, burst count/damage/colour) + NovaLoadout (armed + unlocked, a ChangeNotifier)
 │       ├── weapon_data.dart          # WeaponStats stub (unused)
 │       └── upgrade_cards.dart        # Card pool: 6 weapons + 6 stat buffs (incl. Nova Overload); bonus HP cards; CardGlyph (icon) + rare flag — presentation only
 ├── screens/
 │   ├── loading_screen.dart           # Cold boot splash UI only — init happens in main.dart _initialize()
 │   ├── main_menu_screen.dart         # SpaceBackdrop; live ShipPreview of equipped skin; best-run chips; Play + Shop; settings sheet
 │   ├── shop_screen.dart              # 5 scrolling category tabs, live preview stage, rarity tags, 3-col grid, contextual buy/equip; earn-NOVA ad strip
-│   ├── game_controls_overlay.dart    # Pause button (top-right); Nova core button (charge ring); pause panel with Nova mode picker + Quit run
+│   ├── game_controls_overlay.dart    # Pause button (top-right); NovaCore; pause panel with Nova mode picker + Quit run
+│   ├── nova_core.dart                # Nova button: tap fires, swipe cycles modes, hold opens the selector wheel (slow-mo); mode glyphs
 │   ├── level_up_screen.dart          # Big level numeral; category-coloured cards with Phosphor icons + weapon level pips; auto-applied bonus strips
 │   ├── game_over_screen.dart         # "Ship destroyed" debrief: counting stat tiles, best row, +N NOVA, Continue (ad) / Play again / Main menu
 │   └── countdown_overlay.dart        # "Get ready" 3-2-1 with draining ring, shown over frozen game after second-chance ad
@@ -215,6 +216,7 @@ assets/
 17. **Level-up cards need `ObjectKey(card)`**: multi-pick offers and rerolls remove and re-add the `LevelUp` overlay in one frame, so Flutter reuses the card tiles' State. Without the key, the slot you just picked stayed "chosen" and ignored taps (looked like a freeze after bosses, which always give 3 picks). Picks go through `game.pickCard()`, which ignores cards no longer on offer (no double upgrades from fast taps).
 18. **Phone install fails with "integrity could not be verified" / invalid signature on `objective_c.framework`**: an incremental release build sometimes leaves that framework ad-hoc signed. Fix: `flutter clean && flutter pub get && flutter build ios --release`, check `codesign -dv build/ios/iphoneos/Runner.app/Frameworks/objective_c.framework` shows `TeamIdentifier=M3692NZZR2`, then `xcrun devicectl device install app --device <id> build/ios/iphoneos/Runner.app`.
 19. **Pause flow**: there is no in-game Back button; "Save and exit" is in the pause panel (saves the run, then calls the same `onMenu` callback).
+20. **Switching Nova attacks** (merged Nov 22, 2026 from the redesign branch, on top of the distinct per-boss attacks; its haptics go through `SfxManager`; a resumed run restores the loadout with `NovaLoadout.restore`): the Nova button in `nova_core.dart` — swipe left/right to cycle, or press and hold (260 ms) to open a wheel above the button, slide to a mode and release. The game runs at 0.25× while the wheel is open (`game.novaSelectorOpen`). Mode state lives in `game.nova` (`NovaLoadout`); listen to it rather than polling `activeNovaMode`. The pause panel picker still works too.
 
 ---
 
@@ -291,7 +293,7 @@ assets/
 ```bash
 flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=4
 ```
-- `SCENE`: `menu | shop | hangar | records | waves | nova | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab.
+- `SCENE`: `menu | shop | hangar | records | missions | waves | nova | novaswitch | revive | overdrive | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab. For `novaswitch`, `dev_focus` = `wheel:<slot>` opens the selector wheel, prefix `all:` unlocks every mode.
 - Prefs `dev_loadout` (comma-separated item ids to grant + equip, e.g. `nebula,shield_corona,nova_helix,thruster_prism,boom_supernova`, or `--dart-define=LOADOUT=…`) and `dev_focus` (shop item to focus) are optional. Loadouts don't apply to the `menu` scene.
 - A `--dart-define` beats the `dev_*` prefs; prefer rebuilding with defines, since the simulator's prefs daemon can keep serving old values after a plist edit.
 - One simulator build can be relaunched into any scene without rebuilding: terminate the app, write `flutter.dev_scene` (string) / `flutter.dev_phase` (int) into the app container's `Library/Preferences/com.sammorrison.novabolt.plist` via `xcrun simctl spawn <udid> defaults write <plist-path> ...`, relaunch with `xcrun simctl launch`, then `xcrun simctl io <udid> screenshot`.

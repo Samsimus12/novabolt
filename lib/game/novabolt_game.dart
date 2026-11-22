@@ -350,8 +350,15 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         events: _waveSystem.events.bonusCoins,
       );
 
-  NovaMode activeNovaMode = NovaMode.laser;
-  Set<NovaMode> unlockedNovaModes = {NovaMode.laser};
+  /// Armed Nova attack and the ones earned this run. Listen to it to react
+  /// to switches and unlocks.
+  final nova = NovaLoadout();
+  NovaMode get activeNovaMode => nova.active;
+  set activeNovaMode(NovaMode m) => nova.active = m;
+  List<NovaMode> get unlockedNovaModes => nova.unlocked;
+
+  /// True while the Nova selector wheel is open; the game runs in slow motion.
+  bool novaSelectorOpen = false;
   NovaMode? pendingInheritMode;
 
   // Visual phase cycles through 10 distinct backgrounds.
@@ -476,6 +483,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     } else if (_slowMo > 0) {
       _slowMo -= dt;
       scaled = dt * 0.3;
+    } else if (novaSelectorOpen) {
+      scaled = dt * 0.25;
     }
     super.update(scaled);
     if (!isGameOver) {
@@ -556,8 +565,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
     // Auto-inherit the boss's Nova attack and restore full HP.
     if (pendingInheritMode != null) {
-      activeNovaMode = pendingInheritMode!;
-      unlockedNovaModes.add(pendingInheritMode!);
+      nova.unlock(pendingInheritMode!);
       // pendingInheritMode stays set so the level-up screen can display it.
     }
     player.currentHp = player.maxHp;
@@ -764,8 +772,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     superchargeSystem.damageBonus = d(nova, 'nb', 0);
     superchargeSystem.restore(d(nova, 'c', 0));
     NovaMode mode(String? n) => NovaMode.values.firstWhere((m) => m.name == n, orElse: () => NovaMode.laser);
-    activeNovaMode = mode(nova['mode'] as String?);
-    unlockedNovaModes = {NovaMode.laser, ...((nova['unl'] as List?) ?? const []).map((n) => mode(n as String?))};
+    this.nova.restore(
+      [for (final n in (nova['unl'] as List?) ?? const []) mode(n as String?)],
+      mode(nova['mode'] as String?),
+    );
 
     final mods = (s['mods'] as Map?) ?? const {};
     damageMultiplier = d(mods, 'dmg', 1);
@@ -979,6 +989,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _trauma = 0;
     _hitStop = 0;
     _slowMo = 0;
+    novaSelectorOpen = false;
     killCount = 0;
     bossPhase = 0;
     _playTimeSeconds = 0;
@@ -1005,8 +1016,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     magnetRadius = 0;
     currentCards = [];
     bonusCards = [];
-    activeNovaMode = NovaMode.laser;
-    unlockedNovaModes = {NovaMode.laser};
+    nova.reset();
     pendingInheritMode = null;
     overlays.remove('GameOver');
     overlays.remove('Countdown');

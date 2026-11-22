@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,56 +8,40 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
 import '../coins/coin_manager.dart';
-import '../game/fx/glow.dart';
+import '../cosmetics/catalog.dart';
+import '../game/render/beam_art.dart';
+import '../game/render/explosion_art.dart';
 import '../game/render/ship_art.dart';
+import '../game/render/trail_art.dart';
 import '../ui/ui.dart';
 import '../ui/widgets/ship_preview.dart';
 
-// ── Catalogue ─────────────────────────────────────────────────────────────────
-
-enum _Tab { ships, shields, beams }
-
-class _Item {
-  /// The id passed to CoinManager.purchase / owns.
-  final String ownId;
-  /// The id passed to the matching CoinManager.select* call.
-  final String selectId;
-  final String name;
-  final int price;
-  const _Item(this.ownId, this.selectId, this.name, this.price);
-}
-
-const _ships = [
-  _Item('skin_default', 'default', 'Gold Fighter', 0),
-  _Item('skin_ice', 'ice', 'Ice Falcon', 300),
-  _Item('skin_flame', 'flame', 'Flame Hawk', 500),
-  _Item('skin_shadow', 'shadow', 'Shadow Viper', 700),
-  _Item('skin_solar', 'solar', 'Solar Flare', 900),
-  _Item('skin_void', 'void', 'Void Phantom', 1200),
-];
-
-const _shields = [
-  _Item('shield_default', 'shield_default', 'Energy Barrier', 0),
-  _Item('shield_plasma', 'shield_plasma', 'Plasma Guard', 250),
-  _Item('shield_void', 'shield_void', 'Void Ward', 500),
-  _Item('shield_gold', 'shield_gold', 'Gold Guard', 750),
-];
-
-const _beams = [
-  _Item('nova_default', 'nova_default', 'Cyan Beam', 0),
-  _Item('nova_inferno', 'nova_inferno', 'Inferno', 350),
-  _Item('nova_void', 'nova_void', 'Void Pulse', 650),
-  _Item('nova_eclipse', 'nova_eclipse', 'Eclipse', 950),
-];
-
 const _adCoinsReward = 75;
 
-// ── Shop screen ───────────────────────────────────────────────────────────────
+const _tabLabels = {
+  CosmeticKind.ship: 'Ships',
+  CosmeticKind.shield: 'Shields',
+  CosmeticKind.beam: 'Nova beams',
+  CosmeticKind.thruster: 'Thrusters',
+  CosmeticKind.explosion: 'Explosions',
+};
+
+const _tabIcons = {
+  CosmeticKind.ship: PhosphorIconsBold.airplaneTilt,
+  CosmeticKind.shield: PhosphorIconsBold.shield,
+  CosmeticKind.beam: PhosphorIconsBold.lightning,
+  CosmeticKind.thruster: PhosphorIconsBold.fire,
+  CosmeticKind.explosion: PhosphorIconsBold.sparkle,
+};
 
 class ShopScreen extends StatefulWidget {
-  /// 0 ships, 1 shields, 2 Nova beams.
+  /// Index into [CosmeticKind.values]: 0 ships, 1 shields, 2 beams,
+  /// 3 thrusters, 4 explosions.
   final int initialTab;
-  const ShopScreen({super.key, this.initialTab = 0});
+
+  /// Item id to focus on open (defaults to the equipped item).
+  final String? initialFocus;
+  const ShopScreen({super.key, this.initialTab = 0, this.initialFocus});
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -67,49 +51,28 @@ class _ShopScreenState extends State<ShopScreen> {
   final _mgr = CoinManager.instance;
   final _ads = AdManager.instance;
 
-  late _Tab _tab = _Tab.values[widget.initialTab.clamp(0, _Tab.values.length - 1)];
-  late _Item _focus = _equipped(_tab);
+  late CosmeticKind _tab = CosmeticKind.values[widget.initialTab.clamp(0, CosmeticKind.values.length - 1)];
+  late Cosmetic _focus = widget.initialFocus != null && catalogFor(_tab).any((i) => i.id == widget.initialFocus)
+      ? findCosmetic(_tab, widget.initialFocus)
+      : _equipped(_tab);
   int _purchaseFlash = 0;
 
-  List<_Item> _items(_Tab t) => switch (t) {
-        _Tab.ships => _ships,
-        _Tab.shields => _shields,
-        _Tab.beams => _beams,
-      };
+  Cosmetic _equipped(CosmeticKind k) => findCosmetic(k, _mgr.selected(k));
 
-  String _selectedId(_Tab t) => switch (t) {
-        _Tab.ships => _mgr.selectedSkin,
-        _Tab.shields => _mgr.selectedShieldSkin,
-        _Tab.beams => _mgr.selectedNovaTheme,
-      };
+  bool _isEquipped(Cosmetic i) => _mgr.selected(i.kind) == i.id;
 
-  _Item _equipped(_Tab t) =>
-      _items(t).firstWhere((i) => i.selectId == _selectedId(t), orElse: () => _items(t).first);
-
-  bool _isEquipped(_Item i) => _selectedId(_tab) == i.selectId;
-
-  Future<void> _select(_Item i) async {
-    switch (_tab) {
-      case _Tab.ships:
-        await _mgr.selectSkin(i.selectId);
-      case _Tab.shields:
-        await _mgr.selectShieldSkin(i.selectId);
-      case _Tab.beams:
-        await _mgr.selectNovaTheme(i.selectId);
-    }
-  }
-
-  Future<void> _buy(_Item i) async {
+  Future<void> _buy(Cosmetic i) async {
     final ok = await _mgr.purchase(i.ownId, i.price);
     if (ok) {
       HapticFeedback.mediumImpact();
-      await _select(i);
+      await _mgr.select(i);
       if (mounted) setState(() => _purchaseFlash++);
     }
   }
 
-  Future<void> _equip(_Item i) async {
-    await _select(i);
+  Future<void> _equip(Cosmetic i) async {
+    await _mgr.select(i);
+    HapticFeedback.selectionClick();
     if (mounted) setState(() {});
   }
 
@@ -123,7 +86,7 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  void _setTab(_Tab t) {
+  void _setTab(CosmeticKind t) {
     if (t == _tab) return;
     HapticFeedback.selectionClick();
     setState(() {
@@ -134,7 +97,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _items(_tab);
+    final items = catalogFor(_tab);
     return Scaffold(
       body: Stack(
         children: [
@@ -145,9 +108,10 @@ class _ShopScreenState extends State<ShopScreen> {
               children: [
                 _buildTopBar(context),
                 const SizedBox(height: NbSpace.sm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: NbSpace.gutter),
-                  child: _Segmented(value: _tab, onChanged: _setTab),
+                _Tabs(
+                  value: _tab,
+                  onChanged: _setTab,
+                  ownedCount: (k) => catalogFor(k).where((i) => _mgr.owns(i.ownId)).length,
                 ),
                 Expanded(
                   child: ListView(
@@ -163,12 +127,11 @@ class _ShopScreenState extends State<ShopScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         mainAxisSpacing: NbSpace.xs,
                         crossAxisSpacing: NbSpace.xs,
-                        childAspectRatio: 0.82,
+                        childAspectRatio: 0.78,
                         children: [
                           for (var i = 0; i < items.length; i++)
                             _ItemTile(
                               key: ValueKey(items[i].ownId),
-                              tab: _tab,
                               item: items[i],
                               focused: _focus.ownId == items[i].ownId,
                               owned: _mgr.owns(items[i].ownId),
@@ -179,7 +142,7 @@ class _ShopScreenState extends State<ShopScreen> {
                               },
                             )
                                 .animate(key: ValueKey('${_tab.name}$i'))
-                                .fadeIn(delay: (40 * i).ms, duration: 220.ms)
+                                .fadeIn(delay: (30 * math.min(i, 9)).ms, duration: 220.ms)
                                 .moveY(begin: 10, end: 0, curve: NbMotion.easeOut),
                         ],
                       ),
@@ -221,24 +184,31 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Widget _buildStage() {
     final f = _focus;
-    final palette = shipPaletteFor(_tab == _Tab.ships ? f.selectId : _mgr.selectedSkin);
-    final preview = switch (_tab) {
-      _Tab.ships => ShipPreview(palette: palette, scale: 3.2),
-      _Tab.shields => ShipPreview(palette: palette, scale: 2.6, shield: shieldColorFor(f.selectId)),
-      _Tab.beams => ShipPreview(palette: palette, scale: 2.2, beam: novaBeamColorFor(f.selectId), pad: false),
+    final palette = shipPaletteFor(f.kind == CosmeticKind.ship ? f.id : _mgr.selectedSkin);
+    final engine = thrusterSpecFor(_mgr.selectedThruster).color;
+    final preview = switch (f.kind) {
+      CosmeticKind.ship => ShipPreview(palette: palette, scale: 3.2, engine: engine),
+      CosmeticKind.shield => ShipPreview(palette: palette, scale: 2.6, engine: engine, shield: shieldSpecFor(f.id)),
+      CosmeticKind.beam => ShipPreview(palette: palette, scale: 2.2, engine: engine, beam: beamSpecFor(f.id), pad: false),
+      CosmeticKind.thruster => ShipPreview(palette: palette, scale: 2.4, thruster: thrusterSpecFor(f.id)),
+      CosmeticKind.explosion =>
+        ShipPreview(palette: palette, scale: 2.0, engine: engine, explosion: explosionStyleFor(f.id), pad: false),
     };
     return SizedBox(
-      height: 290,
+      height: 300,
       child: Stack(
         children: [
           Positioned(
             left: 0,
             right: 0,
             top: 0,
-            bottom: 58,
+            bottom: 64,
             child: KeyedSubtree(
               key: ValueKey('${_tab.name}-${f.ownId}'),
-              child: preview.animate().fadeIn(duration: 260.ms).scaleXY(begin: 0.94, end: 1, duration: 320.ms, curve: NbMotion.easeOut),
+              child: preview
+                  .animate()
+                  .fadeIn(duration: 260.ms)
+                  .scaleXY(begin: 0.94, end: 1, duration: 320.ms, curve: NbMotion.easeOut),
             ),
           ),
           Positioned(
@@ -247,13 +217,16 @@ class _ShopScreenState extends State<ShopScreen> {
             bottom: 0,
             child: Column(
               children: [
-                Text(f.name, style: NbType.title, textAlign: TextAlign.center),
-                const SizedBox(height: 4),
-                _StatusLine(
-                  owned: _mgr.owns(f.ownId),
-                  equipped: _isEquipped(f),
-                  price: f.price,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(child: Text(f.name, style: NbType.title, overflow: TextOverflow.ellipsis)),
+                    const SizedBox(width: NbSpace.xs),
+                    _RarityTag(f.rarity),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                _StatusLine(owned: _mgr.owns(f.ownId), equipped: _isEquipped(f), price: f.price),
               ],
             ),
           ),
@@ -301,6 +274,28 @@ class _ShopScreenState extends State<ShopScreen> {
 
 // ── Pieces ────────────────────────────────────────────────────────────────────
 
+class _RarityTag extends StatelessWidget {
+  final Rarity rarity;
+  const _RarityTag(this.rarity);
+
+  @override
+  Widget build(BuildContext context) {
+    final c = rarity.color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: ShapeDecoration(
+        color: c.withValues(alpha: 0.14),
+        shape: ChamferBorder(
+          cut: NbCut.chip,
+          corners: ChamferCorners.all,
+          side: BorderSide(color: c.withValues(alpha: 0.6)),
+        ),
+      ),
+      child: Text(rarity.label, style: NbType.caption.copyWith(color: c, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
 class _StatusLine extends StatelessWidget {
   final bool owned;
   final bool equipped;
@@ -309,62 +304,68 @@ class _StatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (equipped) {
-      return Text('Equipped', style: NbType.label.copyWith(color: NbColors.ion));
-    }
+    if (equipped) return Text('Equipped', style: NbType.label.copyWith(color: NbColors.ion));
     if (owned || price == 0) return const Text('Owned', style: NbType.label);
     return CoinAmount(price, size: 15);
   }
 }
 
-class _Segmented extends StatelessWidget {
-  final _Tab value;
-  final ValueChanged<_Tab> onChanged;
-  const _Segmented({required this.value, required this.onChanged});
+/// Horizontally scrolling category tabs with an owned count on each.
+class _Tabs extends StatelessWidget {
+  final CosmeticKind value;
+  final ValueChanged<CosmeticKind> onChanged;
+  final int Function(CosmeticKind) ownedCount;
 
-  static const _labels = {
-    _Tab.ships: 'Ships',
-    _Tab.shields: 'Shields',
-    _Tab.beams: 'Nova beams',
-  };
+  const _Tabs({required this.value, required this.onChanged, required this.ownedCount});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: const ShapeDecoration(
-        color: NbColors.glass,
-        shape: ChamferBorder(cut: 9, side: BorderSide(color: NbColors.line)),
-      ),
-      child: Row(
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: NbSpace.gutter),
         children: [
-          for (final t in _Tab.values)
-            Expanded(
+          for (final k in CosmeticKind.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
               child: Semantics(
-                selected: t == value,
+                selected: k == value,
                 button: true,
-                label: _labels[t],
+                label: '${_tabLabels[k]}, ${ownedCount(k)} of ${catalogFor(k).length} owned',
                 excludeSemantics: true,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => onChanged(t),
+                  onTap: () => onChanged(k),
                   child: AnimatedContainer(
                     duration: NbMotion.quick,
                     curve: NbMotion.easeOut,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: ShapeDecoration(
-                      color: t == value ? NbColors.ion.withValues(alpha: 0.16) : Colors.transparent,
+                      color: k == value ? NbColors.ion.withValues(alpha: 0.16) : NbColors.glass,
                       shape: ChamferBorder(
-                        cut: 7,
-                        side: BorderSide(color: t == value ? NbColors.ion.withValues(alpha: 0.8) : Colors.transparent),
+                        cut: 8,
+                        side: BorderSide(color: k == value ? NbColors.ion.withValues(alpha: 0.85) : NbColors.line),
                       ),
                     ),
                     alignment: Alignment.center,
-                    child: Text(
-                      _labels[t]!,
-                      style: NbType.bodyStrong.copyWith(
-                        color: t == value ? NbColors.ion : NbColors.haze,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_tabIcons[k], size: 16, color: k == value ? NbColors.ion : NbColors.haze),
+                        const SizedBox(width: 6),
+                        Text(
+                          _tabLabels[k]!,
+                          style: NbType.bodyStrong.copyWith(color: k == value ? NbColors.ion : NbColors.haze),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${ownedCount(k)}/${catalogFor(k).length}',
+                          style: NbType.caption.copyWith(
+                            color: k == value ? NbColors.ion.withValues(alpha: 0.7) : NbColors.dim,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -377,8 +378,7 @@ class _Segmented extends StatelessWidget {
 }
 
 class _ItemTile extends StatelessWidget {
-  final _Tab tab;
-  final _Item item;
+  final Cosmetic item;
   final bool focused;
   final bool owned;
   final bool equipped;
@@ -386,7 +386,6 @@ class _ItemTile extends StatelessWidget {
 
   const _ItemTile({
     super.key,
-    required this.tab,
     required this.item,
     required this.focused,
     required this.owned,
@@ -394,14 +393,9 @@ class _ItemTile extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _accent => switch (tab) {
-        _Tab.ships => shipPaletteFor(item.selectId).wing,
-        _Tab.shields => shieldColorFor(item.selectId),
-        _Tab.beams => novaBeamColorFor(item.selectId),
-      };
-
   @override
   Widget build(BuildContext context) {
+    final rarity = item.rarity;
     final status = equipped
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -418,22 +412,25 @@ class _ItemTile extends StatelessWidget {
     return Semantics(
       button: true,
       selected: focused,
-      label: '${item.name}, ${equipped ? 'equipped' : owned ? 'owned' : '${item.price} NOVA'}',
+      label: '${item.name}, ${rarity.label}, ${equipped ? 'equipped' : owned ? 'owned' : '${item.price} NOVA'}',
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
         child: NbPanel(
-          accent: focused ? _accent : null,
+          accent: focused || rarity != Rarity.common ? rarity.color : null,
+          edgeOpacity: focused ? 1 : 0.45,
           glow: focused,
           cut: 12,
-          padding: const EdgeInsets.fromLTRB(6, 8, 6, 10),
+          padding: const EdgeInsets.fromLTRB(6, 8, 6, 9),
           fill: focused ? NbColors.glassHi : NbColors.glass,
           child: Column(
             children: [
               Expanded(
-                child: CustomPaint(
-                  painter: _MiniPainter(tab, item.selectId),
-                  size: Size.infinite,
+                child: ClipRect(
+                  child: CustomPaint(
+                    painter: _MiniPainter(item),
+                    size: Size.infinite,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -454,58 +451,62 @@ class _ItemTile extends StatelessWidget {
   }
 }
 
-/// Static thumbnail for a grid tile (no ticker — six of these are on screen).
+/// Static thumbnail for a grid tile (no ticker — a whole grid is on screen).
 class _MiniPainter extends CustomPainter {
-  final _Tab tab;
-  final String id;
-  const _MiniPainter(this.tab, this.id);
+  final Cosmetic item;
+  const _MiniPainter(this.item);
+
+  static final _bursts = <String, ExplosionBurst>{};
 
   @override
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
-    switch (tab) {
-      case _Tab.ships:
+    final skin = shipPaletteFor(CoinManager.instance.selectedSkin);
+    switch (item.kind) {
+      case CosmeticKind.ship:
         canvas.save();
         canvas.translate(c.dx, c.dy);
         canvas.scale(size.shortestSide / 52);
-        ShipArt.paint(canvas, shipPaletteFor(id), time: 0.4, thrust: 0.4);
+        ShipArt.paint(canvas, item.spec as ShipPalette, time: 0.4, thrust: 0.4);
         canvas.restore();
-      case _Tab.shields:
-        final col = shieldColorFor(id);
+      case CosmeticKind.shield:
         canvas.save();
         canvas.translate(c.dx, c.dy);
-        canvas.scale(size.shortestSide / 72);
-        ShipArt.paint(canvas, shipPaletteFor(CoinManager.instance.selectedSkin), time: 0.4, thrust: 0.2);
-        ShieldArt.paint(canvas, 28, col, strength: 0.9, time: 0.6);
+        canvas.scale(size.shortestSide / 76);
+        ShipArt.paint(canvas, skin, time: 0.4, thrust: 0.2);
+        ShieldArt.paint(canvas, 28, item.spec as ShieldSpec, strength: 0.9, time: 0.6);
         canvas.restore();
-      case _Tab.beams:
-        final col = novaBeamColorFor(id);
-        final w = size.width * 0.16;
-        final r = Rect.fromLTRB(c.dx - w, 0, c.dx + w, size.height);
-        canvas.drawRect(
-          r,
-          Paint()
-            ..blendMode = BlendMode.plus
-            ..shader = ui.Gradient.linear(
-              r.bottomCenter,
-              r.topCenter,
-              [col.withValues(alpha: 0.85), col.withValues(alpha: 0)],
-            ),
+      case CosmeticKind.beam:
+        canvas.save();
+        canvas.translate(c.dx, size.height);
+        canvas.rotate(-math.pi / 2);
+        BeamArt.paint(canvas, size.height, size.width * 0.09, item.spec as BeamSpec, 0.3);
+        canvas.restore();
+      case CosmeticKind.thruster:
+        final spec = item.spec as ThrusterSpec;
+        canvas.save();
+        canvas.translate(c.dx, c.dy - size.height * 0.2);
+        canvas.scale(size.shortestSide / 70);
+        final n = (16 * spec.length).round().clamp(4, 40);
+        final xs = List<double>.generate(n, (i) => math.sin(i * 0.25) * i * 0.3);
+        final ys = List<double>.generate(n, (i) => 14 + i * 3.4);
+        TrailArt.paint(canvas, xs, ys, n, n, spec.color ?? skin.engine, spec.trail, 0.5);
+        ShipArt.paint(canvas, skin, time: 0.4, thrust: 0.9, engine: spec.color);
+        canvas.restore();
+      case CosmeticKind.explosion:
+        final burst = _bursts.putIfAbsent(
+          item.id,
+          () => ExplosionBurst(style: item.spec as ExplosionStyle, radius: 9, rng: math.Random(3)),
         );
-        Glow.drawOval(canvas, r.inflate(w), col.withValues(alpha: 0.35));
-        canvas.drawLine(
-          r.bottomCenter,
-          r.topCenter,
-          Paint()
-            ..strokeWidth = 1.6
-            ..color = const Color(0xEEFFFFFF),
-        );
-        Glow.draw(canvas, r.bottomCenter - const Offset(0, 4), w * 1.8, col, hot: true);
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        burst.paint(canvas, 0.13, const Color(0xFFFF7A45));
+        canvas.restore();
     }
   }
 
   @override
-  bool shouldRepaint(_MiniPainter old) => old.tab != tab || old.id != id;
+  bool shouldRepaint(_MiniPainter old) => old.item != item;
 }
 
 class _EarnStrip extends StatelessWidget {

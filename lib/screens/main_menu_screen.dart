@@ -4,7 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../audio/audio_manager.dart';
 import '../coins/coin_manager.dart';
-import '../game/render/ship_art.dart';
+import '../cosmetics/catalog.dart';
 import '../stats/stats_manager.dart';
 import '../ui/ui.dart';
 import '../ui/widgets/ship_preview.dart';
@@ -84,6 +84,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     height: 230,
                     child: ShipPreview(
                       palette: shipPaletteFor(CoinManager.instance.selectedSkin),
+                      engine: thrusterSpecFor(CoinManager.instance.selectedThruster).color,
                       scale: 3.4,
                     ),
                   )

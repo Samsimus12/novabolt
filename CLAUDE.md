@@ -57,7 +57,10 @@ lib/
 ├── audio/
 │   └── audio_manager.dart            # Singleton; playMenu/playGame/playBoss; crossfades between tracks; _fadeGeneration for cancellation
 ├── coins/
-│   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selectedSkin/shieldSkin/novaTheme
+│   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selected(kind) for all 5 cosmetic kinds; select(item)
+├── cosmetics/
+│   └── catalog.dart                  # All cosmetics (data only): 18 ships, 12 shields, 12 Nova beams, 9 thrusters, 6 explosions;
+│                                     #   prices, Rarity, visual specs (ShipPalette+Livery, ShieldSpec, BeamSpec, ThrusterSpec, ExplosionStyle)
 ├── stats/
 │   └── stats_manager.dart            # Singleton; persists bestLevel, bestKills via SharedPreferences
 ├── game/
@@ -66,8 +69,11 @@ lib/
 │   ├── fx/
 │   │   ├── glow.dart                 # Glow.draw/drawOval/drawBatch — cached additive glow sprites (use instead of MaskFilter.blur)
 │   │   └── shot_art.dart             # ShotArt.streak (player shots) / ShotArt.orb (hostile shots)
-│   ├── render/
-│   │   └── ship_art.dart             # ShipArt + shipPaletteFor(skin), ShieldArt, shieldColorFor(), novaBeamColorFor() — shared with shop/menu
+│   ├── render/                       # Cosmetic renderers shared by game, shop and menu
+│   │   ├── ship_art.dart             # ShipArt (liveries, engine colour override) + ShieldArt (6 styles)
+│   │   ├── beam_art.dart             # BeamArt — Nova laser in 6 styles (solid/twin/helix/pulse/prism/eclipse)
+│   │   ├── trail_art.dart            # TrailArt — thruster wake (ribbon/ghost/comet/prism)
+│   │   └── explosion_art.dart        # ExplosionBurst — kill explosion in 6 styles
 │   ├── components/
 │   │   ├── player.dart               # Ship via ShipArt; EngineTrail (world-space); dashed aim guide; damage stages; facingAngle/thrust getters
 │   │   ├── joystick.dart             # NovaJoystick — instrument-dial sticks (move = white, aim = cyan crosshair)
@@ -100,8 +106,8 @@ lib/
 │   │   ├── boss_projectile.dart      # Extends Projectile; hits Player only
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
 │   │   ├── health_pickup.dart        # Dropped by monsters; heals 30 HP; 8s lifetime
-│   │   ├── supercharge_laser.dart    # World Component (priority 4) — layered additive beam; colour via novaBeamColorFor()
-│   │   ├── death_particles.dart      # Explosion: flash + shockwave + batched sparks/embers; `big` variant for bosses
+│   │   ├── supercharge_laser.dart    # World Component (priority 4) — damage logic; visuals via BeamArt + equipped beam
+│   │   ├── death_particles.dart      # Enemy death: ExplosionBurst in the equipped explosion style; `big` variant for bosses
 │   │   ├── background.dart           # StarBackground: per-phase sky baked once to an image + 3 parallax star layers + phase set-piece; re-added on boss kill
 │   │   └── hud.dart                  # Safe-area HUD: level badge + XP ring, hull bar (ghost) + shield, segmented Nova bar, boss bar + approach banner, damage vignette
 │   ├── systems/
@@ -116,7 +122,7 @@ lib/
 ├── screens/
 │   ├── loading_screen.dart           # Cold boot splash UI only — init happens in main.dart _initialize()
 │   ├── main_menu_screen.dart         # SpaceBackdrop; live ShipPreview of equipped skin; best-run chips; Play + Shop; settings sheet
-│   ├── shop_screen.dart              # Tabs (ships/shields/Nova beams), large live preview, 3-col grid, one contextual buy/equip button; earn-NOVA ad strip
+│   ├── shop_screen.dart              # 5 scrolling category tabs, live preview stage, rarity tags, 3-col grid, contextual buy/equip; earn-NOVA ad strip
 │   ├── game_controls_overlay.dart    # Pause button (top-right); Nova core button (charge ring); pause panel with Nova mode picker + Quit run
 │   ├── level_up_screen.dart          # Big level numeral; category-coloured cards with Phosphor icons + weapon level pips; auto-applied bonus strips
 │   ├── game_over_screen.dart         # "Ship destroyed" debrief: counting stat tiles, best row, +N NOVA, Continue (ad) / Play again / Main menu
@@ -176,7 +182,12 @@ assets/
 
 ### AdMob / Coins / Shop
 - Rewarded ad → Continue at 50% HP (once); interstitial on menu return; music pauses on ad, resumes on dismiss
-- 6 ship skins, 4 shield skins, 4 Nova beam colours — see `coin_manager.dart` for IDs and prices
+- Cosmetics live in `lib/cosmetics/catalog.dart`: **18 ships, 12 shields, 12 Nova beams, 9 thrusters, 6 explosion styles**, each with a price (0–3000) and rarity (Common/Rare/Epic/Legendary)
+  - Ships vary by palette plus liveries (stripe, chevrons, tips, two-tone split, glowing panel lines)
+  - Shields: arcs, hex lattice, ripple, twin halo, orbit, corona · Beams: solid, twin, helix, pulse, prism, eclipse (Black Sun) — beam cosmetics apply to the Laser Nova only; inherited boss Nova modes keep their own colours
+  - Thrusters recolour the engine plume and the trail (ribbon, ghost, comet sparks, prism) · Explosions restyle every enemy death (standard uses the enemy's own colour)
+- Ownership ids: ships `skin_<id>`, everything else is its own id. v1.0 pref keys are unchanged, so earlier purchases carry over; new keys `thruster_selected`, `explosion_selected`
+- To add an item: append to the list in `catalog.dart` (the first entry of each list is the free default). The shop, previews and game pick it up automatically.
 
 ---
 
@@ -198,7 +209,8 @@ assets/
 13. **audioplayers 6.6.0**: `setVolume(double)` is the correct API (no named parameter).
 14. **Screen shake** offsets `camera.viewfinder.position` by a few px and resets it to zero; the anchor stays top-left. HUD and joysticks live in the viewport so they don't shake.
 15. **Shared ship art**: change ship/shield/beam looks in `lib/game/render/ship_art.dart` — the player, the shop and the main menu all draw from it, so they can't drift apart.
-16. **Pause flow**: there is no in-game Back button; "Quit run" is in the pause panel and calls the same `onMenu` callback.
+16. **Covariant catalogue lists**: `catalogFor(kind)` returns a `List<Cosmetic>` that is really e.g. `List<Cosmetic<ShipPalette>>`. Don't call `firstWhere(..., orElse: ...)` on it — the `orElse` closure fails the runtime type check. Use `findCosmetic(kind, id)`.
+17. **Pause flow**: there is no in-game Back button; "Quit run" is in the pause panel and calls the same `onMenu` callback.
 
 ---
 
@@ -209,6 +221,7 @@ assets/
 ```bash
 flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=4
 ```
+- Prefs `dev_loadout` (comma-separated item ids to grant + equip, e.g. `nebula,shield_corona,nova_helix,thruster_prism,boom_supernova`) and `dev_focus` (shop item to focus) are optional. Loadouts don't apply to the `menu` scene.
 - `SCENE`: `menu | shop | waves | nova | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `shop`, `PHASE` is the initial tab (0 ships, 1 shields, 2 beams).
 - One simulator build can be relaunched into any scene without rebuilding: terminate the app, write `flutter.dev_scene` (string) / `flutter.dev_phase` (int) into the app container's `Library/Preferences/com.sammorrison.novabolt.plist` via `xcrun simctl spawn <udid> defaults write <plist-path> ...`, relaunch with `xcrun simctl launch`, then `xcrun simctl io <udid> screenshot`.
 

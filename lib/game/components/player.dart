@@ -8,7 +8,9 @@ import 'package:flame/components.dart';
 import '../../coins/coin_manager.dart';
 import '../fx/glow.dart';
 import '../novabolt_game.dart';
+import '../../cosmetics/catalog.dart';
 import '../render/ship_art.dart';
+import '../render/trail_art.dart';
 import 'monster.dart';
 import 'monster_boss.dart';
 import 'weapon.dart';
@@ -18,12 +20,15 @@ import 'weapon_magic_bolt.dart';
 /// the ship moves.
 class EngineTrail extends Component {
   final Player player;
-  static const _n = 16;
-  final _xs = List<double>.filled(_n, 0);
-  final _ys = List<double>.filled(_n, 0);
+  static const _cap = 40;
+  final _xs = List<double>.filled(_cap, 0);
+  final _ys = List<double>.filled(_cap, 0);
   int _count = 0;
+  double _t = 0;
 
   EngineTrail(this.player) : super(priority: 2);
+
+  int get _n => (16 * thrusterSpecFor(CoinManager.instance.selectedThruster).length).round().clamp(4, _cap);
 
   @override
   void update(double dt) {
@@ -31,33 +36,26 @@ class EngineTrail extends Component {
       removeFromParent();
       return;
     }
+    _t += dt;
+    final n = _n;
     final a = player.facingAngle;
     final x = player.position.x - math.sin(a) * 14;
     final y = player.position.y + math.cos(a) * 14;
     if (_count > 0 && ((x - _xs[0]).abs() + (y - _ys[0]).abs()) > 80) _count = 0; // teleported (restart)
-    for (var i = math.min(_count, _n - 1); i > 0; i--) {
+    for (var i = math.min(_count, n - 1); i > 0; i--) {
       _xs[i] = _xs[i - 1];
       _ys[i] = _ys[i - 1];
     }
     _xs[0] = x;
     _ys[0] = y;
-    _count = math.min(_count + 1, _n);
+    _count = math.min(_count + 1, n);
   }
-
-  static final _paint = Paint()
-    ..strokeCap = StrokeCap.round
-    ..blendMode = BlendMode.plus;
 
   @override
   void render(Canvas canvas) {
-    final c = shipPaletteFor(CoinManager.instance.selectedSkin).engine;
-    for (var i = 1; i < _count; i++) {
-      final f = 1 - i / _n;
-      _paint
-        ..strokeWidth = 7 * f + 1
-        ..color = c.withValues(alpha: 0.5 * f * f);
-      canvas.drawLine(Offset(_xs[i - 1], _ys[i - 1]), Offset(_xs[i], _ys[i]), _paint);
-    }
+    final spec = thrusterSpecFor(CoinManager.instance.selectedThruster);
+    final c = spec.color ?? shipPaletteFor(CoinManager.instance.selectedSkin).engine;
+    TrailArt.paint(canvas, _xs, _ys, math.min(_count, _n), _n, c, spec.trail, _t);
   }
 }
 
@@ -205,6 +203,7 @@ class Player extends PositionComponent
       shipPaletteFor(CoinManager.instance.selectedSkin),
       time: _damageTime,
       thrust: 0.35 + 0.65 * thrust,
+      engine: thrusterSpecFor(CoinManager.instance.selectedThruster).color,
     );
     final hpFraction = (currentHp / maxHp).clamp(0.0, 1.0);
     if (hpFraction < 0.75) _renderDamage(canvas, 0, 0, hpFraction);
@@ -216,7 +215,7 @@ class Player extends PositionComponent
       ShieldArt.paint(
         canvas,
         28,
-        shieldColorFor(CoinManager.instance.selectedShieldSkin),
+        shieldSpecFor(CoinManager.instance.selectedShieldSkin),
         strength: shieldHp / maxShieldHp,
         time: _damageTime,
         flash: _shieldFlashTimer > 0,

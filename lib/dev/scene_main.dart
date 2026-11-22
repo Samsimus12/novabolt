@@ -4,7 +4,9 @@
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
 // SCENE: menu | shop | waves | nova | flow | boss | levelup | bossreward | gameover | countdown
-// PHASE: 0-9, the visual/boss phase to start in (default 0)
+// PHASE: 0-9, the visual/boss phase to start in (default 0); for shop, the tab
+// Prefs dev_loadout (comma-separated ids to own + equip) and dev_focus (shop
+// item to focus) are optional.
 //
 // Uses only the game's public API; the player regenerates hull every frame
 // and the aim stick auto-tracks the nearest enemy so weapons keep firing.
@@ -19,6 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
 import '../coins/coin_manager.dart';
+import '../cosmetics/catalog.dart';
 import '../game/components/joystick.dart';
 import '../game/components/monster.dart';
 import '../game/components/monster_boss.dart';
@@ -69,9 +72,32 @@ void main() async {
   await CoinManager.instance.init();
   await AudioManager.instance.init();
   await StatsManager.instance.init();
+  // Optional loadout: comma-separated item ids to buy (dev coins) and equip,
+  // e.g. 'nebula,shield_corona,nova_helix,thruster_prism,boom_supernova'.
+  final loadout = prefs.getString('dev_loadout') ?? const String.fromEnvironment('LOADOUT');
+  if (loadout.isNotEmpty) {
+    final mgr = CoinManager.instance;
+    for (final id in loadout.split(',')) {
+      for (final kind in CosmeticKind.values) {
+        for (final item in catalogFor(kind)) {
+          if (item.id != id.trim()) continue;
+          if (!mgr.owns(item.ownId)) {
+            await mgr.addCoins(item.price);
+            await mgr.purchase(item.ownId, item.price);
+          }
+          await mgr.select(item);
+        }
+      }
+    }
+  }
   if (_scene == 'shop') {
     if (CoinManager.instance.totalCoins < 600) await CoinManager.instance.addCoins(640);
-    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: ShopScreen(initialTab: _phase)));
+    final focus = prefs.getString('dev_focus');
+    runApp(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: buildNovaboltTheme(),
+      home: ShopScreen(initialTab: _phase, initialFocus: focus),
+    ));
     return;
   }
   runApp(MaterialApp(

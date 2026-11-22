@@ -60,7 +60,20 @@ abstract class NovaAttack extends Component with HasGameReference<NovaboltGame> 
 
 // ── Dreadnought: Orbital Strike ─────────────────────────────────────────────
 /// Marks targets on screen and drops strikes on them in quick succession.
+///
+/// Each strike: a targeting reticle locks on (showing the blast radius), a
+/// tracking laser drops from orbit, then a white-hot column slams down with a
+/// flash, a double shockwave, sparks and a glowing crater. Opening the attack
+/// sweeps a scan line down the screen. Timing and damage are unchanged:
+/// the hit lands [_lock] seconds after the mark.
 class OrbitalStrikeNova extends NovaAttack {
+  static const _lock = 0.35;
+  static const _radius = 70.0;
+  static const _life = 1.25; // visuals only; damage is applied once at _lock
+  static const _gold = Color(0xFFFFDD00);
+  static const _amber = Color(0xFFFF9A1F);
+  static const _hot = Color(0xFFFFF6C8);
+
   final _rng = math.Random();
   double _next = 0;
   final _strikes = <_Strike>[];
@@ -74,49 +87,208 @@ class OrbitalStrikeNova extends NovaAttack {
       final at = targets.isEmpty
           ? game.player.position + Vector2((_rng.nextDouble() - 0.5) * 300, (_rng.nextDouble() - 0.5) * 300)
           : targets[_rng.nextInt(targets.length)].position.clone();
-      _strikes.add(_Strike(at));
+      _strikes.add(_Strike(at, _rng));
     }
     for (final s in _strikes) {
       s.t += dt;
-      if (!s.hit && s.t >= 0.35) {
+      if (!s.hit && s.t >= _lock) {
         s.hit = true;
-        damageInRadius(s.at, 70, Balance.orbitalStrikeDamage * novaMult);
-        game.shake(0.12);
+        damageInRadius(s.at, _radius, Balance.orbitalStrikeDamage * novaMult);
+        game.shake(0.2);
         SfxManager.instance.play(Sfx.explode, volume: 0.45);
       }
     }
-    _strikes.removeWhere((s) => s.t > 0.7);
+    _strikes.removeWhere((s) => s.t > _life);
   }
 
-  static final _ring = Paint()..style = PaintingStyle.stroke;
+  static final _stroke = Paint()
+    ..style = PaintingStyle.stroke
+    ..blendMode = BlendMode.plus
+    ..strokeCap = StrokeCap.round;
+  static final _fill = Paint()..blendMode = BlendMode.plus;
+
+  static double _easeOut(double x) => 1 - math.pow(1 - x.clamp(0.0, 1.0), 3).toDouble();
 
   @override
   void render(Canvas canvas) {
+    final w = game.size.x;
+    final h = game.size.y;
+    final f = game.superchargeSystem.fraction;
+    final presence = math.min(1.0, t / 0.3) * math.min(1.0, f / 0.08);
+
+    // Light from orbit: a warm wash falling from the top edge while active.
+    if (presence > 0) {
+      _fill.shader = Gradient.linear(Offset.zero, Offset(0, h * 0.35), [
+        _gold.withValues(alpha: 0.13 * presence * (0.85 + 0.15 * math.sin(t * 9))),
+        _gold.withValues(alpha: 0),
+      ]);
+      canvas.drawRect(Rect.fromLTWH(0, 0, w, h * 0.35), _fill);
+      _fill.shader = null;
+    }
+
+    // Opening scan: a line sweeps down the screen as the satellite acquires.
+    if (t < 0.6) {
+      final p = t / 0.6;
+      final y = h * _easeOut(p);
+      final a = 1 - p * p;
+      Glow.drawOval(canvas, Rect.fromCenter(center: Offset(w / 2, y), width: w * 1.4, height: 70), _gold.withValues(alpha: 0.35 * a));
+      _stroke
+        ..strokeWidth = 2
+        ..color = _hot.withValues(alpha: 0.9 * a);
+      canvas.drawLine(Offset(0, y), Offset(w, y), _stroke);
+    }
+
     for (final s in _strikes) {
       final c = Offset(s.at.x, s.at.y);
-      if (s.t < 0.35) {
-        final p = s.t / 0.35;
-        _ring
-          ..strokeWidth = 1.5
-          ..color = const Color(0xFFFFDD00).withValues(alpha: 0.9);
-        canvas.drawCircle(c, 70 * (1 - p) + 8, _ring);
-        canvas.drawLine(c - const Offset(10, 0), c + const Offset(10, 0), _ring);
-        canvas.drawLine(c - const Offset(0, 10), c + const Offset(0, 10), _ring);
+      if (s.t < _lock) {
+        _renderLock(canvas, c, s.t / _lock, s);
       } else {
-        final p = (s.t - 0.35) / 0.35;
-        Glow.draw(canvas, c, 80 * (0.6 + 0.6 * p), const Color(0xFFFFDD00).withValues(alpha: 0.9 * (1 - p)), hot: true);
-        // The beam from orbit.
-        Glow.drawOval(canvas, Rect.fromCenter(center: c - Offset(0, 300 * (1 - p)), width: 14, height: 600), const Color(0xFFFFF3A0).withValues(alpha: 0.7 * (1 - p)));
+        _renderImpact(canvas, c, s.t - _lock, s);
       }
     }
+  }
+
+  void _renderLock(Canvas canvas, Offset c, double p, _Strike s) {
+    final a = math.min(1.0, p * 3);
+    // Ground glow builds under the target.
+    Glow.draw(canvas, c, _radius * (0.4 + 0.6 * p), _gold.withValues(alpha: 0.28 * p));
+
+    // Blast-radius ring: dashed, spinning, settling onto the real radius.
+    final r = _radius * (1.5 - 0.5 * _easeOut(p));
+    _stroke
+      ..strokeWidth = 1.6
+      ..color = _gold.withValues(alpha: 0.85 * a);
+    const dashes = 18;
+    final spin = s.spin + p * 2.4;
+    final rect = Rect.fromCircle(center: c, radius: r);
+    for (var i = 0; i < dashes; i++) {
+      canvas.drawArc(rect, spin + i * math.pi * 2 / dashes, math.pi / dashes, false, _stroke);
+    }
+
+    // Corner brackets close in and rotate to square as the lock completes.
+    final b = 26 + 30 * (1 - _easeOut(p));
+    final rot = (1 - _easeOut(p)) * math.pi / 2;
+    _stroke
+      ..strokeWidth = 2.4
+      ..color = (p > 0.8 ? _hot : _gold).withValues(alpha: a);
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(rot);
+    for (var k = 0; k < 4; k++) {
+      canvas.rotate(math.pi / 2);
+      canvas.drawLine(Offset(b, b), Offset(b - 11, b), _stroke);
+      canvas.drawLine(Offset(b, b), Offset(b, b - 11), _stroke);
+    }
+    canvas.restore();
+
+    // Centre pip blinks faster as it locks.
+    if (math.sin(p * p * 60) > -0.3) {
+      Glow.draw(canvas, c, 10, _hot.withValues(alpha: 0.9 * a), hot: true);
+    }
+
+    // Tracking laser from orbit: thin and flickering, then the column drops.
+    final flick = 0.35 + 0.3 * math.sin(s.t * 70);
+    _stroke
+      ..strokeWidth = 1
+      ..color = _gold.withValues(alpha: flick * a);
+    canvas.drawLine(Offset(c.dx, 0), c, _stroke);
+    const drop = 0.22; // last 22% of the lock
+    if (p > 1 - drop) {
+      final q = (p - (1 - drop)) / drop;
+      final tip = c.dy * q * q;
+      _column(canvas, c.dx, tip, 9, 0.9);
+      Glow.draw(canvas, Offset(c.dx, tip), 26, _hot.withValues(alpha: 0.9), hot: true);
+    }
+  }
+
+  void _renderImpact(Canvas canvas, Offset c, double q, _Strike s) {
+    // Column from orbit, slamming wide then pinching out.
+    if (q < 0.34) {
+      final k = q / 0.34;
+      final cw = 40 * math.pow(1 - k, 0.7).toDouble() + 2;
+      _column(canvas, c.dx, c.dy, cw, 1 - k * 0.6);
+    }
+
+    // Impact flash: white-hot core, gold bloom.
+    if (q < 0.2) {
+      final k = q / 0.2;
+      Glow.draw(canvas, c, 150 * (0.7 + 0.3 * k), _hot.withValues(alpha: 1 - k), hot: true);
+    }
+    if (q < 0.6) {
+      final k = q / 0.6;
+      Glow.draw(canvas, c, 120 * (0.8 + 0.5 * k), _gold.withValues(alpha: 0.75 * (1 - k)));
+    }
+
+    // Double shockwave.
+    for (final (delay, width, reach) in const [(0.0, 9.0, 1.75), (0.07, 4.0, 1.35)]) {
+      final k = (q - delay) / 0.5;
+      if (k <= 0 || k >= 1) continue;
+      final r = _radius * reach * _easeOut(k);
+      _stroke
+        ..strokeWidth = width * (1 - k) + 1
+        ..color = Color.lerp(_hot, _amber, k)!.withValues(alpha: 1 - k);
+      canvas.drawCircle(c, r, _stroke);
+    }
+
+    // Sparks thrown out of the blast.
+    if (q < 0.55) {
+      final k = q / 0.55;
+      final travel = _easeOut(k);
+      _stroke.strokeWidth = 2.2 * (1 - k) + 0.6;
+      for (final sp in s.sparks) {
+        final d = Offset(math.cos(sp.angle), math.sin(sp.angle));
+        final far = sp.reach * travel;
+        _stroke.color = Color.lerp(_hot, _amber, k)!.withValues(alpha: 1 - k);
+        canvas.drawLine(c + d * (far * 0.62 + 8), c + d * (far + 8), _stroke);
+      }
+    }
+
+    // Crater: a molten ring and embers cooling after the hit.
+    final cool = (q / (_life - _lock)).clamp(0.0, 1.0);
+    final heat = 1 - cool;
+    if (heat > 0) {
+      Glow.draw(canvas, c, 44, _amber.withValues(alpha: 0.45 * heat * heat));
+      _stroke
+        ..strokeWidth = 2.5 * heat
+        ..color = _amber.withValues(alpha: 0.7 * heat);
+      canvas.drawCircle(c, _radius * 0.42, _stroke);
+      for (final e in s.embers) {
+        final p = c + Offset(math.cos(e.angle), math.sin(e.angle)) * e.dist;
+        Glow.draw(canvas, p, 6 + 4 * heat, _amber.withValues(alpha: 0.9 * heat), hot: true);
+      }
+    }
+  }
+
+  /// Vertical energy column from the top of the screen down to [bottom].
+  void _column(Canvas canvas, double x, double bottom, double halfW, double alpha) {
+    if (bottom <= 0) return;
+    _fill.shader = Gradient.linear(Offset(x - halfW * 2.2, 0), Offset(x + halfW * 2.2, 0), [
+      _gold.withValues(alpha: 0),
+      _gold.withValues(alpha: 0.45 * alpha),
+      _hot.withValues(alpha: alpha),
+      _gold.withValues(alpha: 0.45 * alpha),
+      _gold.withValues(alpha: 0),
+    ], const [0, 0.3, 0.5, 0.7, 1]);
+    canvas.drawRect(Rect.fromLTRB(x - halfW * 2.2, 0, x + halfW * 2.2, bottom), _fill);
+    _fill.shader = null;
+    _fill.color = const Color(0xFFFFFFFF).withValues(alpha: alpha);
+    canvas.drawRect(Rect.fromLTRB(x - halfW * 0.28, 0, x + halfW * 0.28, bottom), _fill);
+    _fill.color = const Color(0xFFFFFFFF);
   }
 }
 
 class _Strike {
   final Vector2 at;
+  final double spin;
+  final List<({double angle, double reach})> sparks;
+  final List<({double angle, double dist})> embers;
   double t = 0;
   bool hit = false;
-  _Strike(this.at);
+
+  _Strike(this.at, math.Random rng)
+      : spin = rng.nextDouble() * math.pi * 2,
+        sparks = List.generate(16, (_) => (angle: rng.nextDouble() * math.pi * 2, reach: 70 + rng.nextDouble() * 110)),
+        embers = List.generate(7, (_) => (angle: rng.nextDouble() * math.pi * 2, dist: 10 + rng.nextDouble() * 34));
 }
 
 // ── Void Tyrant: Void Pulse (gravity well) ──────────────────────────────────

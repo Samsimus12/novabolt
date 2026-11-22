@@ -1,14 +1,18 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flame/components.dart';
+
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
 import '../fx/glow.dart';
+import 'hazards.dart';
 import 'monster_boss.dart';
+import 'monster_speeder.dart';
 
 class MonsterBossDreadnought extends BossMonster {
   MonsterBossDreadnought({required super.position, super.playerLevel})
-      : super(stats: bossStats.scaled(playerLevel));
+      : super(stats: bossStats.scaledBoss(playerLevel));
 
   @override
   String get displayName => 'DREADNOUGHT';
@@ -34,6 +38,73 @@ class MonsterBossDreadnought extends BossMonster {
 
   @override
   Color get specialColor => const Color(0xFFFFDD00);
+
+  // ── Stages ──────────────────────────────────────────────────────────────
+  // 1: hovers in the top third, strafing side to side (it no longer rams).
+  // 2: launches squadrons of drones.
+  // 3 (enraged): sweeping wing lasers on top of everything else.
+  @override
+  List<double> get stageThresholds => const [0.66, 0.33];
+
+  double _strafeT = 0;
+  double _droneTimer = 0;
+  double _laserTimer = 0;
+
+  @override
+  void updateMovement(double dt) {
+    _strafeT += dt * (stage >= 2 ? 0.95 : 0.6) * slowFactor;
+    final w = game.size.x;
+    final target = Vector2(
+      w / 2 + math.sin(_strafeT) * w * 0.32,
+      game.size.y * (stage >= 2 ? 0.27 : 0.2) + math.sin(_strafeT * 2.3) * 14,
+    );
+    position += (target - position) * math.min(1.0, dt * 1.8 * slowFactor);
+  }
+
+  @override
+  void onStageChange(int newStage) {
+    if (newStage == 1) _droneTimer = 0.4;
+    if (newStage == 2) _laserTimer = 0.6;
+  }
+
+  @override
+  void updateStage(double dt) {
+    if (stage >= 1) {
+      _droneTimer -= dt;
+      if (_droneTimer <= 0) {
+        _droneTimer = stage >= 2 ? 8 : 6;
+        if (minionCount < 6) {
+          for (var i = -1; i <= 1; i++) {
+            spawnMinion(MonsterSpeeder(
+              position: position + Vector2(i * 36.0, 30),
+              playerLevel: playerLevel,
+            ));
+          }
+        }
+      }
+    }
+    if (stage >= 2) {
+      _laserTimer -= dt;
+      if (_laserTimer <= 0) {
+        _laserTimer = 4.6;
+        final to = game.player.position - position;
+        final a = math.atan2(to.y, to.x);
+        for (final side in const [-1.0, 1.0]) {
+          game.world.add(HazardBeam(
+            origin: position.clone(),
+            anchor: this,
+            angle: a + side * 0.34,
+            sweep: -side * 0.32,
+            damage: projectileDamage * 1.2,
+            width: 13,
+            warn: 1.0,
+            active: 0.8,
+            color: specialColor,
+          ));
+        }
+      }
+    }
+  }
 
   @override
   void onDie() {

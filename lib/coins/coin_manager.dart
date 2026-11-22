@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../cosmetics/catalog.dart';
+
 class CoinManager {
   CoinManager._();
   static final instance = CoinManager._();
@@ -7,24 +9,37 @@ class CoinManager {
   int _totalCoins = 0;
   int get totalCoins => _totalCoins;
 
-  String _selectedSkin = 'default';
-  String get selectedSkin => _selectedSkin;
+  // Pref keys are unchanged from v1.0 so existing purchases carry over.
+  static const _selectedKeys = {
+    CosmeticKind.ship: 'skin_selected',
+    CosmeticKind.shield: 'shield_skin_selected',
+    CosmeticKind.beam: 'nova_theme_selected',
+    CosmeticKind.thruster: 'thruster_selected',
+    CosmeticKind.explosion: 'explosion_selected',
+  };
 
-  String _selectedShieldSkin = 'shield_default';
-  String get selectedShieldSkin => _selectedShieldSkin;
+  final Map<CosmeticKind, String> _selected = {
+    for (final k in CosmeticKind.values) k: defaultIdFor(k),
+  };
 
-  String _selectedNovaTheme = 'nova_default';
-  String get selectedNovaTheme => _selectedNovaTheme;
+  String selected(CosmeticKind kind) => _selected[kind]!;
+  String get selectedSkin => selected(CosmeticKind.ship);
+  String get selectedShieldSkin => selected(CosmeticKind.shield);
+  String get selectedNovaTheme => selected(CosmeticKind.beam);
+  String get selectedThruster => selected(CosmeticKind.thruster);
+  String get selectedExplosion => selected(CosmeticKind.explosion);
 
-  final Set<String> _owned = {'skin_default', 'shield_default', 'nova_default'};
+  final Set<String> _owned = {
+    for (final k in CosmeticKind.values) catalogFor(k).first.ownId,
+  };
   bool owns(String id) => _owned.contains(id);
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _totalCoins = prefs.getInt('coins_total') ?? 0;
-    _selectedSkin = prefs.getString('skin_selected') ?? 'default';
-    _selectedShieldSkin = prefs.getString('shield_skin_selected') ?? 'shield_default';
-    _selectedNovaTheme = prefs.getString('nova_theme_selected') ?? 'nova_default';
+    for (final k in CosmeticKind.values) {
+      _selected[k] = prefs.getString(_selectedKeys[k]!) ?? defaultIdFor(k);
+    }
     final saved = prefs.getStringList('items_owned') ?? [];
     _owned.addAll(saved);
   }
@@ -33,6 +48,15 @@ class CoinManager {
     _totalCoins += amount;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('coins_total', _totalCoins);
+  }
+
+  /// Spend coins on something that isn't an owned item (hangar upgrades).
+  Future<bool> spend(int amount) async {
+    if (amount <= 0 || _totalCoins < amount) return false;
+    _totalCoins -= amount;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('coins_total', _totalCoins);
+    return true;
   }
 
   Future<bool> purchase(String id, int price) async {
@@ -45,24 +69,17 @@ class CoinManager {
     return true;
   }
 
-  Future<void> selectSkin(String skinId) async {
-    if (!_owned.contains('skin_$skinId')) return;
-    _selectedSkin = skinId;
+  /// Equip an owned item. [item] must come from the catalogue.
+  Future<void> select(Cosmetic item) async {
+    if (!_owned.contains(item.ownId)) return;
+    _selected[item.kind] = item.id;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('skin_selected', skinId);
+    await prefs.setString(_selectedKeys[item.kind]!, item.id);
   }
 
-  Future<void> selectShieldSkin(String id) async {
-    if (!_owned.contains(id)) return;
-    _selectedShieldSkin = id;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('shield_skin_selected', id);
-  }
+  Future<void> selectSkin(String skinId) => select(findCosmetic(CosmeticKind.ship, skinId));
 
-  Future<void> selectNovaTheme(String id) async {
-    if (!_owned.contains(id)) return;
-    _selectedNovaTheme = id;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('nova_theme_selected', id);
-  }
+  Future<void> selectShieldSkin(String id) => select(findCosmetic(CosmeticKind.shield, id));
+
+  Future<void> selectNovaTheme(String id) => select(findCosmetic(CosmeticKind.beam, id));
 }

@@ -31,9 +31,9 @@ class MonsterCaster extends Monster {
     final dist = dir.length;
     if (dist < 1) return;
     if (dist > _preferredRange) {
-      position += dir.normalized() * stats.speed * slowFactor * dt;
+      position += dir.normalized() * moveSpeed * slowFactor * game.enemySpeedMultiplier * dt;
     } else if (dist < _retreatRange) {
-      position -= dir.normalized() * stats.speed * slowFactor * dt;
+      position -= dir.normalized() * moveSpeed * slowFactor * game.enemySpeedMultiplier * dt;
     }
   }
 

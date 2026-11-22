@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../audio/sfx.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
 
@@ -23,7 +23,7 @@ class _CountdownOverlayState extends State<CountdownOverlay> {
   @override
   void initState() {
     super.initState();
-    HapticFeedback.lightImpact();
+    SfxManager.instance.light();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -34,7 +34,7 @@ class _CountdownOverlayState extends State<CountdownOverlay> {
         widget.game.overlays.remove('Countdown');
         widget.game.resumeEngine();
       } else {
-        HapticFeedback.lightImpact();
+        SfxManager.instance.light();
         setState(() => _count--);
       }
     });

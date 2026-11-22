@@ -7,11 +7,12 @@ import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
 import '../fx/glow.dart';
 import 'boss_projectile.dart';
+import 'hazards.dart';
 import 'monster_boss.dart';
 
 class MonsterBossLeviathan extends BossMonster {
   MonsterBossLeviathan({required super.position, super.playerLevel})
-      : super(stats: leviathanStats.scaled(playerLevel));
+      : super(stats: leviathanStats.scaledBoss(playerLevel));
 
   @override
   String get displayName => 'NEBULA LEVIATHAN';
@@ -54,6 +55,130 @@ class MonsterBossLeviathan extends BossMonster {
       ));
     }
   }
+
+  // ── Stages ──────────────────────────────────────────────────────────────
+  // 1: dives across the arena along a telegraphed lane, side to side.
+  // 2: drops slow mines while it dives.
+  // 3 (enraged): every other pass it surfaces mid-arena as a whirlpool that
+  //    drags you in while it sprays a spiral.
+  @override
+  List<double> get stageThresholds => const [0.66, 0.33];
+
+  final _rng = math.Random();
+  int _dir = 1;
+  double _laneY = 0;
+  bool _diving = false;
+  bool _started = false;
+  double _wait = 0;
+  int _passes = 0;
+  double _mineTimer = 0;
+  double _whirl = 0;
+  double _spiralAngle = 0;
+  double _spiralTimer = 0;
+
+  void _telegraphNextPass() {
+    final h = game.size.y;
+    _dir = _rng.nextBool() ? 1 : -1;
+    _laneY = h * (0.25 + _rng.nextDouble() * 0.5);
+    _wait = 0.75;
+    _diving = false;
+    position.setValues(_dir > 0 ? -95 : game.size.x + 95, _laneY);
+    game.world.add(HazardBeam(
+      origin: Vector2(_dir > 0 ? 0 : game.size.x, _laneY),
+      angle: _dir > 0 ? 0 : math.pi,
+      damage: 0,
+      warn: _wait,
+      active: 0,
+      color: specialColor,
+    ));
+  }
+
+  @override
+  void updateMovement(double dt) {
+    final w = game.size.x, h = game.size.y;
+    if (!_started) {
+      _started = true;
+      _telegraphNextPass();
+      return;
+    }
+    if (_whirl > 0) {
+      final c = Vector2(w / 2, h * 0.4);
+      position += (c - position) * math.min(1.0, dt * 2.5);
+      return;
+    }
+    if (_wait > 0) {
+      _wait -= dt;
+      if (_wait <= 0) _diving = true;
+      return;
+    }
+    if (_diving) {
+      final speed = (230 + 40 * stage) * slowFactor;
+      position.x += _dir * speed * dt;
+      position.y = _laneY + math.sin(position.x * 0.012) * 40;
+      if ((_dir > 0 && position.x > w + 95) || (_dir < 0 && position.x < -95)) {
+        _passes++;
+        if (stage >= 2 && _passes.isOdd) {
+          _whirl = 4.0;
+          position.setValues(w / 2, -90);
+        } else {
+          _telegraphNextPass();
+        }
+      }
+    }
+  }
+
+  @override
+  void updateStage(double dt) {
+    if (stage >= 1 && _diving && _whirl <= 0) {
+      _mineTimer -= dt;
+      if (_mineTimer <= 0) {
+        _mineTimer = 0.32;
+        game.world.add(BossProjectile(
+          position: position.clone(),
+          direction: Vector2(0, 1),
+          damage: projectileDamage,
+          speed: 22,
+          size: 20,
+          color: const Color(0xFF66F0FF),
+        ));
+      }
+    }
+    if (_whirl > 0) {
+      _whirl -= dt;
+      // Drag the ship toward the vortex — but only down to a ring well
+      // outside the spiral's muzzle, and weaker than the ship's own thrust,
+      // so it can always be out-flown.
+      final pl = game.player;
+      final to = position - pl.position;
+      final d = to.length;
+      if (d > 165) {
+        pl.position += to / d * 55 * dt;
+        final r = pl.size.x / 2;
+        pl.position.x = pl.position.x.clamp(r, w0 - r);
+        pl.position.y = pl.position.y.clamp(r, h0 - r);
+      }
+      _spiralTimer -= dt;
+      if (_spiralTimer <= 0) {
+        _spiralTimer = 0.11;
+        _spiralAngle += 0.38;
+        for (final off in const [0.0, math.pi]) {
+          final a = _spiralAngle + off;
+          final dir = Vector2(math.cos(a), math.sin(a));
+          game.world.add(BossProjectile(
+            position: position + dir * (size.x * 0.45),
+            direction: dir,
+            damage: projectileDamage * 0.8,
+            speed: 190,
+            color: specialColor,
+          ));
+        }
+      }
+      if (_whirl <= 0) _telegraphNextPass();
+    }
+  }
+
+  double get w0 => game.size.x;
+  double get h0 => game.size.y;
 
   @override
   void onDie() {

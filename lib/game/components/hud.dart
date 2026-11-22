@@ -8,8 +8,10 @@ import 'package:flutter/widgets.dart'
 import '../../ui/theme/tokens.dart';
 import '../../ui/theme/type.dart';
 import '../fx/glow.dart';
+import '../../stats/run_log.dart';
 import '../novabolt_game.dart';
 import '../systems/supercharge_system.dart';
+import '../systems/wave_events.dart';
 
 /// In-game heads-up display.
 ///
@@ -105,6 +107,7 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
       _xp = 0;
     }
     _xp = _approach(_xp, game.xpSystem.xpFraction, 4, dt);
+    if (RunLog.instance.overlayEnabled) _updateStatLines(dt);
 
     final boss = game.activeBoss;
     if (boss != _lastBoss) {
@@ -142,6 +145,7 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
     final w = game.size.x;
     final h = game.size.y;
     _renderVignette(canvas, w, h);
+    if (game.overdriveActive) _renderOverdriveEdges(canvas, w, h);
 
     final top = _safeTop + 10;
     const badgeR = 21.0;
@@ -155,8 +159,169 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
     _renderHull(canvas, barL, top + 7, barW);
     _renderNova(canvas, barL, top + 23, barW);
 
+    if (game.overdriveActive) {
+      _renderOverdrive(canvas, barR, top + 40);
+    } else if (game.combo >= 3) {
+      _renderCombo(canvas, barR, top + 40);
+    }
+    final ev = WaveEvents.instance;
+    if (ev != null && ev.active != null && _bossIn <= 0) _renderEvent(canvas, barR, top + 64, ev);
     if (_bossIn > 0) _renderBoss(canvas, w, top + 62);
     if (_banner < 2.6) _renderBanner(canvas, w, h);
+    if (game.announcement != null && game.announcementAge < 1.8) _renderAnnouncement(canvas, w, h);
+    if (RunLog.instance.overlayEnabled) _renderCombatStats(canvas, top + (_bossIn > 0 ? 100 : 62));
+  }
+
+  // ── Combat stats (balance overlay, Settings → Combat stats) ───────────────
+  // Text is rebuilt 4x a second, not every frame, to keep the cache quiet.
+  double _statsT = 1;
+  List<String> _statLines = const [];
+
+  void _updateStatLines(double dt) {
+    _statsT += dt;
+    if (_statsT < 0.25) return;
+    _statsT = 0;
+    final tr = game.tracker;
+    String clock(num s) => '${s ~/ 60}:${(s % 60).toInt().toString().padLeft(2, '0')}';
+    final t = game.playTimeSeconds;
+    _statLines = [
+      'DPS ${tr.dps.round()}',
+      if (tr.bossStartedAt != null) 'Boss fight ${clock(t - tr.bossStartedAt!)}',
+      if (tr.bossSeconds.isNotEmpty) 'Bosses ${tr.bossSeconds.map(clock).join(', ')}',
+      'Taken ${tr.damageTaken.round()} (${tr.hitsTaken} hits)',
+      'Run ${clock(t)}  ·  ×${game.outgoingMultiplierPreview.toStringAsFixed(2)} dmg',
+    ];
+  }
+
+  void _renderCombatStats(Canvas canvas, double y) {
+    var yy = y;
+    for (final line in _statLines) {
+      final tp = _tp(line, _smallStyle.copyWith(color: NbColors.ion.withValues(alpha: 0.85)));
+      tp.paint(canvas, Offset(16, yy));
+      yy += tp.height + 2;
+    }
+  }
+
+  static const _comboStyle = TextStyle(
+    fontFamily: NbFonts.display,
+    fontWeight: FontWeight.w700,
+    fontSize: 16,
+    color: NbColors.gold,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  final _comboLine = Paint()..strokeWidth = 2;
+
+  /// "×12 combo" right-aligned under the bars; its underline drains with the
+  /// combo window so you can see how long you have to keep the chain alive.
+  void _renderCombo(Canvas canvas, double right, double y) {
+    final c = game.combo;
+    final hot = c >= 25;
+    final col = hot ? NbColors.flare : NbColors.gold;
+    final num = _tp('×$c', _comboStyle.copyWith(color: col));
+    final lab = _tp('combo', _smallStyle.copyWith(color: col.withValues(alpha: 0.8)));
+    final x = right - num.width - 4 - lab.width;
+    num.paint(canvas, Offset(x, y));
+    lab.paint(canvas, Offset(x + num.width + 4, y + num.height - lab.height - 1));
+    final f = (game.comboTimer / NovaboltGame.comboWindow).clamp(0.0, 1.0);
+    final lw = num.width + 4 + lab.width;
+    _comboLine.color = col.withValues(alpha: 0.85);
+    canvas.drawLine(Offset(right - lw, y + num.height + 3), Offset(right - lw + lw * f, y + num.height + 3), _comboLine);
+  }
+
+  /// While Overdrive runs it replaces the combo line: "OVERDRIVE 6s", gold,
+  /// with a glow and an underline that drains over the 8 seconds.
+  void _renderOverdrive(Canvas canvas, double right, double y) {
+    final pulse = 0.5 + 0.5 * math.sin(game.playTimeSeconds * 10);
+    final col = Color.lerp(NbColors.gold, const Color(0xFFFFF1C2), pulse * 0.6)!;
+    final name = _tp('OVERDRIVE', _eventStyle.copyWith(color: col, fontSize: 15));
+    final c = _tp('${game.overdrive.ceil()}s', _smallStyle.copyWith(color: NbColors.gold.withValues(alpha: 0.9)));
+    final x = right - name.width - 6 - c.width;
+    Glow.draw(canvas, Offset(x + name.width / 2, y + name.height / 2), name.width * 0.65, NbColors.gold.withValues(alpha: 0.18 + 0.12 * pulse));
+    name.paint(canvas, Offset(x, y));
+    c.paint(canvas, Offset(x + name.width + 6, y + name.height - c.height - 1));
+    final lw = name.width + 6 + c.width;
+    _comboLine.color = NbColors.gold.withValues(alpha: 0.9);
+    canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * game.overdriveFraction, y + name.height + 3), _comboLine);
+  }
+
+  final _edgePaint = Paint();
+  final _edgeShaders = <int, List<Shader>>{};
+  Size _edgeSize = Size.zero;
+
+  /// A soft gold glow creeping in from all four edges while Overdrive runs;
+  /// it breathes, and fades over the last second. Shaders are cached per
+  /// screen size and 1 of 12 brightness steps (no per-frame layer).
+  void _renderOverdriveEdges(Canvas canvas, double w, double h) {
+    const d = 70.0;
+    if (_edgeSize != Size(w, h)) {
+      _edgeSize = Size(w, h);
+      _edgeShaders.clear();
+    }
+    final a = (0.65 + 0.35 * math.sin(game.playTimeSeconds * 5)) * math.min(1.0, game.overdrive);
+    final step = (a * 12).round().clamp(0, 12);
+    if (step == 0) return;
+    final shaders = _edgeShaders.putIfAbsent(step, () {
+      final on = const Color(0xFFFFC23D).withValues(alpha: 0.4 * step / 12);
+      const off = Color(0x00FFC23D);
+      return [
+        Gradient.linear(Offset.zero, const Offset(0, d), [on, off]),
+        Gradient.linear(Offset(0, h), Offset(0, h - d), [on, off]),
+        Gradient.linear(Offset.zero, const Offset(d, 0), [on, off]),
+        Gradient.linear(Offset(w, 0), Offset(w - d, 0), [on, off]),
+      ];
+    });
+    final rects = [Rect.fromLTWH(0, 0, w, d), Rect.fromLTWH(0, h - d, w, d), Rect.fromLTWH(0, 0, d, h), Rect.fromLTWH(w - d, 0, d, h)];
+    for (var i = 0; i < 4; i++) {
+      _edgePaint.shader = shaders[i];
+      canvas.drawRect(rects[i], _edgePaint);
+    }
+  }
+
+  static const _eventStyle = TextStyle(
+    fontFamily: NbFonts.display,
+    fontWeight: FontWeight.w700,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: NbColors.starlight,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// Active wave event under the combo: "Meteor storm  14s", right-aligned,
+  /// with a line that drains over the event. Seconds are whole numbers, so
+  /// the text cache sees one entry per second.
+  void _renderEvent(Canvas canvas, double right, double y, WaveEvents ev) {
+    final e = ev.active!;
+    final col = e.color;
+    final name = _tp(e.title, _eventStyle.copyWith(color: col));
+    final secs = _tp('${ev.remaining.ceil()}s', _smallStyle.copyWith(color: col.withValues(alpha: 0.85)));
+    final x = right - name.width - 6 - secs.width;
+    Glow.draw(canvas, Offset(x - 8, y + name.height / 2), 6, col.withValues(alpha: 0.9), hot: true);
+    name.paint(canvas, Offset(x, y));
+    secs.paint(canvas, Offset(x + name.width + 6, y + name.height - secs.height - 1));
+    final lw = name.width + 6 + secs.width;
+    _comboLine.color = col.withValues(alpha: 0.75);
+    canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * ev.fraction, y + name.height + 3), _comboLine);
+  }
+
+  static const _announceStyle = TextStyle(
+    fontFamily: NbFonts.display,
+    fontWeight: FontWeight.w700,
+    fontSize: 22,
+    letterSpacing: 2,
+    color: NbColors.starlight,
+  );
+
+  /// Short centre caption from game.announce(): rises in, holds, fades.
+  void _renderAnnouncement(Canvas canvas, double w, double h) {
+    final t = game.announcementAge;
+    final a = t < 0.2 ? t / 0.2 : (t > 1.3 ? (1 - (t - 1.3) / 0.5) : 1.0);
+    // Quantised so the text cache sees ~10 variants, not one per frame.
+    final alpha = (a.clamp(0.0, 1.0) * 10).round() / 10;
+    if (alpha <= 0.01) return;
+    final tp = _tp(game.announcement!, _announceStyle.copyWith(color: game.announcementColor.withValues(alpha: alpha)));
+    final y = h * 0.42 - 12 * (1 - Curves.easeOutCubic.transform((t / 0.3).clamp(0.0, 1.0)));
+    Glow.draw(canvas, Offset(w / 2, y + tp.height / 2), tp.width * 0.7, game.announcementColor.withValues(alpha: 0.18 * alpha));
+    tp.paint(canvas, Offset(w / 2 - tp.width / 2, y));
   }
 
   static const _bannerName = TextStyle(
@@ -395,6 +560,23 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
         ..color = NbColors.flare.withValues(alpha: 0.5 * a),
     );
     if (fw > 2) Glow.draw(canvas, Offset(x + fw, by + h / 2), 14, NbColors.flare.withValues(alpha: 0.9 * a));
+    // Stage markers: a notch at each threshold; lit until it's been passed.
+    if (boss != null && boss.stageThresholds.isNotEmpty) {
+      for (var i = 0; i < boss.stageThresholds.length; i++) {
+        final tx = x + w * boss.stageThresholds[i];
+        final passed = boss.stage > i;
+        final col = passed ? NbColors.dim : NbColors.gold;
+        final notch = Path()
+          ..moveTo(tx, by - 1)
+          ..lineTo(tx - 4, by - 7)
+          ..lineTo(tx + 4, by - 7)
+          ..close();
+        canvas.drawPath(notch, Paint()..color = col.withValues(alpha: a));
+        canvas.drawRect(Rect.fromLTWH(tx - 0.75, by, 1.5, h), Paint()..color = col.withValues(alpha: 0.9 * a));
+      }
+      final st = _tp('stage ${boss.stage + 1}/${boss.stageCount}', _smallStyle.copyWith(color: NbColors.gold.withValues(alpha: a)));
+      st.paint(canvas, Offset(x + name.width + 8, y + 1));
+    }
     canvas.restore();
   }
 }

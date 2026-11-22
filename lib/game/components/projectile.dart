@@ -1,6 +1,7 @@
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../data/relics.dart';
 import '../novabolt_game.dart';
 import 'monster.dart';
 
@@ -10,6 +11,9 @@ class Projectile extends PositionComponent
   final double speed;
   final double damage;
   double lifetime = 0;
+
+  /// Ion Lance evolution: enemies this shot can pass through.
+  int pierce = 0;
 
   Projectile({
     required super.position,
@@ -51,8 +55,39 @@ class Projectile extends PositionComponent
   /// monsters; hostile subclasses override this to hit the player instead.
   void onHit(PositionComponent other) {
     if (other is Monster) {
+      if (other == _lastHit) return;
       other.takeDamage(damage);
+      if (pierce > 0) {
+        pierce--;
+        _lastHit = other;
+        return;
+      }
+      if (_tryRicochet(other)) return;
       removeFromParent();
     }
+  }
+
+  Monster? _lastHit;
+  bool _bounced = false;
+
+  /// Ricochet relic: redirect toward the nearest other enemy, once.
+  bool _tryRicochet(Monster from) {
+    if (_bounced || !game.relics.contains(Relic.ricochet)) return false;
+    Monster? best;
+    var bestD = 240.0;
+    for (final m in game.world.children.whereType<Monster>()) {
+      if (m == from || m.isDead) continue;
+      final d = m.position.distanceTo(position);
+      if (d < bestD) {
+        bestD = d;
+        best = m;
+      }
+    }
+    if (best == null) return false;
+    _bounced = true;
+    _lastHit = from;
+    direction.setFrom((best.position - position)..normalize());
+    lifetime = 0;
+    return true;
   }
 }

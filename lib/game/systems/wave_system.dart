@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 
+import '../components/monster.dart';
 import '../components/monster_boss.dart';
 import '../components/monster_boss_blood_colossus.dart';
 import '../components/monster_boss_cosmic_behemoth.dart';
@@ -17,17 +18,37 @@ import '../components/monster_caster.dart';
 import '../components/monster_grunt.dart';
 import '../components/monster_speeder.dart';
 import '../components/monster_tank.dart';
+import '../data/elite_balance.dart';
 import '../novabolt_game.dart';
+import 'wave_events.dart';
 
 class WaveSystem extends Component with HasGameReference<NovaboltGame> {
   double _timer = 0;
   double _tankTimer = 0;
   bool _isBossFight = false;
-  int _bossKillLevel = 0;
+  /// Level at the last boss kill (wave difficulty restarts from it). Saved
+  /// and restored with a run.
+  int bossKillLevel = 0;
   final _rng = math.Random();
 
+  /// Wave events (meteor storm, gold rush, swarm, blackout) and this run's
+  /// elite / gold-rush tallies. Added to the world next to this system.
+  final WaveEvents events = WaveEvents();
+
+  /// Last level seen, to notice level-ups (-1 = not yet read).
+  int _lastLevel = -1;
+
+  // Test builds only: --dart-define=ELITES=true makes half of all spawns elite.
+  static const _forceElites = bool.fromEnvironment('ELITES');
+
+  @override
+  void onMount() {
+    super.onMount();
+    if (events.parent == null) parent?.add(events);
+  }
+
   // Levels elapsed since the last boss kill (or game start).
-  int get _waveLevel => game.xpSystem.currentLevel - _bossKillLevel;
+  int get _waveLevel => game.xpSystem.currentLevel - bossKillLevel;
 
   double get _spawnInterval {
     final wl = _waveLevel;
@@ -49,10 +70,12 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
   @override
   void update(double dt) {
     super.update(dt);
+    _trackLevel();
     if (_isBossFight) return;
 
     _timer += dt;
-    if (_timer >= _spawnInterval) {
+    final swarm = events.isSwarm ? WaveEventBalance.swarmIntervalScale : 1.0;
+    if (_timer >= _spawnInterval * game.spawnIntervalMultiplier * swarm) {
       _timer = 0;
       _spawnRegular();
     }
@@ -62,28 +85,65 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
       _tankTimer += dt;
       if (_tankTimer >= tankInterval) {
         _tankTimer = 0;
-        _spawnAt(MonsterTank(
+        _spawnAt(_maybeElite(MonsterTank(
           position: _randomEdgePosition(),
           playerLevel: _effectiveLevel,
-        ));
+        )));
       }
     }
   }
 
   int get _effectiveLevel => game.xpSystem.currentLevel + game.bossPhase * 8;
 
+  /// Notices level-ups (they happen inside game.onMonsterKilled) and hands
+  /// them to [events]. Several levels at once are each checked.
+  void _trackLevel() {
+    final lvl = game.xpSystem.currentLevel;
+    // First frame, restart, or a saved run being restored (a jump of many
+    // levels at once): just sync, it isn't a level-up.
+    if (_lastLevel < 0 || lvl < _lastLevel || lvl - _lastLevel > 3) {
+      _lastLevel = lvl;
+      return;
+    }
+    if (lvl == _lastLevel) return;
+    for (var l = _lastLevel + 1; l <= lvl; l++) {
+      if (_isBossFight) break;
+      events.onLevelUp(l - bossKillLevel, isBossLevel: l % 10 == 0);
+    }
+    _lastLevel = lvl;
+  }
+
   void _spawnRegular() {
     final wl = _waveLevel;
     final eff = _effectiveLevel;
     final pos = _randomEdgePosition();
     final roll = _rng.nextDouble();
-    if (wl >= 7 && roll < 0.15) {
-      _spawnAt(MonsterCaster(position: pos, playerLevel: eff));
-    } else if (wl >= 3 && roll < (wl >= 7 ? 0.50 : 0.35)) {
-      _spawnAt(MonsterSpeeder(position: pos, playerLevel: eff));
-    } else {
-      _spawnAt(MonsterGrunt(position: pos, playerLevel: eff));
+    if (events.isSwarm) {
+      // Swarm: fast spawns, light enemies only, no elites.
+      _spawnAt(roll < WaveEventBalance.swarmSpeederShare
+          ? MonsterSpeeder(position: pos, playerLevel: eff)
+          : MonsterGrunt(position: pos, playerLevel: eff));
+      return;
     }
+    if (wl >= 7 && roll < 0.15) {
+      _spawnAt(_maybeElite(MonsterCaster(position: pos, playerLevel: eff)));
+    } else if (wl >= 3 && roll < (wl >= 7 ? 0.50 : 0.35)) {
+      _spawnAt(_maybeElite(MonsterSpeeder(position: pos, playerLevel: eff)));
+    } else {
+      _spawnAt(_maybeElite(MonsterGrunt(position: pos, playerLevel: eff)));
+    }
+  }
+
+  /// Rolls the elite chance for a fresh wave spawn (never bosses/minions).
+  Monster _maybeElite(Monster m) {
+    if (_isBossFight || _waveLevel < EliteBalance.minWaveLevel) return m;
+    final chance = _forceElites
+        ? 0.5
+        : math.min(EliteBalance.maxChance, EliteBalance.baseChance + EliteBalance.chancePerLevel * _effectiveLevel);
+    if (_rng.nextDouble() < chance) {
+      m.makeElite(EliteMod.values[_rng.nextInt(EliteMod.values.length)]);
+    }
+    return m;
   }
 
   void _spawnAt(Component monster) {
@@ -108,6 +168,7 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     _isBossFight = true;
     _timer = 0;
     _tankTimer = 0;
+    events.clear();
     final spawnPos = Vector2(game.size.x / 2, -80);
     // Cycle through 10 unique bosses; bossPhase is the count already defeated.
     final BossMonster boss = switch (game.bossPhase % 10) {
@@ -130,13 +191,17 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     _isBossFight = false;
     _timer = 0;
     _tankTimer = 0;
-    _bossKillLevel = game.xpSystem.currentLevel;
+    bossKillLevel = game.xpSystem.currentLevel;
+    _lastLevel = game.xpSystem.currentLevel;
+    events.clear();
   }
 
   void reset() {
     _timer = 0;
     _tankTimer = 0;
     _isBossFight = false;
-    _bossKillLevel = 0;
+    bossKillLevel = 0;
+    _lastLevel = -1;
+    events.resetRun();
   }
 }

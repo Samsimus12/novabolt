@@ -20,8 +20,10 @@ class WeaponMagicBolt extends Weapon {
     game.world.add(MagicBolt(
       position: playerPos.clone(),
       direction: direction,
-      damage: damage,
-    ));
+      damage: shotDamage,
+      color: evolved ? const Color(0xFFB8F6FF) : const Color(0xFF00E5FF),
+      boltSize: evolved ? 13 : 10,
+    )..pierce = evolved ? 3 : 0);
   }
 }
 

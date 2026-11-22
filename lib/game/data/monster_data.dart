@@ -1,3 +1,5 @@
+import 'balance.dart';
+
 class MonsterStats {
   final double maxHp;
   final double speed;
@@ -32,9 +34,9 @@ class MonsterStats {
     final speedMult = (1.0 + (playerLevel - 1) * speedScaleRate).clamp(1.0, speedScaleCap);
     final damageMult = 1.0 + (playerLevel - 1) * damageScaleRate;
     return MonsterStats(
-      maxHp: maxHp * hpMult,
+      maxHp: maxHp * hpMult * Balance.enemyHpMultiplier,
       speed: speed * speedMult,
-      contactDamagePerSecond: contactDamagePerSecond * damageMult,
+      contactDamagePerSecond: contactDamagePerSecond * damageMult * Balance.enemyDamageMultiplier,
       size: size,
       xpValue: xpValue,
       chargeValue: chargeValue,
@@ -44,6 +46,25 @@ class MonsterStats {
       speedScaleRate: speedScaleRate,
       speedScaleCap: speedScaleCap,
       damageScaleRate: damageScaleRate,
+    );
+  }
+
+  /// [scaled] plus the global boss HP knob.
+  MonsterStats scaledBoss(int playerLevel) {
+    final s = scaled(playerLevel);
+    return MonsterStats(
+      maxHp: s.maxHp * Balance.bossHpMultiplier,
+      speed: s.speed,
+      contactDamagePerSecond: s.contactDamagePerSecond,
+      size: s.size,
+      xpValue: s.xpValue,
+      chargeValue: s.chargeValue,
+      shieldDropChance: s.shieldDropChance,
+      healthDropChance: s.healthDropChance,
+      hpScaleRate: s.hpScaleRate,
+      speedScaleRate: s.speedScaleRate,
+      speedScaleCap: s.speedScaleCap,
+      damageScaleRate: s.damageScaleRate,
     );
   }
 }

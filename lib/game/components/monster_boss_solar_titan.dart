@@ -7,11 +7,12 @@ import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
 import '../fx/glow.dart';
 import 'boss_projectile.dart';
+import 'hazards.dart';
 import 'monster_boss.dart';
 
 class MonsterBossSolarTitan extends BossMonster {
   MonsterBossSolarTitan({required super.position, super.playerLevel})
-      : super(stats: solarTitanStats.scaled(playerLevel));
+      : super(stats: solarTitanStats.scaledBoss(playerLevel));
 
   @override
   String get displayName => 'SOLAR TITAN';
@@ -42,6 +43,7 @@ class MonsterBossSolarTitan extends BossMonster {
 
   @override
   void fireSpecialAttack() {
+    if (_venting) return; // holds fire while venting
     // Two alternating rings: inner ring (12 shots) then outer ring (12 shots offset)
     // Inner ring
     for (int i = 0; i < 12; i++) {
@@ -67,6 +69,150 @@ class MonsterBossSolarTitan extends BossMonster {
         color: specialColor,
       ));
     }
+  }
+
+  // ── Stages ──────────────────────────────────────────────────────────────
+  // 1: every few seconds a two-arm rotating spiral burst on top of its rings.
+  // 2: solar flares — three beams 120° apart, telegraphed, then sweeping.
+  // 3 (enraged): vents. It overheats for a few seconds (holds fire, core
+  //    glows white-hot, takes double damage), then the vent ends in a
+  //    supernova ring with two gaps. Between vents it is armoured (0.75x).
+  @override
+  List<double> get stageThresholds => const [0.66, 0.33];
+
+  static const double _spiralEvery = 5.0; // s between spiral bursts
+  static const double _spiralLength = 1.6; // s a burst lasts
+  static const double _spiralShotGap = 0.12; // s between shots on each arm
+  static const double _spiralTurn = 0.3; // rad the arms turn per shot
+  static const double _spiralSpeed = 210;
+  static const double _spiralDamage = 0.8; // × projectileDamage
+  static const double _flareEvery = 6.0; // s between flares (stage 2+)
+  static const double _flareWarn = 0.9;
+  static const double _flareActive = 2.5;
+  static const double _flareSweep = 0.6; // rad/s
+  static const double _flareWidth = 16;
+  static const double _flareDamage = 1.2; // × projectileDamage, per 0.4s tick
+  static const double _flareAfterVent = 0.8; // s after a vent before the next flare
+  static const double _ventEvery = 7.0; // s between vents (stage 3)
+  static const double _ventLength = 2.5; // s the core is exposed
+  static const double _ventTaken = 2.0; // damage taken while venting
+  static const double _armourTaken = 0.75; // damage taken between vents (stage 3)
+  static const int _novaShots = 40;
+  static const double _novaSpeed = 260;
+  static const double _novaGap = 0.6; // rad, two gaps on opposite sides
+  static const double _novaDamage = 1.2; // × projectileDamage
+
+  final _rng = math.Random();
+  double _spiralTimer = 2.5;
+  double _spiralLeft = 0;
+  double _spiralShot = 0;
+  double _spiralAngle = 0;
+  double _flareTimer = 0;
+  double _flareBusy = 0;
+  double _ventTimer = 0;
+  double _vent = 0;
+
+  bool get _venting => _vent > 0;
+
+  @override
+  double get damageTakenMultiplier => stage < 2 ? 1.0 : (_venting ? _ventTaken : _armourTaken);
+
+  @override
+  void fireAtPlayer() {
+    if (!_venting) super.fireAtPlayer();
+  }
+
+  @override
+  void onStageChange(int newStage) {
+    if (newStage == 1) _flareTimer = 1.0;
+    if (newStage == 2) _ventTimer = 2.0;
+  }
+
+  @override
+  void updateStage(double dt) {
+    if (_flareBusy > 0) _flareBusy -= dt;
+
+    // Spiral bursts (all stages, not while venting).
+    if (!_venting) {
+      _spiralTimer -= dt;
+      if (_spiralTimer <= 0) {
+        _spiralTimer = _spiralEvery;
+        _spiralLeft = _spiralLength;
+        _spiralShot = 0;
+        _spiralAngle = aimAngle + math.pi / 2;
+      }
+      if (_spiralLeft > 0) {
+        _spiralLeft -= dt;
+        _spiralShot -= dt;
+        if (_spiralShot <= 0) {
+          _spiralShot = _spiralShotGap;
+          _spiralAngle += _spiralTurn;
+          for (final off in const [0.0, math.pi]) {
+            final a = _spiralAngle + off;
+            fireShot(a,
+                speed: _spiralSpeed,
+                damage: projectileDamage * _spiralDamage,
+                from: position + Vector2(math.cos(a), math.sin(a)) * (size.x * 0.4));
+          }
+        }
+      }
+    }
+
+    // Solar flares (stage 2+, never during a vent).
+    if (stage >= 1 && !_venting) {
+      _flareTimer -= dt;
+      if (_flareTimer <= 0) {
+        // In stage 3 the next flare is scheduled by the vent cycle.
+        _flareTimer = stage >= 2 ? _ventEvery * 2 : _flareEvery;
+        _flareBusy = _flareWarn + _flareActive;
+        final dir = _rng.nextBool() ? 1.0 : -1.0;
+        final a0 = aimAngle - dir * 0.45;
+        for (var k = 0; k < 3; k++) {
+          game.world.add(HazardBeam(
+            origin: position.clone(),
+            anchor: this,
+            angle: a0 + k * math.pi * 2 / 3,
+            sweep: dir * _flareSweep,
+            damage: projectileDamage * _flareDamage,
+            width: _flareWidth,
+            warn: _flareWarn,
+            active: _flareActive,
+            color: specialColor,
+          ));
+        }
+      }
+    }
+
+    // Vent cycle (stage 3).
+    if (stage >= 2) {
+      if (_venting) {
+        _vent -= dt;
+        if (_vent <= 0) {
+          _supernova();
+          _ventTimer = _ventEvery;
+          _flareTimer = _flareAfterVent;
+        }
+      } else {
+        _ventTimer -= dt;
+        if (_ventTimer <= 0 && _flareBusy <= 0) {
+          _vent = _ventLength;
+          game.shake(0.2);
+        }
+      }
+    }
+  }
+
+  void _supernova() {
+    // Gaps roughly to the player's side, so they have to move to one.
+    final g = aimAngle + math.pi / 2 + (_rng.nextDouble() - 0.5) * 1.2;
+    for (var i = 0; i < _novaShots; i++) {
+      final a = g + i / _novaShots * math.pi * 2;
+      var d = (a - g) % math.pi; // distance to the nearer of the two gaps
+      if (d > math.pi / 2) d = math.pi - d;
+      if (d < _novaGap / 2) continue;
+      fireShot(a, speed: _novaSpeed, damage: projectileDamage * _novaDamage, size: 18);
+    }
+    game.shake(0.35);
   }
 
   @override
@@ -176,6 +322,13 @@ class MonsterBossSolarTitan extends BossMonster {
 
     canvas.restore();
 
+    if (_venting) {
+      // Overheating: a white-hot core that flickers faster as the vent ends.
+      final p = 1 - _vent / _ventLength;
+      final flick = 0.75 + 0.25 * math.sin(stageTime * (14 + 20 * p));
+      Glow.draw(canvas, Offset(cx, cy), size.x * (0.5 + 0.35 * p), const Color(0xFFFFFFFF).withValues(alpha: 0.55 * flick), hot: true);
+      Glow.draw(canvas, Offset(cx, cy), size.x * 0.25, const Color(0xFFFFF4D0).withValues(alpha: 0.9), hot: true);
+    }
     renderChargeEffect(canvas, cx, cy);
     renderFlash(canvas);
   }

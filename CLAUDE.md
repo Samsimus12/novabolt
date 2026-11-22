@@ -24,7 +24,7 @@ flutter run -d "Samsimus"        # physical iPhone (preferred)
 ## Tech Stack
 - **Flutter** (Dart, SDK `^3.11.5`) — cross-platform framework
 - **Flame 1.37.0** — 2D game engine; game loop, collision detection, camera, joystick
-- **flame_audio 2.12.1** — BGM (Menu.wav, Fighting.wav, Fighting 2.wav, Flying.wav, Flying 2.wav, Boss Battle.wav, Boss Battle 2.wav) in `assets/`
+- **flame_audio 2.12.1** — BGM: all AAC (192 kbps) in `assets/music/`: the 7 originals (menu, fighting, fighting_2, flying, flying_2, boss_battle, boss_battle_2; their WAV masters are in `scripts/music_masters/`, not bundled) plus 8 Suno-generated tracks (6 gameplay, 2 boss; the 2 Suno menu tracks were removed as too mellow, so the menu plays only the original; sources, edits and licence in `scripts/music_sources.md`). To add a track: `afconvert -f m4af -d aac -b 192000 in.wav assets/music/name.m4a`, then add it to the right list in `audio_manager.dart`. `AudioManager` picks randomly per context and never repeats the last track.
 - **google_mobile_ads 5.3.1** — AdMob rewarded + interstitial ads
 - **app_tracking_transparency 2.0.6** — ATT permission prompt (must fire before AdMob init on iOS)
 - **shared_preferences** — persists coins, owned items, selected skin/shield/nova, best stats
@@ -55,19 +55,27 @@ lib/
 ├── ads/
 │   └── ad_manager.dart               # Singleton; loads/shows rewarded + interstitial; pauses/resumes music
 ├── audio/
-│   └── audio_manager.dart            # Singleton; playMenu/playGame/playBoss; crossfades between tracks; _fadeGeneration for cancellation
+│   ├── audio_manager.dart            # Singleton; playMenu/playGame/playBoss; crossfades between tracks; _fadeGeneration for cancellation
+│   └── sfx.dart                      # SfxManager: pooled, throttled sound effects + all haptics (settings toggles)
 ├── coins/
-│   └── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selectedSkin/shieldSkin/novaTheme
+│   ├── coin_manager.dart             # Singleton; persists totalCoins, ownedItems, selected(kind) for all 5 cosmetic kinds; select(item); spend()
+│   └── hangar_manager.dart           # Permanent upgrades (HangarUpgrade levels + derived run values)
+├── cosmetics/
+│   └── catalog.dart                  # All cosmetics (data only): 18 ships, 12 shields, 12 Nova beams, 9 thrusters, 6 explosions;
+│                                     #   prices, Rarity, visual specs (ShipPalette+Livery, ShieldSpec, BeamSpec, ThrusterSpec, ExplosionStyle)
 ├── stats/
-│   └── stats_manager.dart            # Singleton; persists bestLevel, bestKills via SharedPreferences
+│   └── stats_manager.dart            # Singleton; bests (level, kills, combo), lifetime totals, bosses defeated
 ├── game/
 │   ├── novabolt_game.dart            # FlameGame root — bossPhase, killCount, isNewBest, isBossReward, playTimeSeconds, continueWithHalfHp();
 │   │                                 #   createMoveStick()/createAimStick(); shake()/hitStop()/slowMo()/rumble()
 │   ├── fx/
 │   │   ├── glow.dart                 # Glow.draw/drawOval/drawBatch — cached additive glow sprites (use instead of MaskFilter.blur)
 │   │   └── shot_art.dart             # ShotArt.streak (player shots) / ShotArt.orb (hostile shots)
-│   ├── render/
-│   │   └── ship_art.dart             # ShipArt + shipPaletteFor(skin), ShieldArt, shieldColorFor(), novaBeamColorFor() — shared with shop/menu
+│   ├── render/                       # Cosmetic renderers shared by game, shop and menu
+│   │   ├── ship_art.dart             # ShipArt (liveries, engine colour override) + ShieldArt (6 styles)
+│   │   ├── beam_art.dart             # BeamArt — Nova laser in 6 styles (solid/twin/helix/pulse/prism/eclipse)
+│   │   ├── trail_art.dart            # TrailArt — thruster wake (ribbon/ghost/comet/prism)
+│   │   └── explosion_art.dart        # ExplosionBurst — kill explosion in 6 styles
 │   ├── components/
 │   │   ├── player.dart               # Ship via ShipArt; EngineTrail (world-space); dashed aim guide; damage stages; facingAngle/thrust getters
 │   │   ├── joystick.dart             # NovaJoystick — instrument-dial sticks (move = white, aim = cyan crosshair)
@@ -100,8 +108,8 @@ lib/
 │   │   ├── boss_projectile.dart      # Extends Projectile; hits Player only
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
 │   │   ├── health_pickup.dart        # Dropped by monsters; heals 30 HP; 8s lifetime
-│   │   ├── supercharge_laser.dart    # World Component (priority 4) — layered additive beam; colour via novaBeamColorFor()
-│   │   ├── death_particles.dart      # Explosion: flash + shockwave + batched sparks/embers; `big` variant for bosses
+│   │   ├── supercharge_laser.dart    # World Component (priority 4) — damage logic; visuals via BeamArt + equipped beam
+│   │   ├── death_particles.dart      # Enemy death: ExplosionBurst in the equipped explosion style; `big` variant for bosses
 │   │   ├── background.dart           # StarBackground: per-phase sky baked once to an image + 3 parallax star layers + phase set-piece; re-added on boss kill
 │   │   └── hud.dart                  # Safe-area HUD: level badge + XP ring, hull bar (ghost) + shield, segmented Nova bar, boss bar + approach banner, damage vignette
 │   ├── systems/
@@ -116,7 +124,7 @@ lib/
 ├── screens/
 │   ├── loading_screen.dart           # Cold boot splash UI only — init happens in main.dart _initialize()
 │   ├── main_menu_screen.dart         # SpaceBackdrop; live ShipPreview of equipped skin; best-run chips; Play + Shop; settings sheet
-│   ├── shop_screen.dart              # Tabs (ships/shields/Nova beams), large live preview, 3-col grid, one contextual buy/equip button; earn-NOVA ad strip
+│   ├── shop_screen.dart              # 5 scrolling category tabs, live preview stage, rarity tags, 3-col grid, contextual buy/equip; earn-NOVA ad strip
 │   ├── game_controls_overlay.dart    # Pause button (top-right); Nova core button (charge ring); pause panel with Nova mode picker + Quit run
 │   ├── level_up_screen.dart          # Big level numeral; category-coloured cards with Phosphor icons + weapon level pips; auto-applied bonus strips
 │   ├── game_over_screen.dart         # "Ship destroyed" debrief: counting stat tiles, best row, +N NOVA, Continue (ad) / Play again / Main menu
@@ -176,7 +184,12 @@ assets/
 
 ### AdMob / Coins / Shop
 - Rewarded ad → Continue at 50% HP (once); interstitial on menu return; music pauses on ad, resumes on dismiss
-- 6 ship skins, 4 shield skins, 4 Nova beam colours — see `coin_manager.dart` for IDs and prices
+- Cosmetics live in `lib/cosmetics/catalog.dart`: **18 ships, 12 shields, 12 Nova beams, 9 thrusters, 6 explosion styles**, each with a price (0–3000) and rarity (Common/Rare/Epic/Legendary)
+  - Ships vary by palette plus liveries (stripe, chevrons, tips, two-tone split, glowing panel lines)
+  - Shields: arcs, hex lattice, ripple, twin halo, orbit, corona · Beams: solid, twin, helix, pulse, prism, eclipse (Black Sun) — beam cosmetics apply to the Laser Nova only; inherited boss Nova modes keep their own colours
+  - Thrusters recolour the engine plume and the trail (ribbon, ghost, comet sparks, prism) · Explosions restyle every enemy death (standard uses the enemy's own colour)
+- Ownership ids: ships `skin_<id>`, everything else is its own id. v1.0 pref keys are unchanged, so earlier purchases carry over; new keys `thruster_selected`, `explosion_selected`
+- To add an item: append to the list in `catalog.dart` (the first entry of each list is the free default). The shop, previews and game pick it up automatically.
 
 ---
 
@@ -198,9 +211,78 @@ assets/
 13. **audioplayers 6.6.0**: `setVolume(double)` is the correct API (no named parameter).
 14. **Screen shake** offsets `camera.viewfinder.position` by a few px and resets it to zero; the anchor stays top-left. HUD and joysticks live in the viewport so they don't shake.
 15. **Shared ship art**: change ship/shield/beam looks in `lib/game/render/ship_art.dart` — the player, the shop and the main menu all draw from it, so they can't drift apart.
-16. **Pause flow**: there is no in-game Back button; "Quit run" is in the pause panel and calls the same `onMenu` callback.
+16. **Covariant catalogue lists**: `catalogFor(kind)` returns a `List<Cosmetic>` that is really e.g. `List<Cosmetic<ShipPalette>>`. Don't call `firstWhere(..., orElse: ...)` on it — the `orElse` closure fails the runtime type check. Use `findCosmetic(kind, id)`.
+17. **Level-up cards need `ObjectKey(card)`**: multi-pick offers and rerolls remove and re-add the `LevelUp` overlay in one frame, so Flutter reuses the card tiles' State. Without the key, the slot you just picked stayed "chosen" and ignored taps (looked like a freeze after bosses, which always give 3 picks). Picks go through `game.pickCard()`, which ignores cards no longer on offer (no double upgrades from fast taps).
+18. **Phone install fails with "integrity could not be verified" / invalid signature on `objective_c.framework`**: an incremental release build sometimes leaves that framework ad-hoc signed. Fix: `flutter clean && flutter pub get && flutter build ios --release`, check `codesign -dv build/ios/iphoneos/Runner.app/Frameworks/objective_c.framework` shows `TeamIdentifier=M3692NZZR2`, then `xcrun devicectl device install app --device <id> build/ios/iphoneos/Runner.app`.
+19. **Pause flow**: there is no in-game Back button; "Save and exit" is in the pause panel (saves the run, then calls the same `onMenu` callback).
 
 ---
+
+## Gameplay systems (branch `improvements`, Nov 2026)
+
+- **Sound effects** (`lib/audio/sfx.dart`, `SfxManager`): 20 WAVs in `assets/sfx/`, **real recordings from Sam's licensed library** (Ovani + TomWinandySFX packs), picked by ear and imported by `python3 scripts/import_sfx.py` (trim, fade, loudness match, kill pitched 5 ways). Sources and licences: `scripts/sfx_sources.md`. To change a sound, edit `PICKS` in the script and re-run. The old synthesized versions come from `scripts/make_sfx.py`, which now writes to `scripts/synth_sfx/` so it can't overwrite them. Each `Sfx` has a fixed player count (`pool`, reused round-robin; see "The iPhone freeze") and a minimum gap between plays. Kill sound pitch climbs with the combo (`Sfx.killForCombo`). Settings has Music / Sound effects / Vibration toggles (`sfx_enabled`, `haptics_enabled`). **All haptics go through `SfxManager.tap/light/medium/heavy`** (respects the toggle, rate-limits light/medium) — don't call `HapticFeedback` directly.
+- **Damage numbers** (`damage_text.dart`): batched per enemy every 0.18s (so beams/fields show one number, not 60/s), capped at 26 on screen, laid out once (scale animation, no per-frame alpha). Chip damage under 2 is hidden unless it crit. Crits: `game.critChance` (5% base) × `critMultiplier` (2x), gold with "!".
+- **All player damage flows through `Monster.takeDamage(damage, {silent})`**, which applies `game.damageMultiplier`, crit, and `game.modifyDamage()` (time-slow, relics). `silent: true` = raw damage with none of that (ram kills, overkill carry). Monsters' speed reads `game.enemySpeedMultiplier`; wave spawns read `game.spawnIntervalMultiplier`.
+- **Combo**: kills within 2s chain; XP and Nova charge ×(1 + 2% per kill, max 2x). HUD shows "×N combo" under the bars with a draining underline. `game.announce(text, color:)` puts a short caption mid-screen (stage changes, relics, evolutions).
+- **Overdrive (Nov 22, 2026)**: reaching a 50 combo (`Balance.overdriveCombo`) starts 8s of Overdrive (`game.overdrive`, `overdriveActive`): XP x2 on top of the combo bonus, +25% fire rate on every weapon (`Weapon.effectiveFireRate`), Nova charge from kills x1.5. It fires once per chain (`_overdriveArmed` resets when the combo breaks) and is not saved in a run snapshot. Presentation: "OVERDRIVE" announcement + `Sfx.overdrive` (Ovani "Cyber Surge A") + heavy haptic; the HUD's combo line becomes a gold "OVERDRIVE 6s" with a draining underline; a breathing gold glow at the screen edges (gradient shaders cached per size and 12 brightness steps, no per-frame layer); a gold aura under the ship. A music filter sweep was in the idea but isn't possible with audioplayers (no filters), so the stinger stands in.
+- **Grazing (Nov 22, 2026)**: enemy bullets (`BossProjectile`, `CasterProjectile`, via the `Grazeable` mixin in `graze.dart`) that come within `Balance.grazeMargin` (18px) of the ship's hitbox and leave without hitting call `game.onGraze()`: +1.5 Nova charge, +0.4s on the combo timer, a cyan "Graze" pop and `Sfx.graze` (TomWinandy Swipe 8). Capped at 4 rewarded grazes per second (max ~6% Nova/s). A bullet that hits, or that a dash rams, doesn't graze. Harness: `SCENE=overdrive GOD=true` (starts at a 49 combo next to a Void Tyrant, with test bullets on lanes 34/45px beside the ship (graze) and 70px (doesn't)).
+- **Hangar** (`lib/coins/hangar_manager.dart`, `hangar_screen.dart`, menu button): 9 permanent upgrades (hull, armour, firepower, crit, Nova start charge, tractor beam, salvage, rerolls, one free revive), each level 1.6x the last price. Applied by `NovaboltGame._applyHangar()` at run start and on restart. `CoinManager.spend()` was added for it.
+- **Coins** (`game.runReward` → `RunReward`): level×10 + bosses (50, 100, 150… cumulative) + 100 per flawless boss + best combo (max 200), × salvage × run multiplier (daily 2x, Midas 1.5x), + daily streak bonus. The game-over screen itemises it.
+- **Boss stages** (`BossMonster`): `stageThresholds` (HP fractions), `stage`, a 1s invulnerable `stagger` with shockwave + announcement + `Sfx.stage`, then `onStageChange` / `updateStage` hooks. `spawnMinion()` adds enemies that give no XP (so a boss can't level you into the next boss) and are cleared on boss death. The HUD boss bar shows notches at thresholds and "stage n/3". **Dreadnought**: strafes the top third → drone squadrons → sweeping wing lasers. **Void Tyrant**: keeps range → blinks to a telegraphed zone with a ring burst → void rifts around you. **Leviathan**: dives across telegraphed lanes → drops mines → every other pass a whirlpool that pulls you (only down to 165px, weaker than your thrust) and sprays a spiral.
+- **Bosses 4–10 stages + weak points (Nov 22, 2026).** Shared tools in `BossMonster`: `damageTakenMultiplier` (override per stage: <1 = armoured/shielded and pops `armouredCaption`, >1 pops "Weak point!", throttled), `aimAngle`, `fireRing(count, speed, …, gapAngle, gapWidth)` (a gap ring leaves a hole to fly through), `fireShot`, `clampToArena`. `BossPart` (`boss_parts.dart`): a breakable minion that orbits its boss (looks: plate, drone, rock), soaks shots, hurts on contact, cleared with the boss; `BossPart.aliveFor(boss)`. **Blood Colossus**: four armour plates (7% of its HP each) orbit it and it takes 35% damage until they're gone → "Armour shattered": ground slams (telegraphed 130px zone, then a 20-shot ring) → enraged: telegraphed charges that end in a ring burst. **Storm Phantom**: circles you at 220px → lightning chains (4 zones from it to you) + up to 2 afterimage decoys → enraged: flies to the centre and spins an X of 4 beams every 7s. **Cosmic Behemoth**: 3 rock moonlets orbit and block shots (regrow after 10s) → meteor shower around you → enraged: gravity pull (stops at 190px) + slow gap rings. **Shadow Reaper**: phases in and out (faded = 0.25x damage, "Phased") → telegraphed scythe dashes leaving shot trails → enraged: speeder minions + a beam sweep after each dash. **Solar Titan**: spiral bursts → three sweeping solar-flare beams → enraged: 0.75x except a 2.5s vent every 7s (2x, white-hot) ending in a supernova ring with two gaps. **Void Emperor**: keeps 180–260px range → two shield drones (0.25x while either lives, "Shielded"; they return 14s after both die) → enraged: void portals around you that fire at you. **The Singularity**: shell closed (0.3x) except a 3s open core every 7s (1.75x) → pull (stops at 200px) + 3-arm spiral → enraged: gap rings every 2.5s (gap off to your side, shown 0.6s early), longer open windows, slower radials. Boss armour can't be rammed (`Player.onCollisionStart` skips `BossPart`). Check a stage in the harness with `SCENE=boss PHASE=<n> HP=<0.9|0.5|0.2> GOD=true` (the harness ship doesn't move, so without GOD a chasing boss kills it on contact).
+- **Hazards** (`hazards.dart`): `HazardZone` (filling ring, detonates once) and `HazardBeam` (dashed warning line, then a beam that can sweep and follow an anchor; `damage: 0` = telegraph only). Cleared on boss kill and restart.
+- **Nova attacks** (`nova_attacks.dart`): every inherited Nova is now a different mechanic (`NovaAttack` drains the bar like the laser): Orbital Strike, Void Well (gravity well), Leviathan Wave (shockwave rings), Blood Barrage (old radial burst), Chain Lightning, Black Hole (growing well), Shadow Veil (slows all + `timeSlowActive` 1.5x damage), Solar Beams (4 rotating beams), Missile Swarm (homing bolts), Event Horizon (screen pulses). Names/descriptions in `nova_mode.dart`.
+- **Relics** (`data/relics.dart`): the first pick of every boss reward is a relic chest (3 relics you don't own). 11 relics; effects live in `NovaboltGame.addRelic/modifyDamage/onOverkill/tryCheatDeath/_relicsOnKill`, `Projectile._tryRicochet`, and `Player.takeDamage` (second wind → `invulnerable`). Listed in the pause panel.
+- **Card rarity** (`CardRarity` in `upgrade_cards.dart`): each stat card rolls Common/Rare/Epic/Legendary (1x/1.5x/2x/3x its numbers; boss rewards and the Lucky daily roll better); weapon upgrade cards above Common add bonus damage. Epic+ cards glow. **Rerolls**: 1 per run + hangar Recalibrator; "Reroll (n left)" under the cards.
+- **Weapon evolutions** (`_evolutions()`): always offered (replacing the weapon pick) once a recipe is met: Laser Bolt Lv5 + Targeting Array → Ion Lance (pierces 3); Scatter Lv5 + Pulse Cannon → Bullet Storm (5 bolts, +50% rate); Homing Lv5 + Overcharge → Swarm Missiles (3 per shot); Force Field Lv5 + EMP → Cryo Field (wider, slows); Plasma Rocket + Scatter Lv5 → Rocket Barrage (3 rockets). `Weapon.evolved/evolvedName/label`; recipes check `game.takenBuffs` (stat card titles).
+- **Daily challenge** (`data/daily_challenge.dart`, menu card): two modifiers per date (seeded by yyyymmdd, same for everyone), 2x NOVA, and a streak bonus (50 × streak, max 350) paid on the first daily run each day. `NovaboltGame(daily:)` → `_applyDaily()`. `main.dart` passes it via `gameFactory`.
+- **Records** (`records_screen.dart`, trophy in the menu): bests (level, kills, combo), lifetime totals, and the 10-boss roster (silhouette until beaten, shows the Nova it gives). `StatsManager.startRun/addKill/recordBossKill`.
+
+## The iPhone freeze (Nov 21, 2026): cause and fix
+
+- **Symptom:** the game froze on a real iPhone about 4–6 minutes into a run (first at the relic screen after boss 1, then a level later). Never in the simulator or in short tests.
+- **Cause:** flame_audio's `AudioPool` returns a player to the pool only when iOS reports "completed". On the iPhone those events stop arriving after a few minutes, so the pool created a new AVPlayer for every sound effect (measured: 19 → 41 → 137 → 179 "playing" players, climbing), each with a per-frame position poller, until the app stalled.
+- **Fix:** `SfxManager` now uses `_SfxPlayers`: a fixed number of players per sound (`Sfx.pool`, 44 in total), reused round-robin with `stop()` (rewinds) + `resume()`, `positionUpdater = null`, and no reliance on completion events. **Don't go back to `AudioPool`/`FlameAudio.createPool` for frequent sounds.**
+- Found with `lib/dev/diagnostics.dart` (`--dart-define=DIAG=true`, works in `lib/main.dart` and the harness): once a second it prints fps, taps, audio players, world size and level-up state; also logs every level-up, pick and boss kill. A long self-playing device run: `flutter run --profile -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=HP=0.03 --dart-define=DIAG=true --dart-define=AUTOPICK=true --dart-define=MUSIC=true -d <phone>` (kills boss 1, auto-picks, keeps playing). `--dart-define=START_LEVEL=9` on `lib/main.dart` starts a real game one kill before boss 1.
+- Fixed on the way: dead card slots on multi-pick offers (`ObjectKey(card)`, gotcha 17), a same-frame level-up overwriting the boss reward (`_queuedLevelUps`), dying enemies granting XP (`isRemoving` checks).
+
+## Dash (Nov 22, 2026)
+
+- **Input:** double-tap the move stick (`NovaJoystick.onDoubleTap`, two drag-starts within 0.28 s) or the round Dash button above it (`_DashButton` in `game_controls_overlay.dart`, ring = cooldown). Both call `game.tryDash()` → `Player.tryDash()`.
+- **Effect:** `Balance.dashDuration` (0.16 s) at `dashSpeed` (720 px/s) ≈ 115 px in the move-stick direction (or where the ship faces when idle), invulnerable for the dash + `dashGrace` (reuses `Player.invulnerable`), `dashCooldown` 2.2 s. Ramming a non-boss enemy while dashing kills it without hurting you and calls `game.onDashKill()` (counted in `dashKills`; missions hook in). A `DashTrail` light streak, `Sfx.dash` (TomWinandySFX swipe, imported by `scripts/import_sfx.py`), a light haptic and a small shake.
+
+## Elites and wave events (Nov 22, 2026)
+
+- **Elites** (`data/elite_balance.dart`, `Monster.makeElite`): from wave level 3 a regular or tank spawn has a 4% + 0.3%/effective level chance (max 12%) to be an elite with one modifier — Tough (3x HP, 1.25x size), Swift (1.7x speed, 2x HP), Splitter (2 Speeders on death), Volatile (telegraphed 70 px blast on death; step away). Never bosses or minions. Coloured aura (drawn in `Monster.renderFlash`), guaranteed health/shield drop, 3x XP and charge, a gold "Elite!" pop, +3 NOVA each. **Use `Monster.maxHp` / `moveSpeed`, not `stats.maxHp` / `stats.speed`**, so elite scaling applies. `label` reads e.g. "Tough elite grunt" (run log); `baseLabel` is the plain type (missions use it).
+- **Wave events** (`systems/wave_events.dart`, owned by `WaveSystem`, which detects level-ups itself): on wave levels 3 and 6 of each 10, one 20 s event, never during a boss — Meteor storm (meteor-look `HazardZone`s), Gold rush (+1–2 NOVA per kill), Swarm (spawns ×3.3, speeders/grunts), Blackout (one cached radial-gradient rect around the ship). Cleared on boss start/kill, restart and death (`onPlayerDeath`). HUD shows the event and seconds left under the combo. `events.bonusCoins` (gold rush + elites) is the "Elites & gold rush" line of the run reward; the tallies are saved with a run (`evc`/`evk`).
+- Test switches: `--dart-define=EVENT=meteor|gold|swarm|blackout` (repeats that event) and `--dart-define=ELITES=true` (~half of spawns elite).
+
+## Missions (Nov 22, 2026)
+
+- `lib/stats/mission_manager.dart` + `lib/screens/missions_screen.dart`; flag button in the menu top bar with a gold "ready to claim" badge. Three active missions (always different types) paying 100–400 NOVA. 12 types: kill counts (total / per enemy type), bosses (any / specific / flawless), elites, dash kills, pickups (cumulative across runs) and reach-level, combo, survive-minutes, daily-level (within one run). Hardest tier unlocks at best level 15; enemy-type and specific-boss missions only use what the player has reached. Claim on the screen pays the coins and rolls a new type; one free swap per local day.
+- The game reports events: `startRun` (onLoad, also on resume, and restart), `onKill(victim.baseLabel)` + `onCombo` in `onMonsterKilled`, `onEliteKill`, `onLevel`, `onBossKill(index, flawless:)`, `onSurvived(playTime)`, `onPickup` (pickups), `onDashKill`, `endRun` at death. `onCompleted` → "Mission complete: …" announcement. Progress saves 3 s after the last change; `flush()` on app background, `saveRun()` and death. Prefs key `missions` (versioned; bump `MissionManager.version` to re-roll everyone). The dev harness sets `enabled = false` except in `SCENE=missions`. Tests: `test/mission_manager_test.dart`, `test/missions_screen_test.dart`.
+
+## Continue a saved run (Nov 2026, branch `improvements`)
+
+- **What's saved** (`NovaboltGame.snapshot()` → `RunSaveManager`, prefs key `run_save`, JSON with a version `v`): level/XP, boss phase and bosses beaten, kills, play time, hull/shield/speed, every weapon (id from `data/weapon_registry.dart`, damage, fire rate, level, evolution), Nova charge/multipliers/modes, all run modifiers (Hangar and daily values are saved as numbers, never re-applied on resume), relics, taken buffs, rerolls, revives used, daily streak coins, wave level, tracker totals, a boss fight in progress (its HP fraction) and an open level-up (picks left, boss reward, relic pick) plus queued level-ups. Enemies and shots are not saved.
+- **When:** app going inactive/hidden/paused (`main.dart` `didChangeAppLifecycleState`, which also opens the pause panel via `game.requestPause()`), after each finished level-up, on "Save and exit" in the pause panel, on returning to the menu, and every 8s of unpaused play. **Cleared** on death (`onPlayerDeath`; a revive starts saving again) and when a new run starts (`restart()`, or `_startGame` without `resume`).
+- **Restore:** `NovaboltGame(resume:)` skips Hangar/daily/startRun in `onLoad`; the snapshot is applied in the first `update()` once the ship's starting weapon is mounted (so it's swapped, not doubled), then either the pending level-up or the 3-2-1 `Countdown` overlay. A saved boss fight restarts that boss at the saved HP and stage (boss music too).
+- **Menu:** with a save, the main button is *Continue* (level · bosses · time · daily) next to *New*; *New* and the daily card ask before discarding the save. The pause panel's "Quit run" is now *Save and exit*.
+- **Format changes:** bump `RunSaveManager.version` if the snapshot changes incompatibly (old saves are then dropped, not half-restored). Don't rename weapon ids in `weapon_registry.dart`.
+- The dev harness never saves (`_DevGame.savesRuns => false`). Test-only defines on `lib/main.dart`: `START_LEVEL=9` (start one kill before boss 1) and `GOD=true` (ship can't be hurt), e.g. to test a mid-boss save in the simulator: Play, wait for the boss, Home button, `xcrun simctl terminate`, relaunch, Continue.
+
+## Balance (Nov 2026, branch `improvements`)
+
+- **Revives (Nov 22, 2026).** The ad continue (`continueFromAd()`, was `continueWithHalfHp`) brings you back at **full hull and a full shield**; the Hangar's free Emergency reactor (`freeRevive()`) stays at half hull with no shield, so the ad is the better deal. Both go through `_revive()` → `_clearForRevive()`: a **`ReviveBlast`** (`revive_blast.dart`) is added while the countdown has the engine paused, so on the first frame of play an ion shockwave races out from the ship to every corner (0.6s), removing each enemy bullet, hazard zone and hazard beam it passes and shoving ordinary enemies inside 150px out to 150px (with shake, hit-stop and the Nova sound). The ship also gets `Balance.reviveGrace` (2s) of invulnerability, shown as an ion ring and a blink (`Player.reviveGrace`). The paused countdown is a frozen frame, which is why the clearing is shown as a blast rather than done silently at revive time. Harness: `SCENE=revive`.
+
+- **All run-level tuning lives in `lib/game/data/balance.dart`** (`Balance.*`): global enemy/boss HP and damage knobs, crit, combo, Nova attack damage/intervals, stat-card tiers and caps, rarity odds and multipliers, relic values, Hangar per-level values, coin payouts. Enemy base stats stay per-row in `monster_data.dart`; bosses use `scaledBoss()` so `Balance.bossHpMultiplier` applies.
+- **Stacking damage bonuses are capped** at `Balance.maxDamageBonus` (2x) in `NovaboltGame.outgoingMultiplier()` (Hangar firepower, Glass cannon, Bloodlust, Shadow Veil, Cryo shatter). Crits and weapon upgrade levels are outside the cap.
+- **One revive source per run** besides the ad: owning the Hangar's Emergency reactor removes Second wind from relic offers (`relicAllowed`).
+- **First tuning pass (from the numbers, not play):** Nova attacks brought near the Laser's 120 dps reference (area attacks less per target, single-target ~100–130 vs a boss); (the Nova duration floor, 3x charge cap and rarity-scaled stat cards from this pass were replaced by the stat-card tables below); combo boosts Nova charge only up to 1.5x (XP still 2x); Glass cannon +30% (was +40%), Bloodlust max +40% (was +60%), Lucky star +8% / 2.25x; Hangar firepower 4%/lvl, armour 3%/lvl, crit 1.5%/lvl.
+- **Stat cards (Nov 22, 2026): flat, additive, capped.** The phase-scaled, multiplying percentages (they looked random and grew to +100%+ a card late in a run) were replaced by one number per rarity (Common / Rare / Epic / Legendary) and a run cap, all in `Balance` (`*Tiers`, `max*Bonus`): Overcharge (fire rate) 10/15/20/30, max +100%; Targeting Array (weapon damage, never Common) 10/15/20/30, max +100%; Nova Accelerator (charge speed) 15/20/30/40, max +150%; Extended Beam (Nova duration) 15/20/30/40, max +120%; Nova Overload (Nova damage) 15/25/35/50, max +200%. Bonuses add (two +15% = +30%), live on the game (`fireRateBonus`, `weaponDamageBonus`) and `SuperchargeSystem` (`chargeBonus`, `durationBonus`, `damageBonus`, plus `chargeBase` = 2 for the daily Nova rush), so they apply to every weapon including ones picked up later (`Weapon.effectiveFireRate` / `shotDamage`). "+20% duration" now means exactly 20% longer (`depleteMultiplier = 1/(1+bonus)`). A card shows its running total once you have one (`+20% (total +30% → +50%)`) and is not offered once capped (`bonusCard()` in upgrade_cards.dart returns null). The rarity multipliers (1.4/1.8/2.3) now only scale weapon-upgrade cards' bonus damage. Save snapshot keys: `nova.cb/cbase/db/nb`, `mods.frb/wdb`. Tests: `test/stat_cards_test.dart`.
+- **Targets:** a new player usually dies around boss 1–2, a practised player reaches boss 4–5; a boss fight takes ~45–90s; a run with no Hangar upgrades can still beat boss 1; nothing should feel mandatory.
+- **Measuring:** Settings → *Combat stats overlay* shows live DPS, the current boss fight timer, each boss's kill time, damage taken and the capped damage multiplier (`BalanceTracker`, drawn by the HUD 4x/sec). Every death is logged (last 25, `RunLog`, prefs key `run_log`): level, time, kills, each boss fight's length, damage taken, best combo, **what killed you**, Nova, relics, Hangar levels, daily/revived. Shown under *Recent runs* on the Records screen. Tune from that: e.g. boss fights consistently under 45s → raise `bossHpMultiplier`; most deaths to one source → look at that attack.
+- Harness: `--dart-define=STATS=true` turns the overlay on.
 
 ## Visual QA — dev scene harness
 
@@ -209,7 +291,9 @@ assets/
 ```bash
 flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=4
 ```
-- `SCENE`: `menu | shop | waves | nova | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `shop`, `PHASE` is the initial tab (0 ships, 1 shields, 2 beams).
+- `SCENE`: `menu | shop | hangar | records | waves | nova | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab.
+- Prefs `dev_loadout` (comma-separated item ids to grant + equip, e.g. `nebula,shield_corona,nova_helix,thruster_prism,boom_supernova`, or `--dart-define=LOADOUT=…`) and `dev_focus` (shop item to focus) are optional. Loadouts don't apply to the `menu` scene.
+- A `--dart-define` beats the `dev_*` prefs; prefer rebuilding with defines, since the simulator's prefs daemon can keep serving old values after a plist edit.
 - One simulator build can be relaunched into any scene without rebuilding: terminate the app, write `flutter.dev_scene` (string) / `flutter.dev_phase` (int) into the app container's `Library/Preferences/com.sammorrison.novabolt.plist` via `xcrun simctl spawn <udid> defaults write <plist-path> ...`, relaunch with `xcrun simctl launch`, then `xcrun simctl io <udid> screenshot`.
 
 ## Sprites
@@ -237,5 +321,8 @@ Gameplay is canvas-only. The PixelLab sprite experiment (`scripts/generate_sprit
 |---|---|---|
 | Done | **iOS App Store** | Live as of 2026-05-12 |
 | High | **Android Play Store** | Internal testing; promote to production |
-| Review | **Visual redesign** | Branch `claude/sleek-redesign-dcd348`; check release-build frame rate on a physical phone before shipping |
+| Done | **Visual redesign** | Merged to `main` Nov 21, 2026 after a smooth release build on the iPhone |
+| Review | **Gameplay round 1** | Branch `improvements` (see "Gameplay systems"): needs real play-testing for balance before release |
+| Later | **Leaderboards** | Needs Game Center leaderboard IDs (App Store Connect) and Google Play Games setup before code (`games_services`) |
+| Later | **Stages for bosses 4–10** | Only Dreadnought, Void Tyrant and Leviathan have stages/movement so far; same pattern (`stageThresholds`, `updateMovement`, `updateStage`) |
 | Stashed | **Camera-follow / larger world** | `git stash list` → "camera-follow world expansion (WIP)" |

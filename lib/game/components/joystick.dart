@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flame/events.dart';
 import 'package:flutter/painting.dart' show EdgeInsets;
 
 import '../../ui/theme/tokens.dart';
@@ -14,13 +15,32 @@ class NovaJoystick extends JoystickComponent {
   final Color color;
   final bool aim;
 
-  NovaJoystick({required this.color, required this.aim, required EdgeInsets margin})
+  /// Called when the stick is touched twice within [_doubleTapWindow]
+  /// (the move stick uses it to dash).
+  final void Function()? onDoubleTap;
+  static const _doubleTapWindow = 0.28;
+  final Stopwatch _clock = Stopwatch()..start();
+  double _lastTouch = -1;
+
+  NovaJoystick({required this.color, required this.aim, required EdgeInsets margin, this.onDoubleTap})
       : super(
           knob: _StickKnob(color: color, aim: aim),
           background: _StickBase(color: color),
           margin: margin,
         ) {
     (background! as _StickBase).stick = this;
+  }
+
+  @override
+  bool onDragStart(DragStartEvent event) {
+    final now = _clock.elapsedMicroseconds / 1e6;
+    if (onDoubleTap != null && _lastTouch >= 0 && now - _lastTouch < _doubleTapWindow) {
+      _lastTouch = -1;
+      onDoubleTap!();
+    } else {
+      _lastTouch = now;
+    }
+    return super.onDragStart(event);
   }
 }
 

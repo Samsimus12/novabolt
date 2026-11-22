@@ -3,19 +3,26 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../fx/shot_art.dart';
+import 'graze.dart';
 import 'player.dart';
 import 'projectile.dart';
 
-class CasterProjectile extends Projectile {
+class CasterProjectile extends Projectile with Grazeable {
   CasterProjectile({
     required super.position,
     required super.direction,
   }) : super(speed: 220, damage: 12, size: 10);
 
   @override
+  void update(double dt) {
+    super.update(dt);
+    checkGraze();
+  }
+
+  @override
   void onHit(PositionComponent other) {
     if (other is Player) {
-      other.takeDamage(damage);
+      other.takeDamage(damage, source: 'Caster shot');
       removeFromParent();
     }
   }

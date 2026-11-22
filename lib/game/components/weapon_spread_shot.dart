@@ -17,11 +17,12 @@ class WeaponSpreadShot extends Weapon {
 
   @override
   void fire(Vector2 playerPos, Vector2 direction) {
-    for (final angle in [-0.35, 0.0, 0.35]) {
+    final angles = evolved ? const [-0.52, -0.26, 0.0, 0.26, 0.52] : const [-0.35, 0.0, 0.35];
+    for (final angle in angles) {
       game.world.add(MagicBolt(
         position: playerPos.clone(),
         direction: _rotate(direction, angle),
-        damage: damage,
+        damage: shotDamage,
         color: const Color(0xFFF4A800),
         boltSize: 8,
       ));

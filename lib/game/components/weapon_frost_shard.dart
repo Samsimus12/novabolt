@@ -18,7 +18,7 @@ class WeaponFrostShard extends Weapon {
     game.world.add(FrostShard(
       position: playerPos.clone(),
       direction: direction,
-      damage: damage,
+      damage: shotDamage,
     ));
   }
 }

@@ -5,12 +5,14 @@ import 'package:flame/components.dart';
 
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
+import 'boss_parts.dart';
 import 'boss_projectile.dart';
+import 'hazards.dart';
 import 'monster_boss.dart';
 
 class MonsterBossBloodColossus extends BossMonster {
   MonsterBossBloodColossus({required super.position, super.playerLevel})
-      : super(stats: colossusStats.scaled(playerLevel));
+      : super(stats: colossusStats.scaledBoss(playerLevel));
 
   @override
   String get displayName => 'BLOOD COLOSSUS';
@@ -38,6 +40,147 @@ class MonsterBossBloodColossus extends BossMonster {
 
   @override
   Color get deathColor => const Color(0xFFBB0000);
+
+  // ── Stages ──────────────────────────────────────────────────────────────
+  // 1: four armour plates orbit it; while any plate stands it takes only
+  //    [_armouredDamage] of your damage, so shoot the plates off first.
+  // 2: the armour shatters; it stops every few seconds for a ground slam
+  //    (telegraphed zone around it, then a ring of heavy shots).
+  // 3 (enraged): charges at you along a telegraphed lane and slams where it
+  //    stops.
+  @override
+  List<double> get stageThresholds => const [0.66, 0.33];
+
+  static const int _plateCount = 4;
+  static const double _plateHp = 0.07; // of the boss's max HP, each
+  static const double _plateOrbit = 96;
+  static const double _armouredDamage = 0.35;
+  static const double _slamEvery = 4.5, _slamWarn = 1.0, _slamRadius = 130;
+  static const int _slamShots = 20;
+  static const double _chargeEvery = 3.6, _chargeWarn = 0.8, _chargeSpeed = 520, _chargeOvershoot = 140;
+  static const int _chargeShots = 16;
+
+  bool _platesSpawned = false;
+  int _plates = 0;
+  double _slamTimer = 0;
+  bool _slamming = false;
+  double _chargeTimer = 0;
+  double _chargeWait = 0;
+  double _chargeLeft = 0;
+  final _chargeDir = Vector2.zero();
+
+  @override
+  double get damageTakenMultiplier => stage == 0 && _plates > 0 ? _armouredDamage : 1.0;
+
+  @override
+  String stageCaption(int newStage) => newStage == 1 ? 'Armour shattered' : super.stageCaption(newStage);
+
+  @override
+  void updateMovement(double dt) {
+    if (_slamming || _chargeWait > 0) return;
+    if (_chargeLeft > 0) {
+      final step = _chargeSpeed * slowFactor * dt;
+      position += _chargeDir * step;
+      _chargeLeft -= step;
+      final m = size.x * 0.4;
+      final out = position.x < m || position.x > game.size.x - m || position.y < m || position.y > game.size.y - m;
+      if (out) clampToArena(m);
+      if (_chargeLeft <= 0 || out) {
+        _chargeLeft = 0;
+        game.shake(0.35);
+        fireRing(count: _chargeShots, speed: 210, size: 20, damage: projectileDamage * 1.2, offset: aimAngle);
+      }
+      return;
+    }
+    super.updateMovement(dt);
+  }
+
+  @override
+  void onStageChange(int newStage) {
+    if (newStage == 1) {
+      // Any plates left fall off.
+      for (final p in game.world.children.whereType<BossPart>().where((p) => p.owner == this).toList()) {
+        p.takeDamage(p.currentHp + 1, silent: true);
+      }
+      _slamTimer = 1.2;
+    }
+    if (newStage == 2) _chargeTimer = 0.8;
+  }
+
+  @override
+  void updateStage(double dt) {
+    if (!_platesSpawned) {
+      _platesSpawned = true;
+      if (stage == 0) {
+        for (var i = 0; i < _plateCount; i++) {
+          game.world.add(BossPart(
+            owner: this,
+            angle: i * math.pi * 2 / _plateCount,
+            hp: maxHp * _plateHp,
+            orbitRadius: _plateOrbit,
+            orbitSpeed: 0.7,
+            size: 34,
+            color: const Color(0xFFD9A07A),
+            contactDamage: stats.contactDamagePerSecond * 0.5,
+          ));
+        }
+      }
+    }
+    _plates = stage == 0 ? BossPart.aliveFor(this) : 0;
+
+    if (stage == 1 && !_slamming) {
+      _slamTimer -= dt;
+      if (_slamTimer <= 0) {
+        _slamTimer = _slamEvery;
+        _slam();
+      }
+    }
+    if (stage >= 2 && _chargeLeft <= 0 && _chargeWait <= 0) {
+      _chargeTimer -= dt;
+      if (_chargeTimer <= 0) {
+        _chargeTimer = _chargeEvery;
+        final to = game.player.position - position;
+        final dist = to.length;
+        if (dist > 1) {
+          _chargeDir.setFrom(to / dist);
+          _chargeWait = _chargeWarn;
+          game.world.add(HazardBeam(
+            origin: position.clone(),
+            angle: aimAngle,
+            damage: 0,
+            width: size.x * 0.7,
+            warn: _chargeWarn,
+            active: 0,
+            color: specialColor,
+          ));
+          _pendingCharge = dist + _chargeOvershoot;
+        }
+      }
+    }
+    if (_chargeWait > 0) {
+      _chargeWait -= dt;
+      if (_chargeWait <= 0) _chargeLeft = _pendingCharge;
+    }
+  }
+
+  double _pendingCharge = 0;
+
+  void _slam() {
+    _slamming = true;
+    game.world.add(HazardZone(
+      position: position.clone(),
+      radius: _slamRadius,
+      damage: projectileDamage * 1.3,
+      warn: _slamWarn,
+      color: specialColor,
+      shakeAmount: 0.4,
+      onDetonate: () {
+        _slamming = false;
+        if (isDead || isRemoved) return;
+        fireRing(count: _slamShots, speed: 190, size: 22, damage: projectileDamage * 1.2, offset: aimAngle + math.pi / _slamShots);
+      },
+    ));
+  }
 
   @override
   void fireSpecialAttack() {

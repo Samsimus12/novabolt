@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../audio/sfx.dart';
 import '../theme/chamfer.dart';
 import '../theme/tokens.dart';
 import '../theme/type.dart';
@@ -154,7 +154,8 @@ class _NbButtonState extends State<NbButton> {
         onTapUp: (_) => _set(false),
         onTap: enabled
             ? () {
-                HapticFeedback.selectionClick();
+                SfxManager.instance.tap();
+                SfxManager.instance.play(Sfx.click);
                 widget.onPressed!();
               }
             : null,
@@ -218,7 +219,8 @@ class _NbIconButtonState extends State<NbIconButton> {
         onTap: widget.onPressed == null
             ? null
             : () {
-                HapticFeedback.selectionClick();
+                SfxManager.instance.tap();
+                SfxManager.instance.play(Sfx.click);
                 widget.onPressed!();
               },
         child: AnimatedScale(

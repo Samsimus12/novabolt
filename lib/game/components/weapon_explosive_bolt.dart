@@ -22,11 +22,14 @@ class WeaponExplosiveBolt extends Weapon {
 
   @override
   void fire(Vector2 playerPos, Vector2 direction) {
-    game.world.add(ExplosiveBolt(
-      position: playerPos.clone(),
-      direction: direction,
-      damage: damage,
-    ));
+    for (final a in evolved ? const [-0.3, 0.0, 0.3] : const [0.0]) {
+      final c = math.cos(a), s = math.sin(a);
+      game.world.add(ExplosiveBolt(
+        position: playerPos.clone(),
+        direction: Vector2(direction.x * c - direction.y * s, direction.x * s + direction.y * c),
+        damage: shotDamage,
+      ));
+    }
   }
 }
 

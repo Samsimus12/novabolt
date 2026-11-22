@@ -9,9 +9,18 @@ class SuperchargeSystem {
   double _charge = 0;
   bool _isActive = false;
 
-  double chargeMultiplier = 1.0;
-  double depleteMultiplier = 1.0;
-  double damageMultiplier = 1.0;
+  // Run-wide Nova bonuses from cards, as fractions (0.30 = +30%). They add.
+  double chargeBonus = 0;
+  double durationBonus = 0;
+  double damageBonus = 0;
+
+  /// Multiplier from outside the card system (the daily "Nova rush" = 2).
+  double chargeBase = 1.0;
+
+  double get chargeMultiplier => chargeBase * (1 + chargeBonus);
+  /// Drain slows so the Nova lasts exactly (1 + durationBonus) as long.
+  double get depleteMultiplier => 1 / (1 + durationBonus);
+  double get damageMultiplier => 1 + damageBonus;
 
   double get charge => _charge;
   double get fraction => (_charge / maxCharge).clamp(0.0, 1.0);
@@ -49,12 +58,20 @@ class SuperchargeSystem {
     return false;
   }
 
+  /// Restore a saved charge (never restores an active Nova).
+  void restore(double charge) {
+    _charge = charge.clamp(0.0, maxCharge);
+    _isActive = false;
+    stateNotifier.value = _charge >= maxCharge ? SuperchargeState.ready : SuperchargeState.charging;
+  }
+
   void reset() {
     _charge = 0;
     _isActive = false;
-    chargeMultiplier = 1.0;
-    depleteMultiplier = 1.0;
-    damageMultiplier = 1.0;
+    chargeBonus = 0;
+    durationBonus = 0;
+    damageBonus = 0;
+    chargeBase = 1.0;
     stateNotifier.value = SuperchargeState.charging;
   }
 }

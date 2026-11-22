@@ -3,8 +3,10 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../../audio/sfx.dart';
 import '../fx/glow.dart';
 import 'boss_projectile.dart';
+import 'damage_text.dart';
 import 'monster.dart';
 
 abstract class BossMonster extends Monster {
@@ -42,6 +44,135 @@ abstract class BossMonster extends Monster {
     this.playerLevel = 1,
   });
 
+  // ── Stages ────────────────────────────────────────────────────────────────
+  @override
+  String get label => displayName.split(' ').map((w) => w.isEmpty ? w : w[0] + w.substring(1).toLowerCase()).join(' ');
+
+  /// HP fractions (descending) at which the boss moves to its next stage.
+  /// Empty = a single-stage boss (the original behaviour).
+  List<double> get stageThresholds => const [];
+
+  /// 0-based current stage.
+  int stage = 0;
+  int get stageCount => stageThresholds.length + 1;
+
+  /// Seconds left in a stage-change stagger: the boss is invulnerable and
+  /// holds fire while it "transforms".
+  double stagger = 0;
+
+  /// Seconds since the current stage began.
+  double stageTime = 0;
+
+  /// Caption shown when entering [newStage] (1-based for players).
+  String stageCaption(int newStage) => newStage == stageCount - 1 ? '$displayName enraged' : 'Stage ${newStage + 1}';
+
+  /// Hook for subclasses: set up the new stage's behaviour.
+  void onStageChange(int newStage) {}
+
+  /// Hook for subclasses: per-frame stage behaviour (not called while
+  /// staggered).
+  void updateStage(double dt) {}
+
+  // ── Weak points ───────────────────────────────────────────────────────────
+  /// Multiplies all damage the boss takes. Below 1 = armoured / shielded
+  /// (shows "Armoured"), above 1 = a weak point is open (shows "Weak
+  /// point!"). Bosses override it per stage.
+  double get damageTakenMultiplier => 1.0;
+
+  /// Caption for the reduced-damage state ("Armoured", "Shielded").
+  String get armouredCaption => 'Armoured';
+
+  double _hintTimer = 0;
+
+  @override
+  void takeDamage(double damage, {bool silent = false}) {
+    if (stagger > 0) return;
+    final k = damageTakenMultiplier;
+    if (k != 1.0 && !isDead) {
+      damage *= k;
+      if (_hintTimer <= 0 && !silent) {
+        _hintTimer = k < 1 ? 1.4 : 0.9;
+        final weak = k > 1;
+        final t = DamageText.label(
+          position + Vector2(0, -size.y * 0.45),
+          weak ? 'Weak point!' : armouredCaption,
+          color: weak ? const Color(0xFFFFC23D) : const Color(0xFF9AA6C8),
+          fontSize: weak ? 16 : 14,
+          force: true,
+        );
+        if (t != null) game.world.add(t);
+      }
+    }
+    super.takeDamage(damage, silent: silent);
+  }
+
+  // ── Attack helpers ────────────────────────────────────────────────────────
+  /// Angle from the boss to the player.
+  double get aimAngle {
+    final d = game.player.position - position;
+    return math.atan2(d.y, d.x);
+  }
+
+  /// A ring of [count] shots from [from] (default: the boss). With
+  /// [gapWidth] > 0 the shots within gapWidth/2 rad of [gapAngle] are left
+  /// out, so the ring has a hole to fly through.
+  void fireRing({
+    required int count,
+    required double speed,
+    double? damage,
+    double size = 14,
+    Color? color,
+    double offset = 0,
+    double gapAngle = 0,
+    double gapWidth = 0,
+    Vector2? from,
+  }) {
+    final origin = from ?? position;
+    for (var i = 0; i < count; i++) {
+      final a = offset + i / count * math.pi * 2;
+      if (gapWidth > 0) {
+        var d = (a - gapAngle) % (math.pi * 2);
+        if (d > math.pi) d -= math.pi * 2;
+        if (d.abs() < gapWidth / 2) continue;
+      }
+      game.world.add(BossProjectile(
+        position: origin.clone(),
+        direction: Vector2(math.cos(a), math.sin(a)),
+        damage: damage ?? projectileDamage,
+        speed: speed,
+        size: size,
+        color: color ?? specialColor,
+      ));
+    }
+  }
+
+  /// One shot from [from] towards [angle].
+  void fireShot(double angle, {required double speed, double? damage, double size = 14, Color? color, Vector2? from}) {
+    game.world.add(BossProjectile(
+      position: (from ?? position).clone(),
+      direction: Vector2(math.cos(angle), math.sin(angle)),
+      damage: damage ?? projectileDamage,
+      speed: speed,
+      size: size,
+      color: color ?? specialColor,
+    ));
+  }
+
+  /// Keeps the boss inside the arena with [margin] px to spare.
+  void clampToArena([double margin = 50]) {
+    position.x = position.x.clamp(margin, game.size.x - margin);
+    position.y = position.y.clamp(margin, game.size.y - margin);
+  }
+
+  /// Spawns an enemy that doesn't give XP (so a boss fight can't level you
+  /// into the next boss) and is cleared when the boss dies.
+  void spawnMinion(Monster m) {
+    m.minion = true;
+    game.world.add(m);
+  }
+
+  int get minionCount => game.world.children.whereType<Monster>().where((m) => m.minion && !m.isDead).length;
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
@@ -52,6 +183,25 @@ abstract class BossMonster extends Monster {
   void update(double dt) {
     super.update(dt);
     if (isDead) return;
+    if (_hintTimer > 0) _hintTimer -= dt;
+
+    final th = stageThresholds;
+    if (stage < th.length && hpFraction <= th[stage]) {
+      stage++;
+      stageTime = 0;
+      stagger = 1.0;
+      game.announce(stageCaption(stage), color: specialColor);
+      game.shake(0.5);
+      SfxManager.instance.play(Sfx.stage);
+      SfxManager.instance.heavy();
+      onStageChange(stage);
+    }
+    if (stagger > 0) {
+      stagger -= dt;
+      return;
+    }
+    stageTime += dt;
+    updateStage(dt);
 
     // Normal fire
     _fireTimer += dt;
@@ -124,6 +274,7 @@ abstract class BossMonster extends Monster {
   // Energy gathers inward: collapsing rings, converging motes and a core
   // that swells until the special fires.
   void renderChargeEffect(Canvas canvas, double cx, double cy) {
+    renderStagger(canvas, cx, cy);
     final progress = chargeProgress;
     if (progress < 0) return;
     final c = Offset(cx, cy);
@@ -144,8 +295,23 @@ abstract class BossMonster extends Monster {
     Glow.draw(canvas, c, size.x * (0.25 + 0.55 * progress), col.withValues(alpha: 0.35 + 0.5 * progress));
   }
 
+  /// Stage-change shockwave; call from render() next to renderChargeEffect.
+  void renderStagger(Canvas canvas, double cx, double cy) {
+    if (stagger <= 0) return;
+    final p = 1 - stagger;
+    _chargeRing
+      ..strokeWidth = 6 * (1 - p) + 1
+      ..color = specialColor.withValues(alpha: (1 - p) * 0.9);
+    canvas.drawCircle(Offset(cx, cy), size.x * (0.6 + 1.6 * p), _chargeRing);
+    Glow.draw(canvas, Offset(cx, cy), size.x * 0.9, specialColor.withValues(alpha: 0.5 * (1 - p)), hot: true);
+  }
+
   @override
   void onDie() {
+    // Minions and hazards go with their boss.
+    for (final m in game.world.children.whereType<Monster>().where((m) => m.minion).toList()) {
+      m.removeFromParent();
+    }
     game.onBossKilled();
   }
 }

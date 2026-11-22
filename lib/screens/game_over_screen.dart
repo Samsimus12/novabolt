@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
+import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
 import '../game/novabolt_game.dart';
 import '../stats/stats_manager.dart';
@@ -38,7 +39,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
   void _onAdReadyChanged() => setState(() {});
 
-  int get _coinsEarned => widget.game.xpSystem.currentLevel * 10;
+  late final RunReward _reward = widget.game.runReward;
+  int get _coinsEarned => _reward.total;
 
   static String _clock(num seconds) {
     final total = seconds.toInt();
@@ -51,12 +53,13 @@ class _GameOverScreenState extends State<GameOverScreen> {
     if (_coinsAwarded) return;
     _coinsAwarded = true;
     CoinManager.instance.addCoins(_coinsEarned);
+    SfxManager.instance.play(Sfx.coin);
   }
 
   void _watchAdAndContinue() {
     setState(() => _isShowingAd = true);
     AdManager.instance.showRewardedAd(
-      onRewarded: () => widget.game.continueWithHalfHp(),
+      onRewarded: () => widget.game.continueFromAd(),
       onDismissed: () {
         AudioManager.instance.playGame();
         setState(() => _isShowingAd = false);
@@ -178,14 +181,30 @@ class _GameOverScreenState extends State<GameOverScreen> {
                               ),
                             ],
                           ),
-                          CoinAmount(_coinsEarned, prefix: '+', size: 16),
                         ],
                       ).animate().fadeIn(delay: 450.ms, duration: 350.ms),
+                      const SizedBox(height: NbSpace.md),
+                      _RewardPanel(reward: _reward)
+                          .animate()
+                          .fadeIn(delay: 520.ms, duration: 350.ms)
+                          .moveY(begin: 10, end: 0, curve: NbMotion.easeOut),
                       const SizedBox(height: NbSpace.xl),
+                      if (game.canFreeRevive) ...[
+                        NbButton(
+                          label: 'Emergency reactor',
+                          caption: 'Free revive at half hull (Hangar upgrade)',
+                          icon: PhosphorIconsFill.lightning,
+                          color: NbColors.mint,
+                          expand: true,
+                          height: 64,
+                          onPressed: () => game.freeRevive(),
+                        ).animate().fadeIn(delay: 520.ms, duration: 300.ms).moveY(begin: 12, end: 0, curve: NbMotion.easeOut),
+                        const SizedBox(height: NbSpace.sm),
+                      ],
                       if (canContinue) ...[
                         NbButton(
                           label: 'Continue',
-                          caption: 'Watch an ad, return with half hull',
+                          caption: 'Watch an ad, return at full hull + shield',
                           icon: PhosphorIconsFill.playCircle,
                           color: NbColors.ion,
                           expand: true,
@@ -253,6 +272,51 @@ class _NewBestBadge extends StatelessWidget {
           const Icon(PhosphorIconsFill.crown, size: 15, color: NbColors.abyss),
           const SizedBox(width: 6),
           Text('New personal best', style: NbType.label.copyWith(color: NbColors.abyss, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Itemised NOVA payout: where this run's coins came from.
+class _RewardPanel extends StatelessWidget {
+  final RunReward reward;
+  const _RewardPanel({required this.reward});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <(String, int)>[
+      ('Level reached', reward.level),
+      if (reward.bosses > 0) ('Bosses defeated', reward.bosses),
+      if (reward.flawless > 0) ('Flawless boss kills', reward.flawless),
+      if (reward.combo > 0) ('Best combo', reward.combo),
+      if (reward.events > 0) ('Elites & gold rush', reward.events),
+      if (reward.bonus > 0) ('Bonus ×${reward.multiplier.toStringAsFixed(2)}', reward.bonus),
+      if (reward.streak > 0) ('Daily streak', reward.streak),
+    ];
+    return NbPanel(
+      accent: NbColors.gold,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (label, amount) in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Expanded(child: Text(label, style: NbType.label)),
+                  CoinAmount(amount, prefix: '+', size: 13),
+                ],
+              ),
+            ),
+          const Divider(height: 14, color: NbColors.line),
+          Row(
+            children: [
+              Expanded(child: Text('NOVA earned', style: NbType.bodyStrong)),
+              CoinAmount(reward.total, prefix: '+', size: 17),
+            ],
+          ),
         ],
       ),
     );

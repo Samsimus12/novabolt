@@ -1,89 +1,15 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../../cosmetics/catalog.dart';
 import '../fx/glow.dart';
 
-/// Colours for one ship skin. Shared by the in-game player, the shop preview
-/// and the main-menu hero so all three always match.
-class ShipPalette {
-  final Color hull;
-  final Color hullShade;
-  final Color wing;
-  final Color wingShade;
-  final Color cockpit;
-  final Color trim;
-  final Color engine;
-
-  const ShipPalette({
-    required this.hull,
-    required this.hullShade,
-    required this.wing,
-    required this.wingShade,
-    required this.cockpit,
-    required this.trim,
-    required this.engine,
-  });
-}
-
-ShipPalette shipPaletteFor(String skin) => switch (skin) {
-      'ice' => const ShipPalette(
-          hull: Color(0xFFB8F3FF),
-          hullShade: Color(0xFF2B8FB0),
-          wing: Color(0xFF4FC8E6),
-          wingShade: Color(0xFF0D4E6E),
-          cockpit: Color(0xFFE6FCFF),
-          trim: Color(0xFFFFFFFF),
-          engine: Color(0xFF6FE8FF),
-        ),
-      'flame' => const ShipPalette(
-          hull: Color(0xFFFF8A57),
-          hullShade: Color(0xFF8E1F06),
-          wing: Color(0xFFE2471B),
-          wingShade: Color(0xFF5A1204),
-          cockpit: Color(0xFFFFD27A),
-          trim: Color(0xFFFFC07A),
-          engine: Color(0xFFFF7A1A),
-        ),
-      'shadow' => const ShipPalette(
-          hull: Color(0xFFB66DFF),
-          hullShade: Color(0xFF320A5E),
-          wing: Color(0xFF6A2BB8),
-          wingShade: Color(0xFF1C0638),
-          cockpit: Color(0xFFF0A8FF),
-          trim: Color(0xFFE39CFF),
-          engine: Color(0xFFC060FF),
-        ),
-      'solar' => const ShipPalette(
-          hull: Color(0xFFFFF1A6),
-          hullShade: Color(0xFFC77700),
-          wing: Color(0xFFFFB31F),
-          wingShade: Color(0xFF8A3A00),
-          cockpit: Color(0xFFFFFFFF),
-          trim: Color(0xFFFFFFFF),
-          engine: Color(0xFFFFB238),
-        ),
-      'void' => const ShipPalette(
-          hull: Color(0xFF7FD3FF),
-          hullShade: Color(0xFF0B2B78),
-          wing: Color(0xFF1E62D6),
-          wingShade: Color(0xFF071A4A),
-          cockpit: Color(0xFFA9F0FF),
-          trim: Color(0xFF9FE7FF),
-          engine: Color(0xFF3FA8FF),
-        ),
-      _ => const ShipPalette(
-          hull: Color(0xFFFFE07A),
-          hullShade: Color(0xFF9A6A00),
-          wing: Color(0xFFE8B21E),
-          wingShade: Color(0xFF6B4400),
-          cockpit: Color(0xFF4DE8FF),
-          trim: Color(0xFFFFF4C8),
-          engine: Color(0xFFFF9A2E),
-        ),
-    };
+export '../../cosmetics/catalog.dart'
+    show BeamSpec, BeamStyle, Livery, ShieldSpec, ShieldStyle, ShipPalette, ThrusterSpec, TrailStyle, shipPaletteFor;
 
 /// The player's interceptor, drawn centred on the origin, nose pointing up
-/// (−y), spanning roughly 44 × 42 units.
+/// (−y), spanning roughly 44 × 42 units. Liveries from the skin's palette are
+/// layered over the base paint job.
 abstract final class ShipArt {
   // Geometry is constant — build the paths once.
   static final _wingL = Path()
@@ -173,11 +99,21 @@ abstract final class ShipArt {
 
   /// [thrust] 0–1 scales the engine plume; [time] drives flicker and the
   /// wing-tip beacons.
+  static final _wings = Path()
+    ..addPath(_wingL, Offset.zero)
+    ..addPath(_wingR, Offset.zero);
+  static final _body = Path()
+    ..addPath(_wings, Offset.zero)
+    ..addPath(_canardL, Offset.zero)
+    ..addPath(_canardR, Offset.zero)
+    ..addPath(_hull, Offset.zero);
+
+  /// [engine] overrides the plume colour (thruster cosmetics).
   static void paint(Canvas canvas, ShipPalette p,
-      {double time = 0, double thrust = 0.6, bool engines = true}) {
+      {double time = 0, double thrust = 0.6, bool engines = true, Color? engine}) {
     final (wingShader, hullShader, canopyShader) = _shaders(p);
 
-    if (engines) _paintEngines(canvas, p, time, thrust);
+    if (engines) _paintEngines(canvas, engine ?? p.engine, time, thrust);
 
     // Wings
     _fill.shader = wingShader;
@@ -212,6 +148,8 @@ abstract final class ShipArt {
     canvas.drawLine(const Offset(-11, 6.5), const Offset(-16, 11), _stroke);
     canvas.drawLine(const Offset(11, 6.5), const Offset(16, 11), _stroke);
 
+    if (p.livery.isNotEmpty) _paintLivery(canvas, p, time);
+
     // Canopy + specular
     _fill.shader = canopyShader;
     canvas.drawPath(_canopy, _fill);
@@ -223,11 +161,84 @@ abstract final class ShipArt {
 
     // Wing-tip beacons blink out of phase.
     final blink = (math.sin(time * 5) + 1) / 2;
-    Glow.draw(canvas, const Offset(-20, 10.5), 5, p.engine.withValues(alpha: 0.35 + 0.5 * blink), hot: true);
-    Glow.draw(canvas, const Offset(20, 10.5), 5, p.engine.withValues(alpha: 0.85 - 0.5 * blink), hot: true);
+    final beacon = engine ?? p.engine;
+    Glow.draw(canvas, const Offset(-20, 10.5), 5, beacon.withValues(alpha: 0.35 + 0.5 * blink), hot: true);
+    Glow.draw(canvas, const Offset(20, 10.5), 5, beacon.withValues(alpha: 0.85 - 0.5 * blink), hot: true);
   }
 
-  static void _paintEngines(Canvas canvas, ShipPalette p, double time, double thrust) {
+  static final _glowLine = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..blendMode = BlendMode.plus;
+
+  static void _paintLivery(Canvas canvas, ShipPalette p, double time) {
+    final a = p.accent;
+    final l = p.livery;
+    if (l.contains(Livery.split)) {
+      canvas.save();
+      canvas.clipPath(_body);
+      canvas.clipRect(const Rect.fromLTRB(0, -30, 30, 30));
+      _fill
+        ..shader = null
+        ..color = a.withValues(alpha: 0.55);
+      canvas.drawRect(const Rect.fromLTRB(0, -30, 30, 30), _fill);
+      canvas.restore();
+    }
+    if (l.contains(Livery.tips)) {
+      canvas.save();
+      canvas.clipPath(_wings);
+      _fill
+        ..shader = null
+        ..color = a;
+      canvas.drawPath(
+        Path()
+          ..moveTo(-22, 4)
+          ..lineTo(-14, 14)
+          ..lineTo(-22, 14)
+          ..close()
+          ..moveTo(22, 4)
+          ..lineTo(14, 14)
+          ..lineTo(22, 14)
+          ..close(),
+        _fill,
+      );
+      canvas.restore();
+    }
+    if (l.contains(Livery.chevrons)) {
+      canvas.save();
+      canvas.clipPath(_wings);
+      _stroke
+        ..strokeWidth = 1.8
+        ..color = a;
+      for (final o in const [2.5, 6.5]) {
+        canvas.drawLine(Offset(-6, o - 3), Offset(-21, o + 10), _stroke);
+        canvas.drawLine(Offset(6, o - 3), Offset(21, o + 10), _stroke);
+      }
+      canvas.restore();
+    }
+    if (l.contains(Livery.stripe)) {
+      canvas.save();
+      canvas.clipPath(_hull);
+      _fill
+        ..shader = null
+        ..color = a.withValues(alpha: 0.92);
+      canvas.drawRect(const Rect.fromLTRB(-1.4, -21, 1.4, 15), _fill);
+      canvas.restore();
+    }
+    if (l.contains(Livery.glowLines)) {
+      final breathe = 0.55 + 0.45 * math.sin(time * 2.6);
+      _glowLine
+        ..strokeWidth = 1.1
+        ..color = a.withValues(alpha: 0.75 * breathe + 0.2);
+      canvas.drawLine(const Offset(0, -16), const Offset(0, 11), _glowLine);
+      canvas.drawLine(const Offset(-6, 1), const Offset(-19, 10.5), _glowLine);
+      canvas.drawLine(const Offset(6, 1), const Offset(19, 10.5), _glowLine);
+      canvas.drawLine(const Offset(-5.5, 3.5), const Offset(5.5, 3.5), _glowLine);
+      Glow.draw(canvas, const Offset(0, 3.5), 7, a.withValues(alpha: 0.5 * breathe));
+    }
+  }
+
+  static void _paintEngines(Canvas canvas, Color engine, double time, double thrust) {
     final flicker = 0.85 + 0.15 * math.sin(time * 38) * math.sin(time * 23);
     final len = (10 + 16 * thrust) * flicker;
     for (final x in const [-4.2, 4.2]) {
@@ -235,7 +246,7 @@ abstract final class ShipArt {
       Glow.drawOval(
         canvas,
         Rect.fromLTRB(x - 5.5, 11, x + 5.5, 14 + len),
-        p.engine.withValues(alpha: 0.9),
+        engine.withValues(alpha: 0.9),
       );
       Glow.drawOval(
         canvas,
@@ -254,43 +265,116 @@ abstract final class ShipArt {
 }
 
 /// Energy shield bubble — shared by the player and the shop preview.
+
+
+/// Energy shield bubble — shared by the player and the shop preview.
 abstract final class ShieldArt {
   static final _ring = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+  static final _add = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..blendMode = BlendMode.plus;
 
-  static void paint(Canvas canvas, double radius, Color color,
+  static final _hexCache = <double, Path>{};
+
+  /// Hex cells covering the outer band of a disc of radius [r].
+  static Path _hexLattice(double r) => _hexCache.putIfAbsent(r, () {
+        final path = Path();
+        const s = 5.2; // cell radius
+        final w = math.sqrt(3) * s;
+        for (var row = -8; row <= 8; row++) {
+          for (var col = -8; col <= 8; col++) {
+            final cx = col * w + (row.isOdd ? w / 2 : 0);
+            final cy = row * s * 1.5;
+            final d = math.sqrt(cx * cx + cy * cy);
+            if (d > r - s * 0.6 || d < r * 0.5) continue;
+            for (var i = 0; i < 6; i++) {
+              final a = math.pi / 6 + i * math.pi / 3;
+              final x = cx + math.cos(a) * s * 0.88;
+              final y = cy + math.sin(a) * s * 0.88;
+              i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+            }
+            path.close();
+          }
+        }
+        return path;
+      });
+
+  static void paint(Canvas canvas, double radius, ShieldSpec spec,
       {double strength = 1, double time = 0, bool flash = false}) {
     final s = strength.clamp(0.0, 1.0);
-    final c = flash ? const Color(0xFFFFFFFF) : color;
-    // Soft inner field
+    final c = flash ? const Color(0xFFFFFFFF) : spec.color;
+    final c2 = flash ? const Color(0xFFFFFFFF) : spec.color2;
+    // Soft inner field, common to every style.
     Glow.draw(canvas, Offset.zero, radius * 1.35, c.withValues(alpha: 0.10 + 0.14 * s));
-    // Main ring
     _ring
       ..strokeWidth = 1.2 + 1.4 * s
       ..color = c.withValues(alpha: 0.45 + 0.5 * s);
-    canvas.drawCircle(Offset.zero, radius, _ring);
-    // Three rotating arc segments sell "tech" rather than "bubble".
-    _ring
-      ..strokeWidth = 2.6
-      ..color = c.withValues(alpha: 0.6 + 0.4 * s);
-    final rect = Rect.fromCircle(center: Offset.zero, radius: radius + 3.5);
-    for (var i = 0; i < 3; i++) {
-      canvas.drawArc(rect, time * 1.6 + i * math.pi * 2 / 3, 0.7 * s + 0.15, false, _ring);
+
+    switch (spec.style) {
+      case ShieldStyle.arcs:
+        canvas.drawCircle(Offset.zero, radius, _ring);
+        _ring
+          ..strokeWidth = 2.6
+          ..color = c.withValues(alpha: 0.6 + 0.4 * s);
+        final rect = Rect.fromCircle(center: Offset.zero, radius: radius + 3.5);
+        for (var i = 0; i < 3; i++) {
+          canvas.drawArc(rect, time * 1.6 + i * math.pi * 2 / 3, 0.7 * s + 0.15, false, _ring);
+        }
+      case ShieldStyle.hex:
+        canvas.save();
+        canvas.rotate(time * 0.25);
+        _add
+          ..strokeWidth = 0.9
+          ..color = c2.withValues(alpha: 0.25 + 0.45 * s);
+        canvas.drawPath(_hexLattice(radius), _add);
+        canvas.restore();
+        canvas.drawCircle(Offset.zero, radius, _ring);
+      case ShieldStyle.ripple:
+        canvas.drawCircle(Offset.zero, radius, _ring);
+        for (var i = 0; i < 3; i++) {
+          final p = (time * 0.8 + i / 3) % 1.0;
+          _add
+            ..strokeWidth = 2 * (1 - p) + 0.5
+            ..color = c2.withValues(alpha: (1 - p) * (0.3 + 0.5 * s));
+          canvas.drawCircle(Offset.zero, radius * (0.55 + p * 0.75), _add);
+        }
+      case ShieldStyle.twin:
+        canvas.drawCircle(Offset.zero, radius, _ring);
+        _ring.color = c2.withValues(alpha: 0.35 + 0.5 * s);
+        canvas.drawCircle(Offset.zero, radius * 0.82, _ring);
+        _ring.strokeWidth = 2.6;
+        for (var i = 0; i < 2; i++) {
+          _ring.color = c.withValues(alpha: 0.6 + 0.4 * s);
+          canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: radius + 3.5), time * 2 + i * math.pi, 0.9 * s + 0.2, false, _ring);
+          _ring.color = c2.withValues(alpha: 0.6 + 0.4 * s);
+          canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: radius * 0.82 - 3), -time * 2.6 + i * math.pi, 0.9 * s + 0.2, false, _ring);
+        }
+      case ShieldStyle.orbit:
+        canvas.drawCircle(Offset.zero, radius, _ring);
+        for (var i = 0; i < 4; i++) {
+          final a = time * 2.2 + i * math.pi / 2;
+          _add
+            ..strokeWidth = 2.2
+            ..color = c.withValues(alpha: 0.5 * s + 0.2);
+          canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: radius), a - 0.7, 0.7, false, _add);
+          final p = Offset(math.cos(a), math.sin(a)) * radius;
+          Glow.draw(canvas, p, 8, c.withValues(alpha: 0.6 + 0.4 * s));
+          Glow.draw(canvas, p, 3.5, c2, hot: true);
+        }
+      case ShieldStyle.corona:
+        canvas.drawCircle(Offset.zero, radius, _ring);
+        for (var i = 0; i < 18; i++) {
+          final a = i * math.pi * 2 / 18 + time * 0.3;
+          final flick = 0.5 + 0.5 * math.sin(time * 7 + i * 2.3);
+          final d = Offset(math.cos(a), math.sin(a));
+          _add
+            ..strokeWidth = 2
+            ..color = Color.lerp(c, c2, flick)!.withValues(alpha: (0.35 + 0.5 * flick) * (0.4 + 0.6 * s));
+          canvas.drawLine(d * (radius + 1), d * (radius + 3 + 7 * flick * s), _add);
+        }
     }
   }
 }
-
-Color shieldColorFor(String id) => switch (id) {
-      'shield_plasma' => const Color(0xFFFF7A45),
-      'shield_void' => const Color(0xFFD04DFF),
-      'shield_gold' => const Color(0xFFFFC23D),
-      _ => const Color(0xFF4DE8FF),
-    };
-
-Color novaBeamColorFor(String id) => switch (id) {
-      'nova_inferno' => const Color(0xFFFF4A1C),
-      'nova_void' => const Color(0xFFFF3DF2),
-      'nova_eclipse' => const Color(0xFFFFC23D),
-      _ => const Color(0xFF4DE8FF),
-    };

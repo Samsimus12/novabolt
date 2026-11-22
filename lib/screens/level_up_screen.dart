@@ -1,10 +1,10 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../audio/sfx.dart';
 import '../game/data/upgrade_cards.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
@@ -25,17 +25,36 @@ IconData iconForGlyph(CardGlyph g) => switch (g) {
       CardGlyph.afterburner => PhosphorIconsBold.wind,
       CardGlyph.hull => PhosphorIconsBold.shieldPlus,
       CardGlyph.repair => PhosphorIconsBold.wrench,
+      CardGlyph.relic => PhosphorIconsFill.diamond,
+      CardGlyph.evolve => PhosphorIconsFill.sparkle,
+    };
+
+Color rarityColor(CardRarity r) => switch (r) {
+      CardRarity.common => NbColors.haze,
+      CardRarity.rare => NbColors.ion,
+      CardRarity.epic => NbColors.plasma,
+      CardRarity.legendary => NbColors.gold,
     };
 
 /// How a card presents: accent colour + the short tag in its corner.
 ({Color color, String tag}) _styleFor(UpgradeCard card) {
+  if (card is RelicCard) return (color: NbColors.gold, tag: 'Relic');
+  if (card is EvolutionCard) return (color: NbColors.gold, tag: 'Evolution');
   if (card is NewWeaponCard) return (color: NbColors.gold, tag: 'New weapon');
-  if (card is WeaponUpgradeCard) return (color: NbColors.plasma, tag: 'Upgrade');
-  if (card is StatBuffCard && card.rare) return (color: NbColors.gold, tag: 'Rare');
+  final r = card.rarity;
+  final color = switch (card.category) {
+    UpgradeCategory.weapon => NbColors.plasma,
+    UpgradeCategory.nova => NbColors.ion,
+    UpgradeCategory.mobility => NbColors.mint,
+    UpgradeCategory.relic => NbColors.gold,
+  };
+  if (r != CardRarity.common) return (color: color, tag: r.label);
+  if (card is WeaponUpgradeCard) return (color: color, tag: 'Upgrade');
   return switch (card.category) {
-    UpgradeCategory.weapon => (color: NbColors.plasma, tag: 'All weapons'),
-    UpgradeCategory.nova => (color: NbColors.ion, tag: 'Nova'),
-    UpgradeCategory.mobility => (color: NbColors.mint, tag: 'Thrust'),
+    UpgradeCategory.weapon => (color: color, tag: 'All weapons'),
+    UpgradeCategory.nova => (color: color, tag: 'Nova'),
+    UpgradeCategory.mobility => (color: color, tag: 'Thrust'),
+    UpgradeCategory.relic => (color: color, tag: 'Relic'),
   };
 }
 
@@ -86,7 +105,11 @@ class LevelUpScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (multi) ...[
+                          if (game.isRelicPick) ...[
+                            _Tag('Relic chest', NbColors.gold),
+                            const SizedBox(width: NbSpace.xs),
+                            Text(multi ? 'Pick ${game.currentPickIndex} of ${game.picksTotal}' : 'Choose a relic', style: NbType.bodyStrong),
+                          ] else if (multi) ...[
                             _Tag(boss ? 'Boss reward' : 'Lucky draw', boss ? NbColors.flare : NbColors.ion),
                             const SizedBox(width: NbSpace.xs),
                             Text('Pick ${game.currentPickIndex} of ${game.picksTotal}', style: NbType.bodyStrong),
@@ -120,11 +143,24 @@ class LevelUpScreen extends StatelessWidget {
                       for (final card in cards)
                         Padding(
                           padding: const EdgeInsets.only(bottom: NbSpace.sm),
-                          child: _UpgradeCardTile(card: card, game: game)
+                          // ObjectKey: every offer gets fresh tile state. Without it
+                          // Flutter reused the tile from the previous pick (the
+                          // overlay is removed and re-added in one frame), and the
+                          // slot you'd just chosen stayed "chosen" and ignored taps.
+                          child: _UpgradeCardTile(key: ObjectKey(card), card: card, game: game)
                               .animate()
                               .fadeIn(delay: next(), duration: 280.ms)
                               .moveX(begin: 36, end: 0, delay: Duration(milliseconds: delay), duration: 420.ms, curve: NbMotion.easeOut),
                         ),
+                      if (game.rerollsLeft > 0)
+                        Center(
+                          child: NbButton.ghost(
+                            label: 'Reroll (${game.rerollsLeft} left)',
+                            icon: PhosphorIconsBold.shuffle,
+                            color: NbColors.plasma,
+                            onPressed: game.rerollCards,
+                          ),
+                        ).animate().fadeIn(delay: next(), duration: 250.ms),
                     ],
                   ),
                 ),
@@ -234,7 +270,7 @@ class _UpgradeCardTile extends StatefulWidget {
   final UpgradeCard card;
   final NovaboltGame game;
 
-  const _UpgradeCardTile({required this.card, required this.game});
+  const _UpgradeCardTile({super.key, required this.card, required this.game});
 
   @override
   State<_UpgradeCardTile> createState() => _UpgradeCardTileState();
@@ -247,11 +283,11 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
   Future<void> _choose() async {
     if (_chosen) return;
     setState(() => _chosen = true);
-    HapticFeedback.mediumImpact();
+    SfxManager.instance.medium();
+    SfxManager.instance.play(Sfx.click);
     // A beat to show the selection lighting up before the overlay swaps.
     await Future<void>.delayed(const Duration(milliseconds: 160));
-    widget.card.apply(widget.game);
-    widget.game.resumeFromLevelUp();
+    widget.game.pickCard(widget.card);
   }
 
   @override
@@ -290,7 +326,7 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
           duration: NbMotion.tap,
           child: NbPanel(
             accent: c,
-            glow: lit,
+            glow: lit || card.rarity.index >= CardRarity.epic.index,
             fill: lit ? Color.lerp(NbColors.glassHi, c, 0.12)! : NbColors.glassHi,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             child: Row(
@@ -307,7 +343,11 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
                         children: [
                           Expanded(child: Text(card.title, style: NbType.heading)),
                           const SizedBox(width: 8),
-                          Text(style.tag, style: NbType.caption.copyWith(color: c, fontWeight: FontWeight.w700)),
+                          Text(style.tag,
+                              style: NbType.caption.copyWith(
+                                color: card.rarity == CardRarity.common ? c : rarityColor(card.rarity),
+                                fontWeight: FontWeight.w700,
+                              )),
                         ],
                       ),
                       const SizedBox(height: 3),

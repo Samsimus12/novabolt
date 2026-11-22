@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flame_audio/flame_audio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AudioManager {
@@ -12,17 +13,43 @@ class AudioManager {
 
   int _fadeGeneration = 0;
 
-  static const _menuTrack = 'Menu.wav';
+  // All music is AAC in assets/music/. The originals' WAV masters are in
+  // scripts/music_masters/; the Nov 2026 additions were generated with Suno on
+  // Sam's Premier plan (see scripts/music_sources.md).
+  // The menu keeps its original song (the Suno menu tracks were too mellow
+  // and were removed on Nov 22, 2026).
+  static const _menuTracks = ['music/menu.m4a'];
   static const _gameTracks = [
-    'Fighting.wav',
-    'Fighting 2.wav',
-    'Flying.wav',
-    'Flying 2.wav',
+    'music/fighting.m4a',
+    'music/fighting_2.m4a',
+    'music/flying.m4a',
+    'music/flying_2.m4a',
+    'music/neon_vector_a.m4a',
+    'music/neon_vector_b.m4a',
+    'music/hyperdrive_a.m4a',
+    'music/hyperdrive_b.m4a',
+    'music/starfall_arcade_a.m4a',
+    'music/starfall_arcade_b.m4a',
   ];
   static const _bossTracks = [
-    'Boss Battle.wav',
-    'Boss Battle 2.wav',
+    'music/boss_battle.m4a',
+    'music/boss_battle_2.m4a',
+    'music/dreadnought_rising.m4a',
+    'music/void_siege.m4a',
   ];
+
+  final _rng = Random();
+  String? _lastTrack;
+
+  /// A random track from [list], never the one that just played.
+  String _pick(List<String> list) {
+    var options = list.where((t) => t != _lastTrack).toList();
+    if (options.isEmpty) options = list; // a one-track list can repeat
+    final t = options[_rng.nextInt(options.length)];
+    _lastTrack = t;
+    if (const bool.fromEnvironment('DIAG')) debugPrint('[diag] music: $t');
+    return t;
+  }
 
   Future<void> init() async {
     // Files are in assets/ directly, not the default assets/audio/
@@ -44,19 +71,17 @@ class AudioManager {
 
   Future<void> playMenu() async {
     if (!_musicEnabled) return;
-    await _crossfadeTo(_menuTrack);
+    await _crossfadeTo(_pick(_menuTracks));
   }
 
   Future<void> playGame() async {
     if (!_musicEnabled) return;
-    final track = _gameTracks[Random().nextInt(_gameTracks.length)];
-    await _crossfadeTo(track);
+    await _crossfadeTo(_pick(_gameTracks));
   }
 
   Future<void> playBoss() async {
     if (!_musicEnabled) return;
-    final track = _bossTracks[Random().nextInt(_bossTracks.length)];
-    await _crossfadeTo(track);
+    await _crossfadeTo(_pick(_bossTracks));
   }
 
   Future<void> stop() async {

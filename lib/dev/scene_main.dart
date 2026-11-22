@@ -3,8 +3,10 @@
 //
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
-// SCENE: menu | shop | waves | nova | flow | boss | levelup | bossreward | gameover | countdown
-// PHASE: 0-9, the visual/boss phase to start in (default 0)
+// SCENE: menu | shop | hangar | records | missions | waves | nova | flow | revive | overdrive | boss | levelup | bossreward | gameover | countdown
+// PHASE: 0-9, the visual/boss phase to start in (default 0); for shop, the tab
+// Prefs dev_loadout (comma-separated ids to own + equip) and dev_focus (shop
+// item to focus) are optional.
 //
 // Uses only the game's public API; the player regenerates hull every frame
 // and the aim stick auto-tracks the nearest enemy so weapons keep firing.
@@ -18,7 +20,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
+import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
+import '../coins/hangar_manager.dart';
+import '../cosmetics/catalog.dart';
+import '../game/components/boss_projectile.dart';
 import '../game/components/joystick.dart';
 import '../game/components/monster.dart';
 import '../game/components/monster_boss.dart';
@@ -38,14 +44,21 @@ import '../game/components/monster_speeder.dart';
 import '../game/components/monster_tank.dart';
 import '../game/components/weapon_spread_shot.dart';
 import '../game/components/weapon_sword_aura.dart';
+import '../game/data/daily_challenge.dart';
 import '../game/data/nova_mode.dart';
 import '../game/novabolt_game.dart';
+import 'diagnostics.dart';
 import '../main.dart';
 import '../screens/countdown_overlay.dart';
 import '../screens/game_controls_overlay.dart';
 import '../screens/game_over_screen.dart';
+import '../screens/hangar_screen.dart';
 import '../screens/level_up_screen.dart';
+import '../screens/records_screen.dart';
 import '../screens/shop_screen.dart';
+import '../screens/missions_screen.dart';
+import '../stats/mission_manager.dart';
+import '../stats/run_log.dart';
 import '../stats/stats_manager.dart';
 import '../ui/theme/app_theme.dart';
 
@@ -54,12 +67,19 @@ import '../ui/theme/app_theme.dart';
 //   xcrun simctl spawn booted defaults write com.sammorrison.novabolt flutter.dev_scene boss
 var _scene = const String.fromEnvironment('SCENE', defaultValue: 'menu');
 var _phase = const int.fromEnvironment('PHASE', defaultValue: 0);
+// Starting boss HP fraction for SCENE=boss (dev_hp pref wins), e.g. 0.3 to
+// land straight in a boss's last stage.
+var _bossHp = double.tryParse(const String.fromEnvironment('HP', defaultValue: '0.7')) ?? 0.7;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  startDiagnostics(autoPick: const bool.fromEnvironment('AUTOPICK'));
   final prefs = await SharedPreferences.getInstance();
-  _scene = prefs.getString('dev_scene') ?? _scene;
-  _phase = prefs.getInt('dev_phase') ?? _phase;
+  // An explicit --dart-define wins over the pref (the simulator's prefs
+  // daemon can serve stale values after a plist edit).
+  if (!const bool.hasEnvironment('SCENE')) _scene = prefs.getString('dev_scene') ?? _scene;
+  if (!const bool.hasEnvironment('PHASE')) _phase = prefs.getInt('dev_phase') ?? _phase;
+  if (!const bool.hasEnvironment('HP')) _bossHp = prefs.getDouble('dev_hp') ?? _bossHp;
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   if (_scene == 'menu') {
     runApp(const NovaboltApp());
@@ -68,10 +88,55 @@ void main() async {
   await AdManager.instance.init();
   await CoinManager.instance.init();
   await AudioManager.instance.init();
+  await SfxManager.instance.init();
+  await HangarManager.instance.init();
   await StatsManager.instance.init();
+  await DailyManager.instance.init();
+  await RunLog.instance.init();
+  await MissionManager.instance.init();
+  // Test scenes never move the real missions (except the missions screen).
+  MissionManager.instance.enabled = _scene == 'missions';
+  if (_scene == 'missions') {
+    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const MissionsScreen()));
+    return;
+  }
+  // --dart-define=STATS=true turns the combat-stats overlay on.
+  if (const bool.fromEnvironment('STATS')) await RunLog.instance.setOverlayEnabled(true);
+  if (_scene == 'records') {
+    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const RecordsScreen()));
+    return;
+  }
+  if (_scene == 'hangar') {
+    if (CoinManager.instance.totalCoins < 600) await CoinManager.instance.addCoins(900);
+    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const HangarScreen()));
+    return;
+  }
+  // Optional loadout: comma-separated item ids to buy (dev coins) and equip,
+  // e.g. 'nebula,shield_corona,nova_helix,thruster_prism,boom_supernova'.
+  final loadout = prefs.getString('dev_loadout') ?? const String.fromEnvironment('LOADOUT');
+  if (loadout.isNotEmpty) {
+    final mgr = CoinManager.instance;
+    for (final id in loadout.split(',')) {
+      for (final kind in CosmeticKind.values) {
+        for (final item in catalogFor(kind)) {
+          if (item.id != id.trim()) continue;
+          if (!mgr.owns(item.ownId)) {
+            await mgr.addCoins(item.price);
+            await mgr.purchase(item.ownId, item.price);
+          }
+          await mgr.select(item);
+        }
+      }
+    }
+  }
   if (_scene == 'shop') {
     if (CoinManager.instance.totalCoins < 600) await CoinManager.instance.addCoins(640);
-    runApp(MaterialApp(debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: ShopScreen(initialTab: _phase)));
+    final focus = prefs.getString('dev_focus');
+    runApp(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: buildNovaboltTheme(),
+      home: ShopScreen(initialTab: _phase, initialFocus: focus),
+    ));
     return;
   }
   runApp(MaterialApp(
@@ -106,6 +171,9 @@ class _DevGame extends NovaboltGame {
   JoystickComponent createAimStick() => _AutoAimJoystick();
 
   @override
+  bool get savesRuns => false;
+
+  @override
   void onMount() {
     super.onMount();
     if (const bool.fromEnvironment('FPS', defaultValue: true)) {
@@ -123,7 +191,7 @@ class _DevGame extends NovaboltGame {
       _applyScene();
     }
     final aim = aimJoystick as _AutoAimJoystick;
-    final target = world.children
+    final target = activeBoss ?? world.children
         .whereType<Monster>()
         .where((m) => m.position.x > 0 && m.position.x < size.x && m.position.y > 0 && m.position.y < size.y)
         .fold<Monster?>(null, (best, m) =>
@@ -163,8 +231,13 @@ class _DevGame extends NovaboltGame {
         _spawnRing(8, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         _spawnRing(3, (p) => MonsterTank(position: p, playerLevel: lvl));
         superchargeSystem.addCharge(100);
+        // PHASE picks the Nova attack (0 laser … 10 Event Horizon).
+        activeNovaMode = NovaMode.values[_phase.clamp(0, NovaMode.values.length - 1)];
         activateSupercharge();
       case 'boss':
+        // --dart-define=MUSIC=true: play the boss track like a real fight,
+        // so the crossfade back to the game track happens on the kill.
+        if (const bool.fromEnvironment('MUSIC')) AudioManager.instance.playBoss();
         xpSystem.currentLevel = 10;
         xpSystem.currentXp = -100000000;
         player.add(WeaponSpreadShot());
@@ -182,13 +255,20 @@ class _DevGame extends NovaboltGame {
           8 => MonsterBossVoidEmperor(position: pos, playerLevel: 10),
           _ => MonsterBossSingularity(position: pos, playerLevel: 10),
         };
-        boss.currentHp = boss.stats.maxHp * 0.7;
+        boss.currentHp = boss.stats.maxHp * _bossHp;
         activeBoss = boss;
+        tracker.bossStarted(playTimeSeconds);
         world.add(boss);
       case 'levelup':
         xpSystem.currentLevel = 4;
         player.add(WeaponSpreadShot());
         _spawnRing(5, (p) => MonsterGrunt(position: p, playerLevel: lvl));
+        onMonsterKilled(100000, 0);
+      case 'bosslevel':
+        // Repro: a normal level-up landing in the same frame as a boss kill.
+        xpSystem.currentLevel = 10;
+        pendingInheritMode = NovaMode.dreadnought;
+        onBossKilled();
         onMonsterKilled(100000, 0);
       case 'bossreward':
         xpSystem.currentLevel = 10;
@@ -203,9 +283,44 @@ class _DevGame extends NovaboltGame {
         // Smoke test: die, continue, countdown, die again, restart.
         _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         Future.delayed(const Duration(milliseconds: 500), onPlayerDeath);
-        Future.delayed(const Duration(milliseconds: 1500), continueWithHalfHp);
+        Future.delayed(const Duration(milliseconds: 1500), continueFromAd);
         Future.delayed(const Duration(milliseconds: 5800), onPlayerDeath);
         Future.delayed(const Duration(milliseconds: 6800), restart);
+      case 'overdrive':
+        // One kill from Overdrive, next to a boss whose spread shots graze.
+        combo = 49;
+        comboTimer = 30;
+        _spawnRing(10, (p) => MonsterGrunt(position: p, playerLevel: lvl)..minion = true);
+        // Bullets on lanes beside the ship: 34px and 45px off pass inside
+        // the graze band (22 + 7 + 18 = 47px), 70px off doesn't.
+        var lane = 0;
+        world.add(TimerComponent(
+          period: 0.35,
+          repeat: true,
+          onTick: () {
+            const offs = [34.0, -45.0, 70.0];
+            final dy = offs[lane++ % offs.length];
+            world.add(BossProjectile(
+              position: Vector2(-20, player.position.y + dy),
+              direction: Vector2(1, 0),
+              damage: 5,
+              speed: 420,
+            ));
+          },
+        ));
+        final tyrant = MonsterBossVoidTyrant(position: Vector2(size.x / 2, size.y * 0.22), playerLevel: 30);
+        activeBoss = tyrant;
+        world.add(tyrant);
+      case 'revive':
+        // Ad continue in the middle of a crowded fight: full hull + shield,
+        // nearby bullets cleared, ~2s blinking invulnerability.
+        // Minions give no XP, so no level-up screen gets in the way.
+        _spawnRing(8, (p) => MonsterGrunt(position: p, playerLevel: lvl)..minion = true);
+        final emperor = MonsterBossVoidEmperor(position: Vector2(size.x / 2, size.y * 0.25), playerLevel: 30);
+        activeBoss = emperor;
+        world.add(emperor);
+        Future.delayed(const Duration(milliseconds: 2500), onPlayerDeath);
+        Future.delayed(const Duration(milliseconds: 3500), continueFromAd);
       case 'countdown':
         _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         Future.delayed(const Duration(milliseconds: 300), () {

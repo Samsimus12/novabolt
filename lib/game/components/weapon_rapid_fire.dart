@@ -25,7 +25,7 @@ class WeaponRapidFire extends Weapon {
     game.world.add(MagicBolt(
       position: playerPos.clone(),
       direction: direction,
-      damage: damage,
+      damage: shotDamage,
       color: const Color(0xFFFF6B35),
       speed: 350,
       boltSize: 7,

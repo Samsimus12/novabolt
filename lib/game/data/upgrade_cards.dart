@@ -1,22 +1,51 @@
 import 'dart:math' as math;
+import 'dart:ui' show Color;
 
 import '../components/player.dart';
 import '../components/weapon.dart';
 import '../components/weapon_explosive_bolt.dart';
 import '../components/weapon_frost_shard.dart';
 import '../components/weapon_homing_bolt.dart';
+import '../components/weapon_magic_bolt.dart';
 import '../components/weapon_rapid_fire.dart';
 import '../components/weapon_spread_shot.dart';
 import '../components/weapon_sword_aura.dart';
 import '../novabolt_game.dart';
+import 'balance.dart';
+import 'relics.dart';
 
-enum UpgradeCategory { weapon, nova, mobility }
+enum UpgradeCategory { weapon, nova, mobility, relic }
+
+/// Card rarity scales a stat card's numbers. Rolled per card; boss rewards
+/// roll better. Weapon upgrade cards above common also add bonus damage.
+enum CardRarity {
+  common(1.0, 'Common'),
+  rare(Balance.rareMultiplier, 'Rare'),
+  epic(Balance.epicMultiplier, 'Epic'),
+  legendary(Balance.legendaryMultiplier, 'Legendary');
+
+  final double mult;
+  final String label;
+  const CardRarity(this.mult, this.label);
+
+  static CardRarity roll(math.Random rng, {bool boss = false}) {
+    final r = rng.nextDouble();
+    final shift = boss ? Balance.bossRarityShift : 1.0;
+    var edge = Balance.legendaryOdds * shift;
+    if (r < edge) return CardRarity.legendary;
+    edge += Balance.epicOdds * shift;
+    if (r < edge) return CardRarity.epic;
+    edge += Balance.rareOdds * shift;
+    if (r < edge) return CardRarity.rare;
+    return CardRarity.common;
+  }
+}
 
 /// Presentation-only: which icon a card shows on the level-up screen.
 enum CardGlyph {
   laser, scatter, pulse, homing, field, rocket, emp,
   targeting, overcharge, novaCharge, novaDuration, novaDamage,
-  afterburner, hull, repair,
+  afterburner, hull, repair, relic, evolve,
 }
 
 CardGlyph glyphForWeapon(Weapon w) => switch (w) {
@@ -30,6 +59,7 @@ CardGlyph glyphForWeapon(Weapon w) => switch (w) {
     };
 
 abstract class UpgradeCard {
+  CardRarity get rarity => CardRarity.common;
   String get title;
   String get description;
   CardGlyph get glyph;
@@ -39,18 +69,27 @@ abstract class UpgradeCard {
 
 class WeaponUpgradeCard extends UpgradeCard {
   final Weapon weapon;
-  WeaponUpgradeCard(this.weapon);
+  @override
+  final CardRarity rarity;
+  WeaponUpgradeCard(this.weapon, {this.rarity = CardRarity.common});
+
+  int get _bonusPct => ((rarity.mult - 1) * 30).round();
 
   @override
-  String get title => '${weapon.displayName} Lv${weapon.upgradeLevel + 1}';
+  String get title => '${weapon.label} Lv${weapon.upgradeLevel + 1}';
   @override
-  String get description => weapon.nextUpgradeDescription;
+  String get description => _bonusPct > 0
+      ? '${weapon.nextUpgradeDescription}, plus +$_bonusPct% damage'
+      : weapon.nextUpgradeDescription;
   @override
   CardGlyph get glyph => glyphForWeapon(weapon);
   @override
   UpgradeCategory get category => UpgradeCategory.weapon;
   @override
-  void apply(NovaboltGame game) => weapon.applyUpgrade();
+  void apply(NovaboltGame game) {
+    weapon.applyUpgrade();
+    if (_bonusPct > 0) weapon.damage *= 1 + _bonusPct / 100;
+  }
 }
 
 class NewWeaponCard extends UpgradeCard {
@@ -83,8 +122,8 @@ class StatBuffCard extends UpgradeCard {
   final String _description;
   @override
   final CardGlyph glyph;
-  /// Presentation-only: the card only appears on a low-probability roll.
-  final bool rare;
+  @override
+  final CardRarity rarity;
   final UpgradeCategory _category;
   final void Function(NovaboltGame) _apply;
 
@@ -94,7 +133,7 @@ class StatBuffCard extends UpgradeCard {
     required UpgradeCategory category,
     required void Function(NovaboltGame) apply,
     required this.glyph,
-    this.rare = false,
+    this.rarity = CardRarity.common,
   })  : _title = title,
         _description = description,
         _category = category,
@@ -107,33 +146,140 @@ class StatBuffCard extends UpgradeCard {
   @override
   UpgradeCategory get category => _category;
   @override
-  void apply(NovaboltGame game) => _apply(game);
+  void apply(NovaboltGame game) {
+    game.takenBuffs.add(_title);
+    _apply(game);
+  }
+}
+
+/// Boss reward: a run-long relic.
+class RelicCard extends UpgradeCard {
+  final Relic relic;
+  RelicCard(this.relic);
+
+  @override
+  CardRarity get rarity => CardRarity.legendary;
+  @override
+  String get title => relic.title;
+  @override
+  String get description => relic.description;
+  @override
+  CardGlyph get glyph => CardGlyph.relic;
+  @override
+  UpgradeCategory get category => UpgradeCategory.relic;
+  @override
+  void apply(NovaboltGame game) => game.addRelic(relic);
+}
+
+/// Fuses a weapon into a stronger form once its recipe is met.
+class EvolutionCard extends UpgradeCard {
+  final Weapon weapon;
+  final String name;
+  final String _description;
+  final void Function(Weapon) _boost;
+  EvolutionCard(this.weapon, this.name, this._description, this._boost);
+
+  @override
+  CardRarity get rarity => CardRarity.legendary;
+  @override
+  String get title => 'Evolve: $name';
+  @override
+  String get description => _description;
+  @override
+  CardGlyph get glyph => CardGlyph.evolve;
+  @override
+  UpgradeCategory get category => UpgradeCategory.weapon;
+  @override
+  void apply(NovaboltGame game) {
+    weapon.evolved = true;
+    weapon.evolvedName = name;
+    _boost(weapon);
+    game.announce('$name online', color: const Color(0xFFFFC23D));
+  }
+}
+
+/// Three relics the player doesn't have yet.
+List<UpgradeCard> generateRelicCards(NovaboltGame game) {
+  final left = Relic.values.where((r) => !game.relics.contains(r) && game.relicAllowed(r)).toList()..shuffle();
+  return left.take(3).map(RelicCard.new).toList();
+}
+
+/// Evolutions whose recipe is met right now.
+List<UpgradeCard> _evolutions(NovaboltGame game) {
+  final p = game.player;
+  final out = <UpgradeCard>[];
+  T? w<T extends Weapon>() => p.activeWeapons.whereType<T>().firstOrNull;
+  bool lv(Weapon? x, int n) => x != null && !x.evolved && x.upgradeLevel >= n;
+
+  final laser = w<WeaponMagicBolt>();
+  final spread = w<WeaponSpreadShot>();
+  final pulse = w<WeaponRapidFire>();
+  final homing = w<WeaponHomingBolt>();
+  final field = w<WeaponSwordAura>();
+  final rocket = w<WeaponExplosiveBolt>();
+  final emp = w<WeaponFrostShard>();
+
+  if (lv(laser, 5) && game.takenBuffs.contains('Targeting Array')) {
+    out.add(EvolutionCard(laser!, 'Ion Lance', 'Laser Bolt becomes a heavy lance that pierces 3 enemies', (x) => x.damage *= 1.3));
+  }
+  if (lv(spread, 5) && pulse != null) {
+    out.add(EvolutionCard(spread!, 'Bullet Storm', 'Scatter Cannon fires 5 bolts, 50% faster', (x) => x.fireRate *= 1.5));
+  }
+  if (lv(homing, 5) && game.takenBuffs.contains('Overcharge')) {
+    out.add(EvolutionCard(homing!, 'Swarm Missiles', 'Homing Missile launches three missiles per shot', (_) {}));
+  }
+  if (lv(field, 5) && emp != null) {
+    out.add(EvolutionCard(field!, 'Cryo Field', 'Force Field grows wider and slows everything inside it', (x) => x.damage *= 1.2));
+  }
+  if (rocket != null && !rocket.evolved && lv(spread, 5)) {
+    out.add(EvolutionCard(rocket, 'Rocket Barrage', 'Plasma Rocket fires a fan of three rockets', (x) => x.damage *= 1.2));
+  }
+  return out;
 }
 
 List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
   final rng = math.Random();
   final pool = <UpgradeCard>[];
   final player = game.player;
-  final phase = game.bossPhase;
+  final boss = game.isBossReward;
+  CardRarity roll() => CardRarity.roll(rng, boss: boss || game.luckyCards);
 
-  // Phase-scaled buff values (+5% per boss phase).
-  // Integer percentages avoid floating-point display errors (e.g. 1.15-1 = 0.1499…).
-  final fireRatePct   = 15 + phase * 5;
-  final weaponDmgPct  = 20 + phase * 5;
-  final chargePct     = 20 + phase * 5;
-  final beamPct       = 20 + phase * 5;
-  final novaDmgPct    = 30 + phase * 5;
-
-  final fireRateMult  = 1.0 + fireRatePct / 100.0;
-  final weaponDmgMult = 1.0 + weaponDmgPct / 100.0;
-  final chargeBonus   = chargePct / 100.0;
-  final beamBonus     = beamPct / 100.0;
-  final novaDmgBonus  = novaDmgPct / 100.0;
+  // Run-wide stat cards: one clean value per rarity from Balance, added to a
+  // capped bonus (two +15% cards = +30%). A maxed bonus isn't offered. The
+  // description shows the running total so stacking is easy to read.
+  StatBuffCard? bonusCard({
+    required String title,
+    required String what,
+    required UpgradeCategory category,
+    required CardGlyph glyph,
+    required List<int> tiers,
+    required double current,
+    required int cap,
+    required void Function(NovaboltGame g, double add) apply,
+    CardRarity minRarity = CardRarity.common,
+  }) {
+    final now = (current * 100).round();
+    if (now >= cap) return null;
+    var r = roll();
+    if (r.index < minRarity.index) r = minRarity;
+    final p = math.min(tiers[r.index], cap - now);
+    final after = now + p;
+    return StatBuffCard(
+      title: title,
+      description: now == 0
+          ? '$what +$p%'
+          : '$what +$p% (total +$now% → +$after%${after >= cap ? ', max' : ''})',
+      category: category,
+      glyph: glyph,
+      rarity: r,
+      apply: (g) => apply(g, p / 100),
+    );
+  }
 
   // --- Weapon category ---
 
   for (final w in player.activeWeapons) {
-    if (w.isUpgradeable && w.upgradeLevel < 10) pool.add(WeaponUpgradeCard(w));
+    if (w.isUpgradeable && w.upgradeLevel < 10) pool.add(WeaponUpgradeCard(w, rarity: roll()));
   }
 
   if (!player.hasWeapon<WeaponSpreadShot>()) {
@@ -185,61 +331,70 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
     ));
   }
 
-  // Rare all-weapon damage buff (~10% chance)
+  // Uncommon all-weapon damage buff (~10% chance), never below Rare.
   if (rng.nextDouble() < 0.10) {
-    pool.add(StatBuffCard(
+    final c = bonusCard(
       title: 'Targeting Array',
-      description: 'All weapons deal +$weaponDmgPct% damage',
+      what: 'Weapon damage',
       category: UpgradeCategory.weapon,
       glyph: CardGlyph.targeting,
-      rare: true,
-      apply: (g) {
-        for (final w in g.player.activeWeapons) {
-          w.damage *= weaponDmgMult;
-        }
-      },
-    ));
+      tiers: Balance.weaponDamageTiers,
+      current: game.weaponDamageBonus,
+      cap: Balance.maxWeaponDamageBonus,
+      minRarity: CardRarity.rare,
+      apply: (g, add) => g.weaponDamageBonus += add,
+    );
+    if (c != null) pool.add(c);
   }
 
-  pool.add(StatBuffCard(
+  final overcharge = bonusCard(
     title: 'Overcharge',
-    description: 'Fire rate +$fireRatePct% for all weapons',
+    what: 'Fire rate',
     category: UpgradeCategory.weapon,
     glyph: CardGlyph.overcharge,
-    apply: (g) {
-      for (final w in g.player.activeWeapons) {
-        w.fireRate *= fireRateMult;
-      }
-    },
-  ));
+    tiers: Balance.fireRateTiers,
+    current: game.fireRateBonus,
+    cap: Balance.maxFireRateBonus,
+    apply: (g, add) => g.fireRateBonus += add,
+  );
+  if (overcharge != null) pool.add(overcharge);
 
   // --- Nova category ---
-
-  // Regular nova stat buffs — always in pool
-  pool.addAll([
-    StatBuffCard(
+  final nova = game.superchargeSystem;
+  for (final c in [
+    bonusCard(
       title: 'Nova Accelerator',
-      description: 'Charge rate +$chargePct% faster',
+      what: 'Nova charge speed',
       category: UpgradeCategory.nova,
       glyph: CardGlyph.novaCharge,
-      apply: (g) => g.superchargeSystem.chargeMultiplier += chargeBonus,
+      tiers: Balance.novaChargeTiers,
+      current: nova.chargeBonus,
+      cap: Balance.maxNovaChargeBonus,
+      apply: (g, add) => g.superchargeSystem.chargeBonus += add,
     ),
-    StatBuffCard(
+    bonusCard(
       title: 'Extended Beam',
-      description: 'Nova lasts $beamPct% longer',
+      what: 'Nova duration',
       category: UpgradeCategory.nova,
       glyph: CardGlyph.novaDuration,
-      apply: (g) => g.superchargeSystem.depleteMultiplier =
-          (g.superchargeSystem.depleteMultiplier - beamBonus).clamp(0.2, 1.0),
+      tiers: Balance.novaDurationTiers,
+      current: nova.durationBonus,
+      cap: Balance.maxNovaDurationBonus,
+      apply: (g, add) => g.superchargeSystem.durationBonus += add,
     ),
-    StatBuffCard(
+    bonusCard(
       title: 'Nova Overload',
-      description: 'Nova damage +$novaDmgPct%',
+      what: 'Nova damage',
       category: UpgradeCategory.nova,
       glyph: CardGlyph.novaDamage,
-      apply: (g) => g.superchargeSystem.damageMultiplier += novaDmgBonus,
+      tiers: Balance.novaDamageTiers,
+      current: nova.damageBonus,
+      cap: Balance.maxNovaDamageBonus,
+      apply: (g, add) => g.superchargeSystem.damageBonus += add,
     ),
-  ]);
+  ]) {
+    if (c != null) pool.add(c);
+  }
 
   // --- Mobility category ---
 
@@ -268,6 +423,18 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
     picks.add(cards.first);
   }
   picks.shuffle(rng);
+
+  // An available evolution always gets offered, in place of the weapon pick.
+  final evos = _evolutions(game);
+  if (evos.isNotEmpty) {
+    final evo = evos[rng.nextInt(evos.length)];
+    final i = picks.indexWhere((c) => c.category == UpgradeCategory.weapon);
+    if (i >= 0) {
+      picks[i] = evo;
+    } else {
+      picks.insert(0, evo);
+    }
+  }
 
   // Guard: pad if pool was tiny (all weapons maxed, no nova, no mobility).
   if (picks.length < 3) {

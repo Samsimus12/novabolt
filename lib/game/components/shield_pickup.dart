@@ -4,7 +4,9 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../../audio/sfx.dart';
 import '../fx/glow.dart';
+import '../../stats/mission_manager.dart';
 import '../novabolt_game.dart';
 import 'player.dart';
 
@@ -33,6 +35,13 @@ class ShieldPickup extends PositionComponent
     super.update(dt);
     _timer += dt;
     if (_timer >= _lifetime) removeFromParent();
+    // Tractor beam (hangar Magnet upgrade / relic): drift toward the ship.
+    final r = game.magnetRadius;
+    if (r > 0) {
+      final d = game.player.position - position;
+      final dist = d.length;
+      if (dist < r && dist > 1) position += d / dist * (160 + 260 * (1 - dist / r)) * dt;
+    }
   }
 
   @override
@@ -41,6 +50,8 @@ class ShieldPickup extends PositionComponent
     super.onCollisionStart(intersectionPoints, other);
     if (other is Player) {
       other.addShield(shieldAmount);
+      SfxManager.instance.play(Sfx.pickup);
+      MissionManager.instance.onPickup();
       removeFromParent();
     }
   }

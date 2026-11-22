@@ -5,11 +5,17 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../../audio/sfx.dart';
 import '../../coins/coin_manager.dart';
 import '../fx/glow.dart';
+import '../data/balance.dart';
 import '../novabolt_game.dart';
+import '../../cosmetics/catalog.dart';
 import '../render/ship_art.dart';
+import '../render/trail_art.dart';
+import 'dash_trail.dart';
 import 'monster.dart';
+import 'boss_parts.dart';
 import 'monster_boss.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
@@ -18,12 +24,15 @@ import 'weapon_magic_bolt.dart';
 /// the ship moves.
 class EngineTrail extends Component {
   final Player player;
-  static const _n = 16;
-  final _xs = List<double>.filled(_n, 0);
-  final _ys = List<double>.filled(_n, 0);
+  static const _cap = 40;
+  final _xs = List<double>.filled(_cap, 0);
+  final _ys = List<double>.filled(_cap, 0);
   int _count = 0;
+  double _t = 0;
 
   EngineTrail(this.player) : super(priority: 2);
+
+  int get _n => (16 * thrusterSpecFor(CoinManager.instance.selectedThruster).length).round().clamp(4, _cap);
 
   @override
   void update(double dt) {
@@ -31,33 +40,26 @@ class EngineTrail extends Component {
       removeFromParent();
       return;
     }
+    _t += dt;
+    final n = _n;
     final a = player.facingAngle;
     final x = player.position.x - math.sin(a) * 14;
     final y = player.position.y + math.cos(a) * 14;
     if (_count > 0 && ((x - _xs[0]).abs() + (y - _ys[0]).abs()) > 80) _count = 0; // teleported (restart)
-    for (var i = math.min(_count, _n - 1); i > 0; i--) {
+    for (var i = math.min(_count, n - 1); i > 0; i--) {
       _xs[i] = _xs[i - 1];
       _ys[i] = _ys[i - 1];
     }
     _xs[0] = x;
     _ys[0] = y;
-    _count = math.min(_count + 1, _n);
+    _count = math.min(_count + 1, n);
   }
-
-  static final _paint = Paint()
-    ..strokeCap = StrokeCap.round
-    ..blendMode = BlendMode.plus;
 
   @override
   void render(Canvas canvas) {
-    final c = shipPaletteFor(CoinManager.instance.selectedSkin).engine;
-    for (var i = 1; i < _count; i++) {
-      final f = 1 - i / _n;
-      _paint
-        ..strokeWidth = 7 * f + 1
-        ..color = c.withValues(alpha: 0.5 * f * f);
-      canvas.drawLine(Offset(_xs[i - 1], _ys[i - 1]), Offset(_xs[i], _ys[i]), _paint);
-    }
+    final spec = thrusterSpecFor(CoinManager.instance.selectedThruster);
+    final c = spec.color ?? shipPaletteFor(CoinManager.instance.selectedSkin).engine;
+    TrailArt.paint(canvas, _xs, _ys, math.min(_count, _n), _n, c, spec.trail, _t);
   }
 }
 
@@ -91,13 +93,54 @@ class Player extends PositionComponent
     game.world.add(EngineTrail(this));
   }
 
+  // ── Dash ──────────────────────────────────────────────────────────────────
+  double _dashTime = 0;
+  double dashCooldown = 0;
+  final Vector2 _dashDir = Vector2.zero();
+  final Vector2 _dashFrom = Vector2.zero();
+
+  bool get isDashing => _dashTime > 0;
+
+  /// 0 = ready, 1 = just used (for the Dash button's ring).
+  double get dashCooldownFraction => (dashCooldown / Balance.dashCooldown).clamp(0.0, 1.0);
+
+  /// Dash in the move-stick direction (or where the ship faces when idle).
+  /// Returns false while on cooldown.
+  bool tryDash() {
+    if (dashCooldown > 0 || isDashing || game.isGameOver) return false;
+    final move = game.joystick.relativeDelta;
+    if (move.length > 0.1) {
+      _dashDir.setFrom(move.normalized());
+    } else {
+      _dashDir.setValues(math.sin(_facingAngle), -math.cos(_facingAngle));
+    }
+    _dashFrom.setFrom(position);
+    _dashTime = Balance.dashDuration;
+    dashCooldown = Balance.dashCooldown;
+    invulnerable = math.max(invulnerable, Balance.dashDuration + Balance.dashGrace);
+    SfxManager.instance.play(Sfx.dash);
+    SfxManager.instance.light();
+    game.shake(0.12);
+    return true;
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
+    if (dashCooldown > 0) dashCooldown -= dt;
+
+    if (isDashing) {
+      _dashTime -= dt;
+      position += _dashDir * Balance.dashSpeed * dt;
+      final r = size.x / 2;
+      position.x = position.x.clamp(r, game.size.x - r);
+      position.y = position.y.clamp(r, game.size.y - r);
+      if (_dashTime <= 0) game.world.add(DashTrail(from: _dashFrom.clone(), to: position.clone()));
+    }
 
     // Movement
     final delta = game.joystick.relativeDelta;
-    if (delta.length > 0.05) {
+    if (!isDashing && delta.length > 0.05) {
       position += delta * moveSpeed * dt;
       final r = size.x / 2;
       position.x = position.x.clamp(r, game.size.x - r);
@@ -111,6 +154,8 @@ class Player extends PositionComponent
     }
 
     if (_shieldFlashTimer > 0) _shieldFlashTimer -= dt;
+    if (invulnerable > 0) invulnerable -= dt;
+    if (reviveGrace > 0) reviveGrace -= dt;
     _damageTime += dt;
   }
 
@@ -124,9 +169,14 @@ class Player extends PositionComponent
   void onCollisionStart(
       Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
-    if (other is Monster && !other.isDead) {
-      takeDamage(other.stats.contactDamagePerSecond);
-      if (other is! BossMonster) other.takeDamage(other.currentHp);
+    if (other is Monster && !other.isDead && !other.isRemoving) {
+      takeDamage(other.stats.contactDamagePerSecond, source: '${other.label} collision');
+      // Boss armour (plates, drones, moonlets) has to be shot off, not rammed.
+      if (other is! BossMonster && other is! BossPart) {
+        // Dashing through an enemy rams it apart without hurting you.
+        if (isDashing) game.onDashKill();
+        other.takeDamage(other.currentHp, silent: true);
+      }
     }
   }
 
@@ -138,20 +188,47 @@ class Player extends PositionComponent
     currentHp = (currentHp + amount).clamp(0, maxHp);
   }
 
-  void takeDamage(double damage) {
+  void takeDamage(double damage, {String source = 'unknown'}) {
     if (game.isGameOver) return;
+    if (invulnerable > 0) return;
+    // Test builds only (--dart-define=GOD=true): the ship can't be hurt.
+    if (const bool.fromEnvironment('GOD')) return;
+    damage *= game.damageTakenMultiplier;
+    game.tracker.took(damage, source);
     game.shake(math.min(0.45, damage / 45));
+    game.onPlayerHit();
     if (shieldHp > 0) {
       _shieldFlashTimer = 0.12;
       final absorbed = damage.clamp(0.0, shieldHp);
       shieldHp -= absorbed;
       damage -= absorbed;
-      if (damage <= 0) return;
+      if (damage <= 0) {
+        SfxManager.instance.play(Sfx.shieldHit);
+        SfxManager.instance.light();
+        return;
+      }
     }
-    if (damage >= 14) game.hitStop(0.05);
+    SfxManager.instance.play(Sfx.playerHit);
+    if (damage >= 14) {
+      game.hitStop(0.05);
+      SfxManager.instance.medium();
+    } else {
+      SfxManager.instance.light();
+    }
     currentHp = (currentHp - damage).clamp(0, maxHp);
+    if (currentHp <= 0 && game.tryCheatDeath()) {
+      currentHp = 1;
+      invulnerable = 1.5;
+      return;
+    }
     if (currentHp <= 0) game.onPlayerDeath();
   }
+
+  /// Seconds of post-revive invulnerability (Second Wind relic).
+  double invulnerable = 0;
+
+  /// Seconds left of the revive grace: the ship blinks inside a ring.
+  double reviveGrace = 0;
 
   Iterable<Weapon> get activeWeapons => children.whereType<Weapon>();
 
@@ -166,9 +243,15 @@ class Player extends PositionComponent
     shieldHp = 0;
     _shieldFlashTimer = 0;
     _damageTime = 0;
+    invulnerable = 0;
+    reviveGrace = 0;
+    _dashTime = 0;
+    dashCooldown = 0;
     children.whereType<Weapon>().toList().forEach((w) => w.removeFromParent());
     add(WeaponMagicBolt());
   }
+
+  static final _graceRing = Paint()..style = PaintingStyle.stroke;
 
   static final _aimPaint = Paint()
     ..strokeWidth = 2
@@ -197,6 +280,25 @@ class Player extends PositionComponent
       canvas.drawRawPoints(PointMode.lines, _aimPts, _aimPaint);
     }
 
+    // Overdrive: a gold aura that breathes under the ship.
+    if (game.overdriveActive) {
+      final k = math.min(1.0, game.overdrive);
+      final b = 0.5 + 0.5 * math.sin(_damageTime * 8);
+      Glow.draw(canvas, Offset(cx, cy), 40 + 8 * b, const Color(0xFFFFC23D).withValues(alpha: (0.35 + 0.2 * b) * k));
+    }
+
+    // Revive grace: a fading ion ring, and the ship blinks (faster near the end).
+    final grace = reviveGrace;
+    if (grace > 0) {
+      final k = (grace / Balance.reviveGrace).clamp(0.0, 1.0);
+      _graceRing
+        ..strokeWidth = 2.5
+        ..color = const Color(0xFF4DE8FF).withValues(alpha: 0.35 + 0.5 * k);
+      canvas.drawCircle(Offset(cx, cy), 30 + 4 * math.sin(grace * 9), _graceRing);
+      final rate = grace < 0.6 ? 16.0 : 8.0;
+      if ((grace * rate).floor().isOdd) return;
+    }
+
     canvas.save();
     canvas.translate(cx, cy);
     canvas.rotate(_facingAngle);
@@ -205,6 +307,7 @@ class Player extends PositionComponent
       shipPaletteFor(CoinManager.instance.selectedSkin),
       time: _damageTime,
       thrust: 0.35 + 0.65 * thrust,
+      engine: thrusterSpecFor(CoinManager.instance.selectedThruster).color,
     );
     final hpFraction = (currentHp / maxHp).clamp(0.0, 1.0);
     if (hpFraction < 0.75) _renderDamage(canvas, 0, 0, hpFraction);
@@ -216,7 +319,7 @@ class Player extends PositionComponent
       ShieldArt.paint(
         canvas,
         28,
-        shieldColorFor(CoinManager.instance.selectedShieldSkin),
+        shieldSpecFor(CoinManager.instance.selectedShieldSkin),
         strength: shieldHp / maxShieldHp,
         time: _damageTime,
         flash: _shieldFlashTimer > 0,

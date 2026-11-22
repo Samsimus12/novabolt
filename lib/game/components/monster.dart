@@ -4,12 +4,18 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
+import '../../audio/sfx.dart';
+import '../data/elite_balance.dart';
 import '../data/monster_data.dart';
 import '../fx/glow.dart';
 import '../novabolt_game.dart';
+import '../systems/wave_events.dart';
+import 'damage_text.dart';
 import 'death_particles.dart';
+import 'hazards.dart';
 import 'health_pickup.dart';
 import 'monster_boss.dart';
+import 'monster_speeder.dart';
 import 'shield_pickup.dart';
 
 abstract class Monster extends PositionComponent
@@ -17,10 +23,31 @@ abstract class Monster extends PositionComponent
   final MonsterStats stats;
   late double currentHp;
   bool isDead = false;
+
+  /// Spawned by a boss: gives no XP and is cleared when the boss dies.
+  bool minion = false;
+
+  /// Set by [makeElite]: this enemy has one elite modifier, an aura and a
+  /// better reward.
+  EliteMod? elite;
+  bool get isElite => elite != null;
+
+  /// Multipliers on the base stats (elites). [maxHp] and [moveSpeed] include
+  /// them; use those rather than `stats.maxHp` / `stats.speed`.
+  double hpScale = 1.0;
+  double speedScale = 1.0;
+  double get maxHp => stats.maxHp * hpScale;
+  double get moveSpeed => stats.speed * speedScale;
   double slowFactor = 1.0;
   double _slowTimer = 0;
   double _flashTimer = 0;
   double _age = 0;
+
+  // Damage numbers are batched per enemy so continuous damage (Force Field,
+  // Nova beam) shows one number every ~0.18s instead of one per frame.
+  double _dmgAccum = 0;
+  bool _dmgCrit = false;
+  double _dmgTimer = 0;
 
   Monster({
     required super.position,
@@ -35,6 +62,35 @@ abstract class Monster extends PositionComponent
 
   Color get deathColor;
 
+  /// Enemy type without modifiers ("Grunt", "Speeder") — what missions count.
+  String get baseLabel => runtimeType.toString().replaceFirst('Monster', '');
+
+  /// Readable name for logs ("Grunt", "Tough elite grunt", "Dreadnought").
+  String get label {
+    final base = baseLabel;
+    final e = elite;
+    return e == null ? base : '${e.label} elite ${base.toLowerCase()}';
+  }
+
+  /// Turns this (not yet damaged) enemy into an elite with [mod]. Call it
+  /// before adding the enemy to the world.
+  void makeElite(EliteMod mod) {
+    elite = mod;
+    switch (mod) {
+      case EliteMod.tough:
+        hpScale = EliteBalance.toughHp;
+        scale = Vector2.all(EliteBalance.toughSize);
+      case EliteMod.swift:
+        hpScale = EliteBalance.swiftHp;
+        speedScale = EliteBalance.swiftSpeed;
+      case EliteMod.splitter:
+        hpScale = EliteBalance.splitterHp;
+      case EliteMod.volatile:
+        hpScale = EliteBalance.volatileHp;
+    }
+    currentHp = maxHp;
+  }
+
   @override
   Future<void> onLoad() async {
     add(CircleHitbox()..collisionType = CollisionType.passive);
@@ -46,6 +102,8 @@ abstract class Monster extends PositionComponent
     if (isDead) return;
     _age += dt;
     if (_flashTimer > 0) _flashTimer -= dt;
+    if (_dmgTimer > 0) _dmgTimer -= dt;
+    if (_dmgAccum > 0 && _dmgTimer <= 0) _flushDamageText();
     if (_slowTimer > 0) {
       _slowTimer -= dt;
       if (_slowTimer <= 0) slowFactor = 1.0;
@@ -56,7 +114,7 @@ abstract class Monster extends PositionComponent
   void updateMovement(double dt) {
     final dir = game.player.position - position;
     if (dir.length > 1) {
-      position += dir.normalized() * stats.speed * slowFactor * dt;
+      position += dir.normalized() * moveSpeed * slowFactor * game.enemySpeedMultiplier * dt;
     }
   }
 
@@ -65,42 +123,127 @@ abstract class Monster extends PositionComponent
     _slowTimer = duration;
   }
 
-  void takeDamage(double damage) {
-    if (isDead) return;
+  /// Player damage. Rolls a critical hit unless [silent] (instant kills such
+  /// as ramming), shows a damage number and plays the hit tick.
+  void takeDamage(double damage, {bool silent = false}) {
+    // isRemoving: already cleared (e.g. by a boss kill) but still in the world
+    // until the end of this frame; it must not die again and grant XP.
+    if (isDead || isRemoving) return;
+    var crit = false;
+    if (!silent) {
+      damage *= game.outgoingMultiplier(this);
+      if (game.rollCrit()) {
+        crit = true;
+        damage *= game.critMultiplier;
+      }
+      _dmgAccum += damage;
+      _dmgCrit |= crit;
+      SfxManager.instance.play(Sfx.hit);
+    }
+    final overkill = damage - currentHp;
+    game.tracker.dealt(math.min(damage, currentHp));
     currentHp -= damage;
     _flashTimer = 0.12;
-    if (currentHp <= 0) _die();
+    if (currentHp <= 0) {
+      if (!silent && overkill > 0) game.onOverkill(this, overkill);
+      _die();
+    }
+  }
+
+  void _flushDamageText() {
+    // Skip sub-2 chip damage (Force Field ticks) unless it crit — it's noise.
+    if (_dmgAccum >= 2 || _dmgCrit) {
+      final t = DamageText.create(position, _dmgAccum, crit: _dmgCrit);
+      if (t != null) game.world.add(t);
+    }
+    _dmgAccum = 0;
+    _dmgCrit = false;
+    _dmgTimer = 0.18;
   }
 
   void _die() {
     isDead = true;
+    if (_dmgAccum > 0) _flushDamageText();
     final boss = this is BossMonster;
+    final mod = elite;
     game.world.add(DeathParticles(
       position: position.clone(),
       color: deathColor,
-      radius: size.x / 2,
+      radius: size.x * scale.x / 2,
       big: boss,
     ));
     if (boss) {
       game.hitStop(0.12);
-    } else if (size.x >= 40) {
+    } else if (size.x >= 40 || mod != null) {
       game.shake(0.22);
+      SfxManager.instance.play(Sfx.explode, volume: 0.7);
     }
     final rng = math.Random();
-    if (rng.nextDouble() < stats.shieldDropChance) {
+    final dropBoost = game.dropChanceMultiplier;
+    var dropped = false;
+    if (rng.nextDouble() < stats.shieldDropChance * dropBoost) {
       game.world.add(ShieldPickup(position: position.clone()));
+      dropped = true;
     }
-    if (rng.nextDouble() < stats.healthDropChance) {
+    if (rng.nextDouble() < stats.healthDropChance * dropBoost) {
       game.world.add(HealthPickup(position: position.clone()));
+      dropped = true;
     }
-    game.onMonsterKilled(stats.xpValue, stats.chargeValue);
+    if (mod != null) {
+      // Elites always drop something: health when you're hurt, else a coin flip.
+      if (!dropped) {
+        final p = game.player;
+        final hurt = p.currentHp < p.maxHp * 0.5;
+        game.world.add(hurt || rng.nextBool()
+            ? HealthPickup(position: position.clone())
+            : ShieldPickup(position: position.clone()));
+      }
+      final pop = DamageText.label(position, 'Elite!', color: const Color(0xFFFFC23D), fontSize: 17, force: true);
+      if (pop != null) game.world.add(pop);
+    }
+    // Before onMonsterKilled: that can start a boss fight, which ends events.
+    WaveEvents.instance?.onMonsterDied(this);
+    final reward = mod != null && !minion ? EliteBalance.rewardMultiplier : 1;
+    game.onMonsterKilled(minion ? 0 : stats.xpValue * reward, stats.chargeValue * reward, this);
+    if (mod != null) _eliteDeath(mod);
     onDie();
     removeFromParent();
   }
 
+  void _eliteDeath(EliteMod mod) {
+    switch (mod) {
+      case EliteMod.splitter:
+        // Two speeders burst out sideways (away from the ship's line, so a
+        // ram doesn't drop them straight onto you).
+        final level = game.xpSystem.currentLevel + game.bossPhase * 8;
+        final away = position - game.player.position;
+        final dir = away.length > 1 ? away.normalized() : Vector2(0, -1);
+        final side = Vector2(-dir.y, dir.x);
+        for (var i = 0; i < EliteBalance.splitCount; i++) {
+          final s = i.isEven ? 1.0 : -1.0;
+          game.world.add(MonsterSpeeder(
+            position: position + side * (26 * s) + dir * 18,
+            playerLevel: level,
+          ));
+        }
+      case EliteMod.volatile:
+        game.world.add(HazardZone(
+          position: position.clone(),
+          radius: EliteBalance.volatileRadius,
+          warn: EliteBalance.volatileWarn,
+          damage: stats.contactDamagePerSecond * EliteBalance.volatileDamageScale,
+          color: EliteMod.volatile.color,
+          source: 'Volatile elite blast',
+        ));
+      case EliteMod.tough:
+      case EliteMod.swift:
+        break;
+    }
+  }
+
   void onDie() {}
 
-  double get hpFraction => (currentHp / stats.maxHp).clamp(0.0, 1.0);
+  double get hpFraction => (currentHp / maxHp).clamp(0.0, 1.0);
 
   static final _barPaint = Paint();
 
@@ -122,9 +265,39 @@ abstract class Monster extends PositionComponent
     ..style = PaintingStyle.stroke
     ..blendMode = BlendMode.plus;
 
-  /// Hit flare + warp-in. Every monster calls this last in render().
+  static final _elitePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..blendMode = BlendMode.plus;
+
+  /// Elite aura: a glow, a pulsing ring and three orbiting arcs in the
+  /// modifier's colour. A volatile elite pulses faster as it gets low.
+  void _renderElite(Canvas canvas, Offset c, EliteMod mod) {
+    final r = size.x / 2;
+    final rate = mod == EliteMod.volatile ? 6 + 12 * (1 - hpFraction) : 4.0;
+    final pulse = 0.5 + 0.5 * math.sin(_age * rate);
+    final col = mod.color;
+    Glow.draw(canvas, c, r * (1.55 + 0.2 * pulse), col.withValues(alpha: 0.20 + 0.16 * pulse));
+    _elitePaint
+      ..strokeWidth = 1.6
+      ..color = col.withValues(alpha: 0.5 + 0.4 * pulse);
+    canvas.drawCircle(c, r * (1.16 + 0.08 * pulse) + 2, _elitePaint);
+    _elitePaint
+      ..strokeWidth = 2.4
+      ..color = col.withValues(alpha: 0.9);
+    final rect = Rect.fromCircle(center: c, radius: r * 1.4 + 4);
+    final rot = _age * (mod == EliteMod.swift ? 4.0 : 2.0);
+    for (var i = 0; i < 3; i++) {
+      canvas.drawArc(rect, rot + i * (math.pi * 2 / 3), 0.75, false, _elitePaint);
+    }
+  }
+
+  /// Hit flare + warp-in (+ the elite aura). Every monster calls this last in
+  /// render().
   void renderFlash(Canvas canvas) {
     final c = Offset(size.x / 2, size.y / 2);
+    final mod = elite;
+    if (mod != null) _renderElite(canvas, c, mod);
     if (_age < 0.4) {
       // Warp-in: a ring collapsing onto the enemy as it arrives.
       final p = _age / 0.4;

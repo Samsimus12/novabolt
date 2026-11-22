@@ -8,7 +8,8 @@ import 'monster.dart';
 import 'weapon.dart';
 
 class WeaponSwordAura extends Weapon {
-  static const _radius = 70.0;
+  /// Cryo Field evolution widens the field and chills what's inside.
+  double get _radius => evolved ? 95.0 : 70.0;
 
   double _angle = 0;
 
@@ -27,7 +28,8 @@ class WeaponSwordAura extends Weapon {
     for (final m in game.world.children.whereType<Monster>()) {
       final dist = m.position.distanceTo(game.player.position);
       if (dist < _radius + m.size.x / 2) {
-        m.takeDamage(damage * dt);
+        m.takeDamage(shotDamage * dt);
+        if (evolved) m.applySlow(0.5, 0.3);
       }
     }
   }
@@ -42,7 +44,7 @@ class WeaponSwordAura extends Weapon {
   @override
   void render(Canvas canvas) {
     final c = Offset(game.player.size.x / 2, game.player.size.y / 2);
-    const gold = Color(0xFFFFC23D);
+    final gold = evolved ? const Color(0xFF88D8F0) : const Color(0xFFFFC23D);
 
     // Faint field disc + crisp rim.
     canvas.drawCircle(
@@ -79,7 +81,7 @@ class WeaponSwordAura extends Weapon {
     // Upgrade balls — one per level beyond 1, counter-orbiting on inner ring
     final extraBalls = upgradeLevel - 1;
     if (extraBalls > 0) {
-      const innerR = _radius * 0.65;
+      final innerR = _radius * 0.65;
       for (int i = 0; i < extraBalls; i++) {
         final a = -_angle * 1.5 + (i * math.pi * 2 / extraBalls);
         final p = c + Offset(math.cos(a), math.sin(a)) * innerR;

@@ -1,14 +1,18 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flame/components.dart';
+
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
 import '../fx/glow.dart';
+import 'boss_projectile.dart';
+import 'hazards.dart';
 import 'monster_boss.dart';
 
 class MonsterBossVoidTyrant extends BossMonster {
   MonsterBossVoidTyrant({required super.position, super.playerLevel})
-      : super(stats: tyrantStats.scaled(playerLevel));
+      : super(stats: tyrantStats.scaledBoss(playerLevel));
 
   @override
   String get displayName => 'VOID TYRANT';
@@ -37,6 +41,108 @@ class MonsterBossVoidTyrant extends BossMonster {
 
   @override
   Color get deathColor => const Color(0xFFCC0000);
+
+  // ── Stages ──────────────────────────────────────────────────────────────
+  // 1: keeps its distance instead of ramming.
+  // 2: blinks — a zone marks where it will reappear; it arrives with a ring
+  //    of shots (and the zone hurts if you're standing in it).
+  // 3 (enraged): opens void rifts around you every few seconds.
+  @override
+  List<double> get stageThresholds => const [0.66, 0.33];
+
+  final _rng = math.Random();
+  double _blinkTimer = 0;
+  double _riftTimer = 0;
+  bool _blinking = false;
+
+  @override
+  void updateMovement(double dt) {
+    if (_blinking) return;
+    final to = game.player.position - position;
+    final dist = to.length;
+    if (dist < 1) return;
+    final speed = stats.speed * slowFactor;
+    if (dist > 230) {
+      position += to / dist * speed * dt;
+    } else if (dist < 150) {
+      position -= to / dist * speed * 0.8 * dt;
+      position.x = position.x.clamp(40, game.size.x - 40);
+      position.y = position.y.clamp(40, game.size.y - 40);
+    }
+  }
+
+  @override
+  void onStageChange(int newStage) {
+    if (newStage == 1) _blinkTimer = 0.5;
+    if (newStage == 2) _riftTimer = 1.0;
+  }
+
+  @override
+  void updateStage(double dt) {
+    if (stage >= 1 && !_blinking) {
+      _blinkTimer -= dt;
+      if (_blinkTimer <= 0) {
+        _blinkTimer = stage >= 2 ? 5.5 : 4.0;
+        _blink();
+      }
+    }
+    if (stage >= 2) {
+      _riftTimer -= dt;
+      if (_riftTimer <= 0) {
+        _riftTimer = 3.2;
+        final p = game.player.position;
+        final spots = [p.clone()];
+        for (var i = 0; i < 2; i++) {
+          final a = _rng.nextDouble() * math.pi * 2;
+          spots.add(p + Vector2(math.cos(a), math.sin(a)) * 110);
+        }
+        for (final s in spots) {
+          game.world.add(HazardZone(
+            position: s,
+            radius: 58,
+            damage: projectileDamage * 1.1,
+            warn: 1.0,
+            color: const Color(0xFFB000FF),
+          ));
+        }
+      }
+    }
+  }
+
+  void _blink() {
+    final w = game.size.x, h = game.size.y;
+    var target = Vector2(w / 2, h * 0.3);
+    for (var i = 0; i < 12; i++) {
+      final c = Vector2(60 + _rng.nextDouble() * (w - 120), 90 + _rng.nextDouble() * (h * 0.6 - 90));
+      if (c.distanceTo(game.player.position) > 200) {
+        target = c;
+        break;
+      }
+    }
+    _blinking = true;
+    game.world.add(HazardZone(
+      position: target,
+      radius: 70,
+      damage: projectileDamage,
+      warn: 0.75,
+      color: specialColor,
+      onDetonate: () {
+        _blinking = false;
+        if (isDead || isRemoved) return;
+        position.setFrom(target);
+        for (var i = 0; i < 12; i++) {
+          final a = i * math.pi / 6;
+          game.world.add(BossProjectile(
+            position: position.clone(),
+            direction: Vector2(math.cos(a), math.sin(a)),
+            damage: projectileDamage,
+            speed: 240,
+            color: specialColor,
+          ));
+        }
+      },
+    ));
+  }
 
   @override
   void onDie() {

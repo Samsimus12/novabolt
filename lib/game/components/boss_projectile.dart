@@ -3,10 +3,11 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../fx/shot_art.dart';
+import 'graze.dart';
 import 'player.dart';
 import 'projectile.dart';
 
-class BossProjectile extends Projectile {
+class BossProjectile extends Projectile with Grazeable {
   final Color _color;
 
   BossProjectile({
@@ -19,9 +20,15 @@ class BossProjectile extends Projectile {
   })  : _color = color;
 
   @override
+  void update(double dt) {
+    super.update(dt);
+    checkGraze();
+  }
+
+  @override
   void onHit(PositionComponent other) {
     if (other is Player) {
-      other.takeDamage(damage);
+      other.takeDamage(damage, source: '${game.activeBoss?.label ?? 'Boss'} fire');
       removeFromParent();
     }
   }

@@ -3,10 +3,10 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../audio/sfx.dart';
 import '../game/fx/glow.dart';
 import '../game/novabolt_game.dart';
 import '../game/systems/supercharge_system.dart';
@@ -25,6 +25,31 @@ class GameControlsOverlay extends StatefulWidget {
 
 class _GameControlsOverlayState extends State<GameControlsOverlay> {
   bool _paused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.game.pauseRequests.addListener(_onPauseRequest);
+  }
+
+  @override
+  void dispose() {
+    widget.game.pauseRequests.removeListener(_onPauseRequest);
+    super.dispose();
+  }
+
+  /// The app went to the background: show the pause panel (unless another
+  /// screen already holds the game, e.g. a level-up or game over).
+  void _onPauseRequest() {
+    final o = widget.game.overlays;
+    if (_paused || o.isActive('LevelUp') || o.isActive('GameOver') || o.isActive('Countdown')) return;
+    if (mounted) _togglePause();
+  }
+
+  void _saveAndExit() {
+    widget.game.saveRun();
+    widget.onMenu();
+  }
 
   void _togglePause() {
     setState(() => _paused = !_paused);
@@ -74,7 +99,18 @@ class _GameControlsOverlayState extends State<GameControlsOverlay> {
           ),
         ),
 
-        if (_paused) _PausePanel(game: game, onResume: _togglePause, onQuit: widget.onMenu),
+        // Dash — above the move stick (double-tapping the stick works too).
+        Align(
+          alignment: Alignment.bottomLeft,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 30, bottom: 206),
+              child: _DashButton(game: game),
+            ),
+          ),
+        ),
+
+        if (_paused) _PausePanel(game: game, onResume: _togglePause, onQuit: _saveAndExit),
       ],
     );
   }
@@ -97,7 +133,11 @@ class _PausePanelState extends State<_PausePanel> {
     final game = widget.game;
     final modes = game.unlockedNovaModes.toList();
     return Positioned.fill(
-      child: Stack(
+      // A Material ancestor gives the panel's text a real default style;
+      // without it Flutter draws its yellow "missing Material" underlines.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
         children: [
           Positioned.fill(
             child: BackdropFilter(
@@ -140,6 +180,33 @@ class _PausePanelState extends State<_PausePanel> {
                               ),
                             ),
                         ],
+                        if (game.relics.isNotEmpty) ...[
+                          const SizedBox(height: NbSpace.lg),
+                          Text('Relics', style: NbType.label.copyWith(color: NbColors.gold)),
+                          const SizedBox(height: NbSpace.xs),
+                          for (final r in game.relics)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Icon(PhosphorIconsFill.diamond, size: 14, color: NbColors.gold),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text.rich(
+                                      TextSpan(children: [
+                                        TextSpan(text: '${r.title}  ', style: NbType.bodyStrong.copyWith(fontSize: 14)),
+                                        TextSpan(text: r.description, style: NbType.caption.copyWith(color: NbColors.haze)),
+                                      ]),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                         const SizedBox(height: NbSpace.lg),
                         NbButton(
                           label: 'Resume',
@@ -151,9 +218,9 @@ class _PausePanelState extends State<_PausePanel> {
                         const SizedBox(height: 6),
                         Center(
                           child: NbButton.ghost(
-                            label: 'Quit run',
-                            icon: PhosphorIconsBold.signOut,
-                            color: NbColors.flare,
+                            label: 'Save and exit',
+                            icon: PhosphorIconsBold.floppyDisk,
+                            color: NbColors.haze,
                             onPressed: widget.onQuit,
                           ),
                         ),
@@ -165,6 +232,7 @@ class _PausePanelState extends State<_PausePanel> {
             ),
           ).animate().fadeIn(duration: 200.ms).scaleXY(begin: 0.96, end: 1, duration: 260.ms, curve: NbMotion.easeOut),
         ],
+        ),
       ),
     );
   }
@@ -187,7 +255,7 @@ class _ModeOption extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          HapticFeedback.selectionClick();
+          SfxManager.instance.tap();
           onTap();
         },
         child: AnimatedContainer(
@@ -266,7 +334,7 @@ class _NovaCoreState extends State<_NovaCore> with SingleTickerProviderStateMixi
         onTap: widget.onFire == null
             ? null
             : () {
-                HapticFeedback.heavyImpact();
+                SfxManager.instance.heavy();
                 widget.onFire!();
               },
         child: AnimatedScale(
@@ -365,4 +433,116 @@ class _NovaCorePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NovaCorePainter old) => old.state != state;
+}
+
+/// Round Dash button whose ring refills over the cooldown.
+class _DashButton extends StatefulWidget {
+  final NovaboltGame game;
+  const _DashButton({required this.game});
+
+  @override
+  State<_DashButton> createState() => _DashButtonState();
+}
+
+class _DashButtonState extends State<_DashButton> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  final _cool = ValueNotifier<double>(0);
+  bool _down = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker((_) {
+      final p = widget.game.player;
+      _cool.value = p.isMounted ? p.dashCooldownFraction : 0;
+    })
+      ..start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _cool.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Dash',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) {
+          setState(() => _down = true);
+          widget.game.tryDash();
+        },
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        child: AnimatedScale(
+          scale: _down ? 0.9 : 1,
+          duration: NbMotion.tap,
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: CustomPaint(painter: _DashPainter(_cool)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashPainter extends CustomPainter {
+  final ValueNotifier<double> cool;
+  _DashPainter(this.cool) : super(repaint: cool);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2 - 3;
+    final ready = cool.value <= 0;
+    final col = ready ? NbColors.ion : NbColors.dim;
+    canvas.drawCircle(c, r, Paint()..color = NbColors.abyss.withValues(alpha: 0.55));
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = col.withValues(alpha: 0.35),
+    );
+    // Cooldown ring fills clockwise as it recharges.
+    final fill = 1 - cool.value;
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r),
+      -math.pi / 2,
+      math.pi * 2 * fill,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..color = col.withValues(alpha: ready ? 0.95 : 0.6),
+    );
+    if (ready) Glow.draw(canvas, c, r * 1.1, NbColors.ion.withValues(alpha: 0.22));
+    // Chevrons: ">>" pointing right, the universal dash glyph.
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = (ready ? NbColors.starlight : NbColors.haze).withValues(alpha: ready ? 1 : 0.6);
+    for (final dx in const [-5.0, 4.0]) {
+      final path = Path()
+        ..moveTo(c.dx + dx - 4, c.dy - 7)
+        ..lineTo(c.dx + dx + 3, c.dy)
+        ..lineTo(c.dx + dx - 4, c.dy + 7);
+      canvas.drawPath(path, p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashPainter old) => false;
 }

@@ -6,12 +6,14 @@ import 'package:flame/components.dart';
 import '../data/monster_data.dart';
 import '../data/nova_mode.dart';
 import '../fx/glow.dart';
+import 'boss_parts.dart';
 import 'boss_projectile.dart';
+import 'hazards.dart';
 import 'monster_boss.dart';
 
 class MonsterBossCosmicBehemoth extends BossMonster {
   MonsterBossCosmicBehemoth({required super.position, super.playerLevel})
-      : super(stats: behemothStats.scaled(playerLevel));
+      : super(stats: behemothStats.scaledBoss(playerLevel));
 
   @override
   String get displayName => 'COSMIC BEHEMOTH';
@@ -54,6 +56,116 @@ class MonsterBossCosmicBehemoth extends BossMonster {
       ));
     }
   }
+
+  // ── Stages ──────────────────────────────────────────────────────────────
+  // 1: three rock moonlets orbit it and soak your shots; a broken one grows
+  //    back after a while.
+  // 2: meteor shower around you.
+  // 3 (enraged): its gravity drags you in (weaker than your thrust, and only
+  //    down to a safe ring) while it fires slow rings with one gap to slip
+  //    through.
+  @override
+  List<double> get stageThresholds => const [0.66, 0.33];
+
+  static const int _moonlets = 3;
+  static const double _moonletOrbit = 120; // px from its centre
+  static const double _moonletSpin = 0.45; // rad/s
+  static const double _moonletHpShare = 0.05; // of its max HP, each
+  static const double _moonletSize = 36;
+  static const double _moonletRegrow = 10; // s before a broken moonlet returns (stage 1 only)
+  static const double _meteorInterval = 2.2;
+  static const double _meteorRadius = 50, _meteorWarn = 1.1;
+  static const double _meteorSpread = 120; // the two extra meteors land within this of you
+  static const double _pullStrength = 50; // px/s; the ship's thrust is far stronger
+  static const double _pullMinDistance = 190; // stops pulling inside this ring
+  static const double _gapRingInterval = 3.5;
+  static const int _gapRingCount = 36;
+  static const double _gapRingSpeed = 140, _gapWidth = 0.75; // rad
+
+  final _rng = math.Random();
+  bool _moonletsSpawned = false;
+  double _regrowTimer = _moonletRegrow;
+  double _meteorTimer = 0.8;
+  double _gapRingTimer = 1.5;
+
+  BossPart _moonlet(double angle) => BossPart(
+        owner: this,
+        angle: angle,
+        hp: maxHp * _moonletHpShare,
+        orbitRadius: _moonletOrbit,
+        orbitSpeed: _moonletSpin,
+        color: const Color(0xFF8899DD),
+        look: BossPartLook.rock,
+        size: _moonletSize,
+        contactDamage: 22,
+      );
+
+  @override
+  void updateStage(double dt) {
+    if (!_moonletsSpawned) {
+      _moonletsSpawned = true;
+      for (var i = 0; i < _moonlets; i++) {
+        spawnMinion(_moonlet(i * math.pi * 2 / _moonlets));
+      }
+    }
+    if (stage == 0 && BossPart.aliveFor(this) < _moonlets) {
+      _regrowTimer -= dt;
+      if (_regrowTimer <= 0) {
+        _regrowTimer = _moonletRegrow;
+        spawnMinion(_moonlet(_rng.nextDouble() * math.pi * 2));
+      }
+    }
+    if (stage >= 1) {
+      _meteorTimer -= dt;
+      if (_meteorTimer <= 0) {
+        _meteorTimer = _meteorInterval;
+        final p = game.player.position;
+        final spots = [p.clone()];
+        for (var i = 0; i < 2; i++) {
+          final a = _rng.nextDouble() * math.pi * 2;
+          spots.add(p + Vector2(math.cos(a), math.sin(a)) * (60 + _rng.nextDouble() * (_meteorSpread - 60)));
+        }
+        for (final s in spots) {
+          game.world.add(HazardZone(
+            position: s,
+            radius: _meteorRadius,
+            damage: projectileDamage,
+            warn: _meteorWarn,
+            color: const Color(0xFF7F8CFF),
+            look: HazardLook.meteor,
+          ));
+        }
+      }
+    }
+    if (stage >= 2) {
+      final pl = game.player;
+      final to = position - pl.position;
+      final d = to.length;
+      if (d > _pullMinDistance) {
+        pl.position += to / d * _pullStrength * dt;
+        final r = pl.size.x / 2;
+        pl.position.x = pl.position.x.clamp(r, game.size.x - r);
+        pl.position.y = pl.position.y.clamp(r, game.size.y - r);
+      }
+      _gapRingTimer -= dt;
+      if (_gapRingTimer <= 0) {
+        _gapRingTimer = _gapRingInterval;
+        fireRing(
+          count: _gapRingCount,
+          speed: _gapRingSpeed,
+          damage: projectileDamage,
+          size: 20,
+          offset: _rng.nextDouble(),
+          gapAngle: _rng.nextDouble() * math.pi * 2,
+          gapWidth: _gapWidth,
+        );
+      }
+    }
+  }
+
+  static final _gravityRing = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
 
   @override
   void onDie() {
@@ -195,6 +307,14 @@ class MonsterBossCosmicBehemoth extends BossMonster {
 
     canvas.restore();
 
+    if (stage >= 2 && stagger <= 0) {
+      // Gravity well: rings drift inward to show the pull.
+      for (var k = 0; k < 3; k++) {
+        final p = (stageTime * 0.5 + k / 3) % 1.0;
+        _gravityRing.color = specialColor.withValues(alpha: 0.28 * p);
+        canvas.drawCircle(Offset(cx, cy), size.x * 0.6 + (1 - p) * 180, _gravityRing);
+      }
+    }
     renderChargeEffect(canvas, cx, cy);
     renderFlash(canvas);
   }

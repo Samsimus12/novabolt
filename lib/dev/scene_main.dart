@@ -235,7 +235,7 @@ class _DevGame extends NovaboltGame {
         _spawnRing(3, (p) => MonsterTank(position: p, playerLevel: lvl));
         superchargeSystem.addCharge(100);
         // PHASE picks the Nova attack (0 laser … 10 Event Horizon).
-        activeNovaMode = NovaMode.values[_phase.clamp(0, NovaMode.values.length - 1)];
+        nova.unlock(NovaMode.values[_phase.clamp(0, NovaMode.values.length - 1)]); // unlock arms it too
         activateSupercharge();
       case 'boss':
         // --dart-define=MUSIC=true: play the boss track like a real fight,

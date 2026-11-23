@@ -23,7 +23,7 @@ class MonsterSpeeder extends Monster {
     final cx = size.x / 2;
     final cy = size.y / 2;
 
-    final dir = game.player.position - position;
+    final dir = target - position;
     final angle = math.atan2(dir.y, dir.x) + math.pi / 2;
 
     canvas.save();

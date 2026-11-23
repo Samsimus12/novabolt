@@ -12,6 +12,7 @@ import '../../stats/run_log.dart';
 import '../novabolt_game.dart';
 import '../systems/supercharge_system.dart';
 import '../systems/wave_events.dart';
+import 'wingman.dart';
 
 /// In-game heads-up display.
 ///
@@ -165,7 +166,12 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
       _renderCombo(canvas, barR, top + 40);
     }
     final ev = WaveEvents.instance;
-    if (ev != null && ev.active != null && _bossIn <= 0) _renderEvent(canvas, barR, top + 64, ev);
+    final showEvent = ev != null && ev.active != null && _bossIn <= 0;
+    if (showEvent) _renderEvent(canvas, barR, top + 64, ev);
+    final wing = game.wingman;
+    if (wing != null && !wing.leaving) {
+      _renderWingman(canvas, barR, top + (_bossIn > 0 ? 100 : showEvent ? 88 : 64), wing);
+    }
     if (_bossIn > 0) _renderBoss(canvas, w, top + 62);
     if (_banner < 2.6) _renderBanner(canvas, w, h);
     if (game.announcement != null && game.announcementAge < 1.8) _renderAnnouncement(canvas, w, h);
@@ -301,6 +307,21 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
     final lw = name.width + 6 + secs.width;
     _comboLine.color = col.withValues(alpha: 0.75);
     canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * ev.fraction, y + name.height + 3), _comboLine);
+  }
+
+  /// "Wingman  12s" under the event line, in the same style: the underline
+  /// drains with its time; the dot dims as its hull goes.
+  void _renderWingman(Canvas canvas, double right, double y, Wingman w) {
+    const col = wingmanColor;
+    final name = _tp('Wingman', _eventStyle.copyWith(color: col));
+    final secs = _tp('${w.remaining.ceil()}s', _smallStyle.copyWith(color: col.withValues(alpha: 0.85)));
+    final x = right - name.width - 6 - secs.width;
+    Glow.draw(canvas, Offset(x - 8, y + name.height / 2), 6, col.withValues(alpha: 0.35 + 0.55 * w.hullFraction), hot: true);
+    name.paint(canvas, Offset(x, y));
+    secs.paint(canvas, Offset(x + name.width + 6, y + name.height - secs.height - 1));
+    final lw = name.width + 6 + secs.width;
+    _comboLine.color = col.withValues(alpha: 0.75);
+    canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * w.fraction, y + name.height + 3), _comboLine);
   }
 
   static const _announceStyle = TextStyle(

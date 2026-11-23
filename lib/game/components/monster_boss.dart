@@ -10,6 +10,9 @@ import 'damage_text.dart';
 import 'monster.dart';
 
 abstract class BossMonster extends Monster {
+  @override
+  bool get tauntable => false;
+
   final int playerLevel;
 
   double _fireTimer = 0;

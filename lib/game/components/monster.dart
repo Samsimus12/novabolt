@@ -5,6 +5,7 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
 import '../../audio/sfx.dart';
+import '../data/balance.dart';
 import '../data/elite_balance.dart';
 import '../data/monster_data.dart';
 import '../fx/glow.dart';
@@ -17,6 +18,7 @@ import 'health_pickup.dart';
 import 'monster_boss.dart';
 import 'monster_speeder.dart';
 import 'shield_pickup.dart';
+import 'wingman.dart';
 
 abstract class Monster extends PositionComponent
     with HasGameReference<NovaboltGame> {
@@ -108,11 +110,42 @@ abstract class Monster extends PositionComponent
       _slowTimer -= dt;
       if (_slowTimer <= 0) slowFactor = 1.0;
     }
+    _updateAggro(dt);
     updateMovement(dt);
   }
 
+  // ── Target: the ship, or a wingman that has drawn this enemy's attention ──
+  bool _onWingman = false;
+  double _aggroT = 0;
+
+  /// Whether a [Wingman] can pull this enemy onto itself. Bosses and their
+  /// armour keep their eyes on you.
+  bool get tauntable => true;
+
+  /// Where this enemy heads and aims. Use this, not `game.player.position`.
+  Vector2 get target {
+    final w = game.wingman;
+    return _onWingman && w != null && w.taunting ? w.position : game.player.position;
+  }
+
+  // Re-decided a few times a second (staggered per enemy), not every frame,
+  // so enemies commit to a target instead of jittering between two.
+  void _updateAggro(double dt) {
+    _aggroT -= dt;
+    if (_aggroT > 0) return;
+    _aggroT = 0.3 + (identityHashCode(this) % 8) * 0.025;
+    final w = game.wingman;
+    if (w == null || !w.taunting || !tauntable) {
+      _onWingman = false;
+      return;
+    }
+    final dW = position.distanceTo(w.position);
+    final dP = position.distanceTo(game.player.position);
+    _onWingman = dW < Balance.wingmanAggroRadius && dW < dP * Balance.wingmanAggroBias;
+  }
+
   void updateMovement(double dt) {
-    final dir = game.player.position - position;
+    final dir = target - position;
     if (dir.length > 1) {
       position += dir.normalized() * moveSpeed * slowFactor * game.enemySpeedMultiplier * dt;
     }
@@ -187,6 +220,11 @@ abstract class Monster extends PositionComponent
     }
     if (rng.nextDouble() < stats.healthDropChance * dropBoost) {
       game.world.add(HealthPickup(position: position.clone()));
+      dropped = true;
+    }
+    // Wingman: same chance as a shield, one at a time.
+    if (!dropped && game.canDropWingman && rng.nextDouble() < stats.shieldDropChance * dropBoost) {
+      game.world.add(WingmanPickup(position: position.clone()));
       dropped = true;
     }
     if (mod != null) {

@@ -14,6 +14,9 @@ import 'monster_boss.dart';
 /// tougher while any of their parts are alive (see
 /// [BossMonster.damageTakenMultiplier] and [BossPart.aliveFor]).
 class BossPart extends Monster {
+  @override
+  bool get tauntable => false;
+
   final BossMonster owner;
   final double orbitRadius;
   final double orbitSpeed;

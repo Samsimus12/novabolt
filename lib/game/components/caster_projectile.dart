@@ -6,6 +6,7 @@ import '../fx/shot_art.dart';
 import 'graze.dart';
 import 'player.dart';
 import 'projectile.dart';
+import 'wingman.dart';
 
 class CasterProjectile extends Projectile with Grazeable {
   CasterProjectile({
@@ -23,6 +24,9 @@ class CasterProjectile extends Projectile with Grazeable {
   void onHit(PositionComponent other) {
     if (other is Player) {
       other.takeDamage(damage, source: 'Caster shot');
+      removeFromParent();
+    } else if (other is Wingman && other.taunting) {
+      other.takeHit(damage);
       removeFromParent();
     }
   }

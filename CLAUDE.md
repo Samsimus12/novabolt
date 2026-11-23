@@ -108,6 +108,7 @@ lib/
 │   │   ├── boss_projectile.dart      # Extends Projectile; hits Player only
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
 │   │   ├── health_pickup.dart        # Dropped by monsters; heals 30 HP; 8s lifetime
+│   │   ├── wingman.dart              # WingmanPickup + Wingman: a temporary helper ship (see "Wingman")
 │   │   ├── supercharge_laser.dart    # World Component (priority 4) — damage logic; visuals via BeamArt + equipped beam
 │   │   ├── death_particles.dart      # Enemy death: ExplosionBurst in the equipped explosion style; `big` variant for bosses
 │   │   ├── background.dart           # StarBackground: per-phase sky baked once to an image + 3 parallax star layers + phase set-piece; re-added on boss kill
@@ -256,6 +257,15 @@ assets/
 - **Input:** double-tap the move stick (`NovaJoystick.onDoubleTap`, two drag-starts within 0.28 s) or the round Dash button above it (`_DashButton` in `game_controls_overlay.dart`, ring = cooldown). Both call `game.tryDash()` → `Player.tryDash()`.
 - **Effect:** `Balance.dashDuration` (0.16 s) at `dashSpeed` (720 px/s) ≈ 115 px in the move-stick direction (or where the ship faces when idle), invulnerable for the dash + `dashGrace` (reuses `Player.invulnerable`), `dashCooldown` 2.2 s. Ramming a non-boss enemy while dashing kills it without hurting you and calls `game.onDashKill()` (counted in `dashKills`; missions hook in). A `DashTrail` light streak, `Sfx.dash` (TomWinandySFX swipe, imported by `scripts/import_sfx.py`), a light haptic and a small shake.
 
+## Wingman (Nov 22, 2026)
+
+- **Pickup** (`WingmanPickup`, plasma diamond with two arrowheads): rolled in `Monster._die` after the shield and health rolls, with the **same chance as a shield** (`stats.shieldDropChance` × `dropChanceMultiplier`), only when nothing else dropped and `game.canDropWingman` (no wingman out, none lying about, `Balance.wingmanCooldown` (0) elapsed). 8 s lifetime, tractor beam applies, counts as a pickup for missions.
+- **Wingman** (`Wingman`, `game.wingman`): warps in beside you via `game.callWingman()` ("Wingman" announcement), stays `Balance.wingmanDuration` (15 s), then warps out; blinks for its last 2 s. A second pickup while one is out refreshes its time and hull. A mini copy of your equipped ship with a plasma engine, a hull arc and a slow beacon pulse. Circles you at ~88 px (radius wobbles), shoots the nearest on-screen enemy within 420 px every 0.33 s for 60% of your strongest weapon's `shotDamage` (crits and the damage multiplier apply via `takeDamage`).
+- **Draws attention:** `Monster.target` is where an enemy heads and aims; use it, not `game.player.position`. Each enemy re-decides every ~0.3–0.5 s: it goes for the wingman when it's within 260 px of it and the wingman is closer than 1.6× its distance to you (`wingmanAggroRadius` / `wingmanAggroBias`). Bosses and `BossPart`s are not `tauntable`. Casters aim at it and their shots hurt it; boss shots pass through.
+- **Hull** = 80% of your max hull. Enemies that reach it are rammed apart like a dash, costing it half their contact damage (`wingmanRamCost`); at 0 it explodes ("Wingman down"). Not saved with a run; cleared on restart. All numbers in `Balance` under "Wingman". HUD: "Wingman 12s" line under the combo / event line (below the boss bar in a fight).
+- **Flame gotcha:** a hitbox that starts wholly inside another (no crossing outlines) doesn't collide, so a pickup spawned exactly on the stationary harness ship is never collected. In play the ship moves, so it's fine.
+- Harness: `SCENE=wingman` (pickup 30 px off the ship in a mixed wave; `dev_focus` = `pickup` leaves it 80 px off to look at).
+
 ## Elites and wave events (Nov 22, 2026)
 
 - **Elites** (`data/elite_balance.dart`, `Monster.makeElite`): from wave level 3 a regular or tank spawn has a 4% + 0.3%/effective level chance (max 12%) to be an elite with one modifier — Tough (3x HP, 1.25x size), Swift (1.7x speed, 2x HP), Splitter (2 Speeders on death), Volatile (telegraphed 70 px blast on death; step away). Never bosses or minions. Coloured aura (drawn in `Monster.renderFlash`), guaranteed health/shield drop, 3x XP and charge, a gold "Elite!" pop, +3 NOVA each. **Use `Monster.maxHp` / `moveSpeed`, not `stats.maxHp` / `stats.speed`**, so elite scaling applies. `label` reads e.g. "Tough elite grunt" (run log); `baseLabel` is the plain type (missions use it).
@@ -296,7 +306,7 @@ assets/
 ```bash
 flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=4
 ```
-- `SCENE`: `menu | shop | hangar | records | missions | waves | nova | novaswitch | revive | overdrive | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab. For `novaswitch`, `dev_focus` = `wheel:<slot>` opens the selector wheel, prefix `all:` unlocks every mode.
+- `SCENE`: `menu | shop | hangar | records | missions | waves | nova | novaswitch | revive | overdrive | wingman | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab. For `novaswitch`, `dev_focus` = `wheel:<slot>` opens the selector wheel, prefix `all:` unlocks every mode.
 - Prefs `dev_loadout` (comma-separated item ids to grant + equip, e.g. `nebula,shield_corona,nova_helix,thruster_prism,boom_supernova`, or `--dart-define=LOADOUT=…`) and `dev_focus` (shop item to focus) are optional. Loadouts don't apply to the `menu` scene.
 - A `--dart-define` beats the `dev_*` prefs; prefer rebuilding with defines, since the simulator's prefs daemon can keep serving old values after a plist edit.
 - One simulator build can be relaunched into any scene without rebuilding: terminate the app, write `flutter.dev_scene` (string) / `flutter.dev_phase` (int) into the app container's `Library/Preferences/com.sammorrison.novabolt.plist` via `xcrun simctl spawn <udid> defaults write <plist-path> ...`, relaunch with `xcrun simctl launch`, then `xcrun simctl io <udid> screenshot`.

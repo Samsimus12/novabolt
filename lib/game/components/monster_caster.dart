@@ -27,7 +27,7 @@ class MonsterCaster extends Monster {
 
   @override
   void updateMovement(double dt) {
-    final dir = game.player.position - position;
+    final dir = target - position;
     final dist = dir.length;
     if (dist < 1) return;
     if (dist > _preferredRange) {
@@ -49,7 +49,7 @@ class MonsterCaster extends Monster {
   }
 
   void _fire() {
-    final dir = game.player.position - position;
+    final dir = target - position;
     if (dir.length < 1) return;
     game.world.add(CasterProjectile(
       position: position.clone(),
@@ -62,7 +62,7 @@ class MonsterCaster extends Monster {
     final cx = size.x / 2;
     final cy = size.y / 2;
     final r = size.x / 2;
-    final dir = game.player.position - position;
+    final dir = target - position;
     final angle = math.atan2(dir.y, dir.x);
 
     switch (game.bossPhase % 10) {

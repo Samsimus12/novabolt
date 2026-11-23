@@ -4,7 +4,7 @@
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
 // CLASS: vanguard | interceptor | bulwark | conduit (owns and flies it)
-// SCENE: menu | shop | hangar | records | missions | waves | nova | novaswitch | flow | revive | overdrive | boss | levelup | bossreward | gameover | countdown
+// SCENE: menu | shop | hangar | records | missions | waves | nova | novaswitch | flow | revive | overdrive | wingman | boss | levelup | bossreward | gameover | countdown
 // PHASE: 0-9, the visual/boss phase to start in (default 0); for shop, the tab
 // Prefs dev_loadout (comma-separated ids to own + equip) and dev_focus (shop
 // item to focus) are optional.
@@ -28,6 +28,7 @@ import '../cosmetics/catalog.dart';
 import '../game/components/boss_projectile.dart';
 import '../game/components/joystick.dart';
 import '../game/components/monster.dart';
+import '../game/components/wingman.dart';
 import '../game/components/monster_boss.dart';
 import '../game/components/monster_boss_blood_colossus.dart';
 import '../game/components/monster_boss_cosmic_behemoth.dart';
@@ -340,6 +341,21 @@ class _DevGame extends NovaboltGame {
         final tyrant = MonsterBossVoidTyrant(position: Vector2(size.x / 2, size.y * 0.22), playerLevel: 30);
         activeBoss = tyrant;
         world.add(tyrant);
+      case 'wingman':
+        // A wingman pickup on the ship (collected at once) in a mixed wave;
+        // casters shoot at it, grunts/speeders peel off to chase it.
+        // The pickup sits 30px off the ship so their outlines cross (the
+        // harness ship never moves). dev_focus "pickup": 80px off instead, to
+        // look at the pickup itself.
+        xpSystem.currentLevel = 8;
+        xpSystem.currentXp = -100000000;
+        player.add(WeaponSpreadShot());
+        _spawnRing(8, (p) => MonsterGrunt(position: p, playerLevel: lvl));
+        _spawnRing(4, (p) => MonsterSpeeder(position: p, playerLevel: lvl));
+        _spawnRing(2, (p) => MonsterCaster(position: p, playerLevel: lvl));
+        _spawnRing(1, (p) => MonsterTank(position: p, playerLevel: lvl));
+        final at = player.position + (_focus == 'pickup' ? Vector2(70, 40) : Vector2(30, 0));
+        world.add(WingmanPickup(position: at));
       case 'revive':
         // Ad continue in the middle of a crowded fight: full hull + shield,
         // nearby bullets cleared, ~2s blinking invulnerability.

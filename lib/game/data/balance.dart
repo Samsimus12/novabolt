@@ -58,6 +58,27 @@ abstract final class Balance {
   static const double grazeComboTime = 0.4; // tops up the combo timer
   static const int grazesPerSecond = 4; // reward cap (max ~6% Nova/s), so bullet walls aren't farmed
 
+  // ── Wingman (a pickup: a helper ship for a while) ────────────────────────
+  // Drops with the same chance as a shield pickup (each enemy's
+  // shieldDropChance, x the drop multiplier), one at a time.
+  static const double wingmanDuration = 15;
+  /// Seconds after a wingman leaves before another can drop (0 = straight away).
+  static const double wingmanCooldown = 0;
+  /// Its hull, as a share of the ship's max hull. Enemies that reach it are
+  /// rammed apart (like a dash) and cost it [wingmanRamCost] x their contact
+  /// damage, so it survives ~10 rams at level 8.
+  static const double wingmanHull = 0.8;
+  static const double wingmanRamCost = 0.5;
+  /// Shot damage, as a share of your strongest weapon's shot.
+  static const double wingmanShotShare = 0.6;
+  static const double wingmanFireInterval = 0.33;
+  static const double wingmanRange = 420;
+  static const double wingmanOrbit = 88; // px from the ship
+  /// Enemies within this range of the wingman chase it instead of you,
+  /// unless you're much closer (its distance < yours x [wingmanAggroBias]).
+  static const double wingmanAggroRadius = 260;
+  static const double wingmanAggroBias = 1.6;
+
   // ── Nova ──────────────────────────────────────────────────────────────────
   // Base Nova lasts 100 / 20 = 5 s. Nova card bonuses and caps: see "Stat cards" below.
 

@@ -28,6 +28,7 @@ import 'components/shield_pickup.dart';
 import 'components/supercharge_laser.dart';
 import 'components/weapon_homing_bolt.dart';
 import 'components/weapon_spread_shot.dart';
+import 'components/wingman.dart';
 import 'data/balance.dart';
 import 'data/ship_class.dart';
 import 'data/daily_challenge.dart';
@@ -279,6 +280,33 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     shake(0.3);
   }
 
+  // ── Wingman (pickup) ──────────────────────────────────────────────────────
+  /// The helper ship from a wingman pickup, while it's here.
+  Wingman? wingman;
+  /// Seconds before another wingman can drop ([Balance.wingmanCooldown]).
+  double wingmanCooldown = 0;
+
+  /// One wingman at a time: none on the field, none lying about as a pickup.
+  bool get canDropWingman =>
+      wingman == null && wingmanCooldown <= 0 && !isGameOver && !world.children.any((c) => c is WingmanPickup);
+
+  /// A wingman pickup was collected at [at]: one warps in beside you (or the
+  /// one already here gets its time and hull back).
+  void callWingman(Vector2 at) {
+    final w = wingman;
+    if (w != null && w.isMounted && !w.leaving) {
+      w.refresh();
+    } else {
+      final away = at - player.position;
+      final angle = away.length2 > 4 ? math.atan2(away.y, away.x) : -math.pi / 2;
+      final start = player.position + Vector2(math.cos(angle), math.sin(angle)) * Balance.wingmanOrbit;
+      world.add(wingman = Wingman(position: start, startAngle: angle));
+    }
+    announce('Wingman', color: wingmanColor);
+    SfxManager.instance.play(Sfx.dash, volume: 0.7);
+    SfxManager.instance.medium();
+  }
+
   /// An enemy bullet passed close by without hitting ([at] = where).
   void onGraze(Vector2 at) {
     if (isGameOver) return;
@@ -525,6 +553,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     }
     if (combo == 0) _overdriveArmed = true;
     if (overdrive > 0) overdrive = math.max(0, overdrive - scaled);
+    if (wingmanCooldown > 0) wingmanCooldown = math.max(0, wingmanCooldown - scaled);
     _grazeWindow += scaled;
     if (_grazeWindow >= 1) {
       _grazeWindow = 0;
@@ -1063,6 +1092,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     isRelicPick = false;
     world.children.whereType<ShieldPickup>().toList().forEach((s) => s.removeFromParent());
     world.children.whereType<HealthPickup>().toList().forEach((h) => h.removeFromParent());
+    world.children.whereType<WingmanPickup>().toList().forEach((w) => w.removeFromParent());
+    world.children.whereType<Wingman>().toList().forEach((w) => w.removeFromParent());
+    wingman = null;
+    wingmanCooldown = 0;
     _clearHazards();
     world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
     world.add(StarBackground());

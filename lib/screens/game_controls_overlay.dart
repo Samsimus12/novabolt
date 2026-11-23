@@ -8,6 +8,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../audio/sfx.dart';
 import '../game/fx/glow.dart';
+import '../game/data/curses.dart';
+import '../game/data/endgame.dart';
 import '../game/data/nova_mode.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
@@ -127,6 +129,7 @@ class _PausePanelState extends State<_PausePanel> {
   Widget build(BuildContext context) {
     final game = widget.game;
     final modes = game.unlockedNovaModes;
+    final curses = Curse.values.where((c) => c.takenIn(game)).toList();
     return Positioned.fill(
       // A Material ancestor gives the panel's text a real default style;
       // without it Flutter draws its yellow "missing Material" underlines.
@@ -171,6 +174,29 @@ class _PausePanelState extends State<_PausePanel> {
                               child: DailyRuleRow(m, compact: true),
                             ),
                         ],
+                        if (game.mode.ascension > 0) ...[
+                          const SizedBox(height: NbSpace.lg),
+                          Text('Ascension ${game.mode.ascension}', style: NbType.label.copyWith(color: NbColors.plasma)),
+                          const SizedBox(height: NbSpace.xs),
+                          for (final r in AscensionRule.forLevel(game.mode.ascension))
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text.rich(TextSpan(children: [
+                                TextSpan(text: '${r.title}  ', style: NbType.bodyStrong.copyWith(fontSize: 14)),
+                                TextSpan(text: r.description, style: NbType.caption.copyWith(color: NbColors.haze)),
+                              ])),
+                            ),
+                        ],
+                        if (game.mode.bossRush) ...[
+                          const SizedBox(height: NbSpace.lg),
+                          Text('Boss rush', style: NbType.label.copyWith(color: NbColors.flare)),
+                          const SizedBox(height: NbSpace.xs),
+                          Text(
+                            'Boss ${(game.bossesBeaten + 1).clamp(1, EndgameManager.instance.rushBosses.length)} '
+                            'of ${EndgameManager.instance.rushBosses.length}',
+                            style: NbType.body,
+                          ),
+                        ],
                         if (modes.length > 1) ...[
                           const SizedBox(height: NbSpace.lg),
                           Text('Nova attack', style: NbType.label.copyWith(color: NbColors.ion)),
@@ -186,7 +212,35 @@ class _PausePanelState extends State<_PausePanel> {
                             ),
                         ],
                         if (game.relics.isNotEmpty) ...[
+                          if (curses.isNotEmpty) ...[
                           const SizedBox(height: NbSpace.lg),
+                          Text('Curses', style: NbType.label.copyWith(color: NbColors.flare)),
+                          const SizedBox(height: NbSpace.xs),
+                          for (final c in curses)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Icon(PhosphorIconsFill.skull, size: 14, color: NbColors.flare),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text.rich(
+                                      TextSpan(children: [
+                                        TextSpan(text: '${c.title}  ', style: NbType.bodyStrong.copyWith(fontSize: 14)),
+                                        TextSpan(text: '${c.boon}. ', style: NbType.caption.copyWith(color: NbColors.mint)),
+                                        TextSpan(text: c.cost, style: NbType.caption.copyWith(color: NbColors.flare)),
+                                      ]),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                        const SizedBox(height: NbSpace.lg),
                           Text('Relics', style: NbType.label.copyWith(color: NbColors.gold)),
                           const SizedBox(height: NbSpace.xs),
                           for (final r in game.relics)

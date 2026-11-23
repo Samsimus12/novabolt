@@ -71,7 +71,8 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
   void update(double dt) {
     super.update(dt);
     _trackLevel();
-    if (_isBossFight) return;
+    // Boss rush: no waves, the game brings in the bosses itself.
+    if (_isBossFight || game.mode.bossRush) return;
 
     _timer += dt;
     final swarm = events.isSwarm ? WaveEventBalance.swarmIntervalScale : 1.0;
@@ -101,7 +102,7 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     final lvl = game.xpSystem.currentLevel;
     // First frame, restart, or a saved run being restored (a jump of many
     // levels at once): just sync, it isn't a level-up.
-    if (_lastLevel < 0 || lvl < _lastLevel || lvl - _lastLevel > 3) {
+    if (_lastLevel < 0 || lvl < _lastLevel || lvl - _lastLevel > 3 || game.mode.bossRush) {
       _lastLevel = lvl;
       return;
     }
@@ -139,7 +140,9 @@ class WaveSystem extends Component with HasGameReference<NovaboltGame> {
     if (_isBossFight || _waveLevel < EliteBalance.minWaveLevel) return m;
     final chance = _forceElites
         ? 0.5
-        : math.min(EliteBalance.maxChance, EliteBalance.baseChance + EliteBalance.chancePerLevel * _effectiveLevel);
+        : math.min(EliteBalance.maxChance * game.eliteChanceMultiplier,
+                (EliteBalance.baseChance + EliteBalance.chancePerLevel * _effectiveLevel) * game.eliteChanceMultiplier)
+            .clamp(0.0, 0.9);
     if (_rng.nextDouble() < chance) {
       m.makeElite(EliteMod.values[_rng.nextInt(EliteMod.values.length)]);
     }

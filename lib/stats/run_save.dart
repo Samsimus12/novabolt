@@ -27,6 +27,8 @@ class RunSaveManager {
   int get bossesBeaten => (_data?['beaten'] as int?) ?? 0;
   int get seconds => ((_data?['time'] as num?) ?? 0).round();
   String? get dailyDay => _data?['daily'] as String?;
+  int get ascension => (_data?['asc'] as int?) ?? 0;
+  bool get bossRush => (_data?['rush'] as bool?) ?? false;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();

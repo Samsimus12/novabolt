@@ -219,8 +219,9 @@ class Player extends PositionComponent
     }
     currentHp = (currentHp - damage).clamp(0, maxHp);
     if (currentHp <= 0 && game.tryCheatDeath()) {
-      currentHp = 1;
-      invulnerable = 1.5;
+      // A real extra life: half hull, plus the revive shockwave and grace
+      // (set by the game, see NovaboltGame.tryCheatDeath).
+      currentHp = maxHp * Balance.secondWindHull;
       return;
     }
     if (currentHp <= 0) game.onPlayerDeath();

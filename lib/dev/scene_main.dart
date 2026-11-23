@@ -19,12 +19,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../arcade/arcade_manager.dart';
+import '../arcade/arcade_screen.dart';
+import '../arcade/assault/assault_screen.dart';
+import '../arcade/thread/thread_screen.dart';
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
 import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
 import '../coins/hangar_manager.dart';
 import '../cosmetics/catalog.dart';
+import '../game/data/endgame.dart';
+import '../game/data/relics.dart';
+import '../game/data/curses.dart';
 import '../game/components/boss_projectile.dart';
 import '../game/components/joystick.dart';
 import '../game/components/emp.dart';
@@ -86,6 +93,11 @@ void main() async {
   if (!const bool.hasEnvironment('PHASE')) _phase = prefs.getInt('dev_phase') ?? _phase;
   if (!const bool.hasEnvironment('HP')) _bossHp = prefs.getDouble('dev_hp') ?? _bossHp;
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // BEATEN=true: every boss counts as beaten (opens the Endgame menu card
+  // and a full 10-boss rush).
+  if (const bool.fromEnvironment('BEATEN')) {
+    await prefs.setStringList('stats_bosses_defeated', [for (var i = 0; i < 10; i++) '$i']);
+  }
   if (_scene == 'menu') {
     runApp(const NovaboltApp());
     return;
@@ -95,6 +107,7 @@ void main() async {
   await AudioManager.instance.init();
   await SfxManager.instance.init();
   // CLASS=bulwark etc.: own and fly that ship class in this test build.
+  CurseRules.forceOffer = const bool.fromEnvironment('CURSE');
   const cls = String.fromEnvironment('CLASS');
   if (cls.isNotEmpty) {
     await prefs.setStringList('ship_classes', [cls]);
@@ -103,6 +116,8 @@ void main() async {
   await HangarManager.instance.init();
   await StatsManager.instance.init();
   await DailyManager.instance.init();
+  await EndgameManager.instance.init();
+  await ArcadeManager.instance.init();
   await RunLog.instance.init();
   await MissionManager.instance.init();
   // Test scenes never move the real missions (except the missions screen).
@@ -115,6 +130,21 @@ void main() async {
   if (const bool.fromEnvironment('STATS')) await RunLog.instance.setOverlayEnabled(true);
   if (_scene == 'records') {
     runApp(MaterialApp(builder: materialRoot, debugShowCheckedModeBanner: false, theme: buildNovaboltTheme(), home: const RecordsScreen()));
+    return;
+  }
+  // SCENE=arcade (the hub) / thread (Thread the Needle) / assault (Ground
+  // Assault); PHASE = seed.
+  if (_scene == 'arcade' || _scene == 'thread' || _scene == 'assault') {
+    runApp(MaterialApp(
+      builder: materialRoot,
+      debugShowCheckedModeBanner: false,
+      theme: buildNovaboltTheme(),
+      home: switch (_scene) {
+        'arcade' => const ArcadeScreen(),
+        'assault' => AssaultScreen(seed: _phase),
+        _ => ThreadScreen(seed: _phase),
+      },
+    ));
     return;
   }
   if (_scene == 'hangar') {
@@ -171,6 +201,15 @@ void main() async {
 }
 
 class _DevGame extends NovaboltGame {
+  // ASC=3 plays Ascension 3; RUSH=true plays a boss rush.
+  _DevGame()
+      : super(
+          mode: const RunMode(
+            ascension: int.fromEnvironment('ASC'),
+            bossRush: bool.fromEnvironment('RUSH'),
+          ),
+        );
+
   final _rng = math.Random(7);
   double _t = 0;
   bool _sceneApplied = false;
@@ -178,6 +217,9 @@ class _DevGame extends NovaboltGame {
   @override
   Future<void> onLoad() async {
     bossPhase = _phase;
+    // In an Ascension test, count the earlier bosses as beaten this run, so
+    // SCENE=boss PHASE=9 ASC=1 ends in the Victory.
+    if (mode.ascension > 0) bossesBeaten = _phase;
     await super.onLoad();
   }
 
@@ -199,7 +241,7 @@ class _DevGame extends NovaboltGame {
   void update(double dt) {
     super.update(dt);
     _t += dt;
-    if (!isGameOver && _scene != 'gameover') player.currentHp = math.max(player.currentHp, player.maxHp * 0.62);
+    if (!isGameOver && _scene != 'gameover' && _scene != 'secondwind') player.currentHp = math.max(player.currentHp, player.maxHp * 0.62);
     if (!_sceneApplied && _t > 0.4) {
       _sceneApplied = true;
       _applyScene();
@@ -378,6 +420,18 @@ class _DevGame extends NovaboltGame {
         world.add(emperor);
         Future.delayed(const Duration(milliseconds: 2500), onPlayerDeath);
         Future.delayed(const Duration(milliseconds: 3500), continueFromAd);
+      case 'secondwind':
+        // Second wind relic: a lethal hit mid-fight brings the ship back at
+        // half hull with the revive shockwave instead of ending the run.
+        addRelic(Relic.secondWind);
+        _spawnRing(8, (p) => MonsterGrunt(position: p, playerLevel: lvl)..minion = true);
+        final emperor = MonsterBossVoidEmperor(position: Vector2(size.x / 2, size.y * 0.25), playerLevel: 30);
+        activeBoss = emperor;
+        world.add(emperor);
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          player.invulnerable = 0;
+          player.takeDamage(99999);
+        });
       case 'countdown':
         _spawnRing(6, (p) => MonsterGrunt(position: p, playerLevel: lvl));
         Future.delayed(const Duration(milliseconds: 300), () {

@@ -6,11 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'ads/ad_manager.dart';
+import 'arcade/arcade_manager.dart';
 import 'audio/audio_manager.dart';
 import 'audio/sfx.dart';
 import 'dev/diagnostics.dart';
 import 'coins/coin_manager.dart';
 import 'coins/hangar_manager.dart';
+import 'game/data/endgame.dart';
 import 'game/data/daily_challenge.dart';
 import 'game/novabolt_game.dart';
 import 'screens/countdown_overlay.dart';
@@ -86,6 +88,8 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
     await StatsManager.instance.init();
     await MissionManager.instance.init(); // after stats: rolling reads bests
     await DailyManager.instance.init();
+    await EndgameManager.instance.init();
+    await ArcadeManager.instance.init();
     await RunLog.instance.init();
     await RunSaveManager.instance.init();
     AudioManager.instance.playMenu();
@@ -93,19 +97,22 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
   }
 
   DailyChallenge? _daily;
+  RunMode _mode = RunMode.normal;
   Map<String, dynamic>? _resume;
   NovaboltGame? _game;
 
   /// Starts a new run (discarding any saved one) or, with [resume], continues
   /// the saved run.
-  void _startGame({bool daily = false, bool resume = false}) {
+  void _startGame({bool daily = false, bool resume = false, RunMode mode = RunMode.normal}) {
     final save = RunSaveManager.instance;
     if (resume && save.hasSave) {
       _resume = save.data;
+      _mode = RunMode(ascension: save.ascension, bossRush: save.bossRush);
       final day = save.dailyDay;
       _daily = day == null ? null : DailyChallenge.forDate(DateTime.tryParse(day) ?? DateTime.now());
     } else {
       _resume = null;
+      _mode = mode;
       _daily = daily ? DailyChallenge.today() : null;
       save.clear();
     }
@@ -139,6 +146,7 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
                     key: const ValueKey('menu'),
                     onPlay: _startGame,
                     onPlayDaily: () => _startGame(daily: true),
+                    onPlayEndgame: (mode) => _startGame(mode: mode),
                     onContinue: () => _startGame(resume: true),
                   ))
             : const LoadingScreen(key: ValueKey('loading')),
@@ -148,7 +156,7 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
 
   Widget _buildGame() {
     return GameWidget<NovaboltGame>.controlled(
-      gameFactory: () => _game = NovaboltGame(daily: _daily, resume: _resume),
+      gameFactory: () => _game = NovaboltGame(daily: _daily, resume: _resume, mode: _mode),
       initialActiveOverlays: const ['GameControls'],
       overlayBuilderMap: {
         'GameControls': (context, game) =>

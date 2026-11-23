@@ -33,6 +33,7 @@ import 'components/wingman.dart';
 import 'data/balance.dart';
 import 'data/ship_class.dart';
 import 'data/daily_challenge.dart';
+import 'data/endgame.dart';
 import 'data/nova_mode.dart';
 import 'data/relics.dart';
 import 'data/upgrade_cards.dart';
@@ -54,7 +55,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   /// A saved run to restore (from RunSaveManager), or null for a new run.
   final Map<String, dynamic>? resume;
 
-  NovaboltGame({this.daily, this.resume}) : _pendingResume = resume;
+  /// Normal, Ascension N or boss rush. Restored from the save on resume.
+  RunMode mode;
+
+  NovaboltGame({this.daily, this.resume, this.mode = RunMode.normal}) : _pendingResume = resume;
 
   /// The live game (read by test-build diagnostics).
   static NovaboltGame? current;
@@ -105,6 +109,23 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   double enemySpeedMultiplier = 1.0;
   double spawnIntervalMultiplier = 1.0;
   bool luckyCards = false;
+
+  /// Endgame (Ascension / boss rush) hull and elite knobs. Read by
+  /// [Monster.onLoad] and the wave system.
+  double enemyHpMultiplier = 1.0;
+  double bossHpMultiplier = 1.0;
+  double eliteChanceMultiplier = 1.0;
+
+  /// The run ended because the final boss fell (Ascension / boss rush).
+  bool isVictory = false;
+
+  /// This Victory opened the next Ascension level.
+  bool openedAscension = false;
+
+  /// Boss rush: show the opening loadout picks once the ship is ready, and
+  /// the countdown to the next boss after a pick screen closes.
+  bool _rushStartPending = false;
+  double _rushTimer = 0;
 
   /// Daily-challenge streak coins earned by this run (paid with the rest).
   int dailyStreakBonus = 0;
@@ -160,7 +181,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   /// One revive source per run (plus the ad): owning the Hangar's
   /// Emergency reactor keeps Second wind out of relic offers.
-  bool relicAllowed(Relic r) => !(r == Relic.secondWind && HangarManager.instance.hasFreeRevive);
+  bool relicAllowed(Relic r) => !(r == Relic.secondWind && _noRevives);
 
   void addRelic(Relic r) {
     if (!relics.add(r)) return;
@@ -222,13 +243,15 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     best?.takeDamage(overkill, silent: true);
   }
 
-  /// Return true to survive a lethal hit (Second Wind relic).
+  /// Return true to survive a lethal hit (Second Wind relic): an extra
+  /// life on the spot, at half hull, with the same shockwave and grace as a
+  /// revive from the game-over screen.
   bool tryCheatDeath() {
-    if (!relics.contains(Relic.secondWind) || _secondWindUsed) return false;
+    if (!relics.contains(Relic.secondWind) || _secondWindUsed || isGameOver) return false;
     _secondWindUsed = true;
     announce('Second wind', color: const Color(0xFF4DFFB0));
-    SfxManager.instance.heavy();
-    shake(0.6);
+    hitStop(0.08);
+    _clearForRevive();
     return true;
   }
 
@@ -399,6 +422,48 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     if (c.startNova > 0) superchargeSystem.addCharge(SuperchargeSystem.maxCharge * c.startNova / superchargeSystem.chargeMultiplier);
   }
 
+  /// Ascension rules (1..N stack) and boss rush setup. Every effect lands in
+  /// a run setting the save stores, so it is applied once, at run start.
+  void _applyEndgame() {
+    if (mode.bossRush) {
+      bossHpMultiplier *= EndgameBalance.rushBossHp;
+      runCoinMultiplier *= EndgameBalance.rushCoinMultiplier;
+      _rushStartPending = true;
+    }
+    final a = mode.ascension;
+    if (a <= 0) return;
+    runCoinMultiplier *= EndgameBalance.ascensionCoinMultiplier(a);
+    for (final rule in AscensionRule.forLevel(a)) {
+      switch (rule) {
+        case AscensionRule.hardened:
+          enemyHpMultiplier *= 1.20;
+        case AscensionRule.quickened:
+          enemySpeedMultiplier *= 1.15;
+        case AscensionRule.swarming:
+          spawnIntervalMultiplier /= 1.20;
+        case AscensionRule.eliteSurge:
+          eliteChanceMultiplier *= 2;
+        case AscensionRule.sharpened:
+          damageTakenMultiplier *= 1.20;
+        case AscensionRule.titans:
+          bossHpMultiplier *= 1.30;
+        case AscensionRule.thinHull:
+          player.maxHp *= 0.80;
+          player.currentHp = player.maxHp;
+        case AscensionRule.scarcity:
+          dropChanceMultiplier *= 0.60;
+        case AscensionRule.noRerolls:
+          rerollsLeft = 0;
+        case AscensionRule.noMercy:
+          _hasUsedContinue = true;
+          _usedFreeRevive = true;
+      }
+    }
+  }
+
+  /// "No mercy" (Ascension 10) also rules out the Second wind relic.
+  bool get _noRevives => mode.ascension >= AscensionRule.noMercy.level;
+
   void _applyHangar() {
     final h = HangarManager.instance;
     player.maxHp += h.bonusHull;
@@ -468,6 +533,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       _applyHangar();
       _applyDaily();
       _applyClassNova();
+      _applyEndgame();
       StatsManager.instance.startRun();
     }
     // Test builds only (--dart-define=START_LEVEL=9): start one kill short of
@@ -545,6 +611,15 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       _applyResume(r);
       return;
     }
+    if (_rushStartPending && player.isMounted && player.activeWeapons.isNotEmpty) {
+      _rushStartPending = false;
+      _showLevelUp(xpSystem.currentLevel, picks: EndgameBalance.rushStartPicks);
+      return;
+    }
+    if (_rushTimer > 0 && !isGameOver) {
+      _rushTimer -= dt;
+      if (_rushTimer <= 0) _startRushBoss();
+    }
     if (savesRuns && !isGameOver && !paused) {
       _autosaveT += dt;
       if (_autosaveT >= 8) {
@@ -610,7 +685,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     final od = overdriveActive;
     final mult = comboMultiplier * (od ? Balance.overdriveXp : 1);
     superchargeSystem.addCharge(chargeValue * comboChargeMultiplier * (od ? Balance.overdriveCharge : 1));
-    if (xpValue > 0) {
+    if (xpValue > 0 && !mode.bossRush) {
       final scaledXp = (xpValue * (1 + xpSystem.currentLevel ~/ 7) * (1.0 + bossPhase * 0.25) * mult).round();
       if (xpSystem.addXp(scaledXp)) {
         MissionManager.instance.onLevel(xpSystem.currentLevel);
@@ -656,7 +731,32 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     world.add(StarBackground());
     _waveSystem.onBossKilled();
     xpSystem.resetXp();
+    final finalBoss = mode.bossRush
+        ? bossesBeaten >= EndgameManager.instance.rushBosses.length
+        : mode.ascension > 0 && bossesBeaten > EndgameBalance.finalBossIndex;
+    if (finalBoss) {
+      _victory();
+      return;
+    }
     _showLevelUp(xpSystem.currentLevel, isBossKill: true);
+  }
+
+  /// Boss rush: the next boss you've beaten before, at its normal level.
+  void _startRushBoss() {
+    final order = EndgameManager.instance.rushBosses;
+    if (bossesBeaten >= order.length || activeBoss != null || isGameOver) return;
+    final idx = order[bossesBeaten];
+    bossPhase = idx;
+    xpSystem.currentLevel = 10 * (idx + 1);
+    world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
+    world.add(StarBackground());
+    tookDamageThisBoss = false;
+    tracker.bossStarted(_playTimeSeconds);
+    _waveSystem.startBossFight(xpSystem.currentLevel);
+    AudioManager.instance.playBoss();
+    SfxManager.instance.play(Sfx.warning);
+    SfxManager.instance.medium();
+    announce('Boss ${bossesBeaten + 1} of ${order.length}', color: const Color(0xFFFF4766));
   }
 
   /// Level-ups that arrived while another was on screen (e.g. an enemy's XP
@@ -664,7 +764,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   /// reward. Shown in order once the current one is finished.
   final List<bool> _queuedLevelUps = [];
 
-  void _showLevelUp(int level, {bool isBossKill = false}) {
+  void _showLevelUp(int level, {bool isBossKill = false, int? picks}) {
     _diag('showLevelUp level=$level boss=$isBossKill active=${overlays.isActive('LevelUp')} picksLeft=$_picksRemaining');
     if (isGameOver) return;
     if (overlays.isActive('LevelUp') || _picksRemaining > 0) {
@@ -672,8 +772,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       return;
     }
     isBossReward = isBossKill;
-    if (isBossKill) {
-      picksTotal = 3;
+    if (picks != null) {
+      picksTotal = picks;
+    } else if (isBossKill) {
+      picksTotal = mode.bossRush ? EndgameBalance.rushPicksPerBoss : 3;
     } else {
       final luckyChance = bossPhase == 0 ? 0.10 : 0.20 + (bossPhase - 1) * 0.025;
       picksTotal = math.Random().nextDouble() < luckyChance ? 2 : 1;
@@ -779,6 +881,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         'unl': [for (final m in unlockedNovaModes) m.name],
       },
       'cls': shipClass.name,
+      'asc': mode.ascension,
+      'rush': mode.bossRush,
       'mods': {
         'dmg': damageMultiplier,
         'frb': fireRateBonus,
@@ -792,6 +896,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         'spi': spawnIntervalMultiplier,
         'lucky': luckyCards,
         'coin': runCoinMultiplier,
+        'ehp': enemyHpMultiplier,
+        'bhp': bossHpMultiplier,
+        'elc': eliteChanceMultiplier,
       },
       'relics': [for (final r in relics) r.name],
       'buffs': takenBuffs.toList(),
@@ -872,6 +979,10 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     spawnIntervalMultiplier = d(mods, 'spi', 1);
     luckyCards = (mods['lucky'] as bool?) ?? false;
     runCoinMultiplier = d(mods, 'coin', 1);
+    enemyHpMultiplier = d(mods, 'ehp', 1);
+    bossHpMultiplier = d(mods, 'bhp', 1);
+    eliteChanceMultiplier = d(mods, 'elc', 1);
+    this.mode = RunMode(ascension: v('asc', 0), bossRush: v('rush', false));
 
     // Relics go straight into the set: their one-off effects (Glass cannon's
     // hull cut, Magnet core…) are already in the saved numbers above.
@@ -906,6 +1017,8 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     world.add(StarBackground());
 
     final boss = s['boss'] as Map?;
+    // Boss rush saved between bosses: bring the next one in after the countdown.
+    if (boss == null && this.mode.bossRush && s['lu'] == null) _rushTimer = EndgameBalance.rushBossDelay;
     if (boss != null) {
       tookDamageThisBoss = true; // can't prove the fight was flawless so far
       _waveSystem.startBossFight(xpSystem.currentLevel);
@@ -960,6 +1073,21 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   void onPlayerDeath() {
     if (isGameOver) return;
+    _endRun();
+  }
+
+  /// The final boss of an Ascension or boss rush run fell.
+  void _victory() {
+    if (isGameOver) return;
+    isVictory = true;
+    final em = EndgameManager.instance;
+    openedAscension = !mode.bossRush && mode.ascension > em.highestCleared && mode.ascension < EndgameBalance.maxAscension;
+    em.recordVictory(mode);
+    SfxManager.instance.play(Sfx.levelUp);
+    _endRun();
+  }
+
+  void _endRun() {
     isGameOver = true;
     _waveSystem.events.clear();
     // Level-up can fire in the same collision frame as death — game over wins.
@@ -967,11 +1095,12 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       overlays.remove('LevelUp');
       _levelUpPendingAfterContinue = true;
     }
-    isNewBest = StatsManager.instance.submitRun(
-      level: xpSystem.currentLevel,
-      kills: killCount,
-      combo: bestCombo,
-    );
+    isNewBest = !mode.bossRush &&
+        StatsManager.instance.submitRun(
+          level: xpSystem.currentLevel,
+          kills: killCount,
+          combo: bestCombo,
+        );
     if (daily != null) dailyStreakBonus += DailyManager.instance.completeRun(level: xpSystem.currentLevel);
     MissionManager.instance.endRun(level: xpSystem.currentLevel, daily: daily != null);
     // The run is over; a revive (ad / reactor) starts saving it again.
@@ -998,14 +1127,14 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   /// Rewarded-ad continue: back at full hull and a full shield.
   void continueFromAd() {
-    if (!isGameOver || _hasUsedContinue) return;
+    if (!isGameOver || _hasUsedContinue || isVictory) return;
     _hasUsedContinue = true;
     _revive(full: true);
   }
 
   /// Hangar Emergency reactor: a free revive, once per run.
   void freeRevive() {
-    if (!isGameOver || !canFreeRevive) return;
+    if (!isGameOver || !canFreeRevive || isVictory) return;
     _usedFreeRevive = true;
     _revive();
   }
@@ -1059,6 +1188,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         return;
       }
       pendingInheritMode = null; // clear if boss inherit wasn't selected
+      if (mode.bossRush && activeBoss == null) _rushTimer = EndgameBalance.rushBossDelay;
       resumeEngine();
       saveRun();
     }
@@ -1139,6 +1269,13 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     enemySpeedMultiplier = 1.0;
     spawnIntervalMultiplier = 1.0;
     luckyCards = false;
+    enemyHpMultiplier = 1.0;
+    bossHpMultiplier = 1.0;
+    eliteChanceMultiplier = 1.0;
+    isVictory = false;
+    openedAscension = false;
+    _rushStartPending = false;
+    _rushTimer = 0;
     dailyStreakBonus = 0;
     dashKills = 0;
     tracker.reset();
@@ -1146,6 +1283,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _applyHangar();
     _applyDaily();
     _applyClassNova();
+    _applyEndgame();
     StatsManager.instance.startRun();
     MissionManager.instance.startRun(daily: daily != null);
     clearSave();

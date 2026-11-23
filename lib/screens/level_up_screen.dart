@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../audio/sfx.dart';
+import '../game/data/curses.dart';
 import '../game/data/upgrade_cards.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
@@ -27,6 +28,7 @@ IconData iconForGlyph(CardGlyph g) => switch (g) {
       CardGlyph.repair => PhosphorIconsBold.wrench,
       CardGlyph.relic => PhosphorIconsFill.diamond,
       CardGlyph.evolve => PhosphorIconsFill.sparkle,
+      CardGlyph.curse => PhosphorIconsFill.skull,
     };
 
 Color rarityColor(CardRarity r) => switch (r) {
@@ -38,6 +40,7 @@ Color rarityColor(CardRarity r) => switch (r) {
 
 /// How a card presents: accent colour + the short tag in its corner.
 ({Color color, String tag}) _styleFor(UpgradeCard card) {
+  if (card is CurseCard) return (color: NbColors.flare, tag: 'Curse');
   if (card is RelicCard) return (color: NbColors.gold, tag: 'Relic');
   if (card is EvolutionCard) return (color: NbColors.gold, tag: 'Evolution');
   if (card is NewWeaponCard) return (color: NbColors.gold, tag: 'New weapon');
@@ -68,6 +71,8 @@ class LevelUpScreen extends StatelessWidget {
     final boss = game.isBossReward;
     final heroColor = boss ? NbColors.flare : NbColors.gold;
     final multi = game.picksTotal > 1;
+    // Boss rush opens with a loadout draft instead of a level-up.
+    final draft = game.mode.bossRush && !boss && game.bossesBeaten == 0;
     // Only animate the full entrance on the first pick; later picks just
     // refresh the cards.
     final firstPick = game.currentPickIndex == 1;
@@ -98,8 +103,9 @@ class LevelUpScreen extends StatelessWidget {
                       _Header(
                         boss: boss,
                         level: game.xpSystem.currentLevel,
-                        color: heroColor,
+                        color: draft ? NbColors.flare : heroColor,
                         animate: firstPick,
+                        draft: draft,
                       ),
                       const SizedBox(height: NbSpace.sm),
                       Row(
@@ -110,7 +116,7 @@ class LevelUpScreen extends StatelessWidget {
                             const SizedBox(width: NbSpace.xs),
                             Text(multi ? 'Pick ${game.currentPickIndex} of ${game.picksTotal}' : 'Choose a relic', style: NbType.bodyStrong),
                           ] else if (multi) ...[
-                            _Tag(boss ? 'Boss reward' : 'Lucky draw', boss ? NbColors.flare : NbColors.ion),
+                            _Tag(draft ? 'Loadout' : (boss ? 'Boss reward' : 'Lucky draw'), boss || draft ? NbColors.flare : NbColors.ion),
                             const SizedBox(width: NbSpace.xs),
                             Text('Pick ${game.currentPickIndex} of ${game.picksTotal}', style: NbType.bodyStrong),
                           ] else
@@ -178,8 +184,9 @@ class _Header extends StatelessWidget {
   final int level;
   final Color color;
   final bool animate;
+  final bool draft;
 
-  const _Header({required this.boss, required this.level, required this.color, required this.animate});
+  const _Header({required this.boss, required this.level, required this.color, required this.animate, this.draft = false});
 
   @override
   Widget build(BuildContext context) {
@@ -195,9 +202,12 @@ class _Header extends StatelessWidget {
 
     final column = Column(
       children: [
-        Text(boss ? 'Boss defeated' : 'Level up', style: NbType.title.copyWith(color: color)),
+        Text(draft ? 'Boss rush' : (boss ? 'Boss defeated' : 'Level up'), style: NbType.title.copyWith(color: color)),
         const SizedBox(height: 2),
-        Semantics(label: 'Level $level', excludeSemantics: true, child: numeral),
+        if (draft)
+          Text('Build your ship', style: NbType.hero.copyWith(fontSize: 34))
+        else
+          Semantics(label: 'Level $level', excludeSemantics: true, child: numeral),
       ],
     );
     if (!animate) return column;
@@ -326,7 +336,7 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
           duration: NbMotion.tap,
           child: NbPanel(
             accent: c,
-            glow: lit || card.rarity.index >= CardRarity.epic.index,
+            glow: lit || card is CurseCard || card.rarity.index >= CardRarity.epic.index,
             fill: lit ? Color.lerp(NbColors.glassHi, c, 0.12)! : NbColors.glassHi,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             child: Row(
@@ -351,7 +361,11 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Text(card.description, style: NbType.body.copyWith(fontSize: 14)),
+                      if (card is CurseCard) ...[
+                        Text(card.curse.boon.startsWith('+') ? card.curse.boon : '+ ${card.curse.boon}', style: NbType.body.copyWith(fontSize: 14, color: NbColors.mint)),
+                        Text('− ${card.curse.cost}', style: NbType.body.copyWith(fontSize: 14, color: NbColors.flare)),
+                      ] else
+                        Text(card.description, style: NbType.body.copyWith(fontSize: 14)),
                       ?progress,
                     ],
                   ),

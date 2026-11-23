@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../arcade/arcade_manager.dart';
+import '../arcade/arcade_screen.dart';
+import '../game/data/endgame.dart';
 import '../audio/audio_manager.dart';
 import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
 import '../game/data/daily_challenge.dart';
 import 'daily_briefing.dart';
+import 'endgame_picker.dart';
 import '../stats/mission_manager.dart';
 import '../stats/run_log.dart';
 import '../stats/run_save.dart';
@@ -22,11 +26,13 @@ import 'shop_screen.dart';
 class MainMenuScreen extends StatefulWidget {
   final VoidCallback onPlay;
   final VoidCallback? onPlayDaily;
+  final ValueChanged<RunMode>? onPlayEndgame;
   final VoidCallback? onContinue;
   const MainMenuScreen({
     super.key,
     required this.onPlay,
     this.onPlayDaily,
+    this.onPlayEndgame,
     this.onContinue,
   });
 
@@ -114,6 +120,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     setState(() {});
   }
 
+  Future<void> _showArcade() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ArcadeScreen()),
+    );
+    setState(() {}); // arcade rounds pay NOVA
+  }
+
   Future<void> _showMissions() async {
     await Navigator.push(
       context,
@@ -171,6 +185,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     children: [
                       CoinBalanceChip(coins),
                       const Spacer(),
+                      _ArcadeButton(onPressed: _showArcade),
+                      const SizedBox(width: NbSpace.xs),
                       _MissionsButton(
                         ready: MissionManager.instance.claimableCount,
                         onPressed: _showMissions,
@@ -254,6 +270,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                           duration: 450.ms,
                           curve: NbMotion.easeOut,
                         ),
+                  if (widget.onPlayEndgame != null && EndgameManager.instance.unlocked) ...[
+                    const SizedBox(height: NbSpace.xs),
+                    _EndgameCard(
+                      onTap: () async {
+                        final mode = await showEndgamePicker(context);
+                        if (mode != null && mounted) await _startNew(() => widget.onPlayEndgame!(mode));
+                      },
+                    ).animate().fadeIn(delay: 600.ms, duration: 350.ms),
+                  ],
                   const SizedBox(height: NbSpace.sm),
                   (RunSaveManager.instance.hasSave && widget.onContinue != null
                           ? Row(
@@ -267,7 +292,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                         ' · ${RunSaveManager.instance.bossesBeaten} '
                                         '${RunSaveManager.instance.bossesBeaten == 1 ? 'boss' : 'bosses'}'
                                         ' · ${_clock(RunSaveManager.instance.seconds)}'
-                                        '${RunSaveManager.instance.dailyDay != null ? ' · daily' : ''}',
+                                        '${RunSaveManager.instance.dailyDay != null ? ' · daily' : ''}'
+                                        '${RunSaveManager.instance.bossRush ? ' · boss rush' : ''}'
+                                        '${RunSaveManager.instance.ascension > 0 ? ' · A${RunSaveManager.instance.ascension}' : ''}',
                                     icon: PhosphorIconsFill.play,
                                     onPressed: widget.onContinue,
                                     expand: true,
@@ -343,6 +370,53 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Arcade button. Wears a plasma "New" tag until the first arcade round, so
+/// the arcade gets found.
+class _ArcadeButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _ArcadeButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final fresh = ArcadeGame.values.every((g) => ArcadeManager.instance.plays(g) == 0);
+    final reduce = MediaQuery.of(context).disableAnimations;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        NbIconButton(
+          icon: PhosphorIconsBold.joystick,
+          semanticLabel: fresh ? 'Arcade, new' : 'Arcade',
+          color: NbColors.plasma,
+          onPressed: onPressed,
+        ),
+        if (fresh)
+          Positioned(
+            top: -8,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  height: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  alignment: Alignment.center,
+                  decoration: ShapeDecoration(
+                    color: NbColors.plasma,
+                    shape: const ChamferBorder(cut: 3, corners: ChamferCorners.all),
+                    shadows: [BoxShadow(color: NbColors.plasma.withValues(alpha: 0.6), blurRadius: 8)],
+                  ),
+                  child: Text('New', style: NbType.statSmall.copyWith(fontSize: 10, color: NbColors.abyss)),
+                ),
+              ),
+            )
+                .animate(onPlay: (c) => reduce ? c.stop() : c.repeat(reverse: true))
+                .moveY(begin: 0, end: -2, duration: 900.ms, curve: Curves.easeInOut),
+          ),
+      ],
     );
   }
 }
@@ -632,6 +706,53 @@ class _DailyCard extends StatelessWidget {
                 size: 18,
                 color: NbColors.haze,
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EndgameCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _EndgameCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final em = EndgameManager.instance;
+    final sub = [
+      'Ascension ${em.maxAvailable}${em.highestCleared > 0 ? ' (cleared A${em.highestCleared})' : ''}',
+      'Boss rush',
+    ].join('  ·  ');
+    return Semantics(
+      button: true,
+      label: 'Endgame: $sub',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () {
+          SfxManager.instance.tap();
+          SfxManager.instance.play(Sfx.click);
+          onTap();
+        },
+        child: NbPanel(
+          accent: NbColors.plasma,
+          padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+          child: Row(
+            children: [
+              const Icon(PhosphorIconsFill.crown, size: 24, color: NbColors.plasma),
+              const SizedBox(width: NbSpace.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Endgame', style: NbType.bodyStrong),
+                    const SizedBox(height: 2),
+                    Text(sub, style: NbType.caption.copyWith(color: NbColors.haze), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              const Icon(PhosphorIconsBold.caretRight, size: 18, color: NbColors.haze),
             ],
           ),
         ),

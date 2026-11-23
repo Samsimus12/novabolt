@@ -16,6 +16,7 @@ import 'emp.dart';
 import 'death_particles.dart';
 import 'hazards.dart';
 import 'health_pickup.dart';
+import 'boss_parts.dart';
 import 'monster_boss.dart';
 import 'monster_speeder.dart';
 import 'shield_pickup.dart';
@@ -103,6 +104,14 @@ abstract class Monster extends PositionComponent
   @override
   Future<void> onLoad() async {
     add(CircleHitbox()..collisionType = CollisionType.passive);
+    // Endgame hull (Ascension "Hardened" / "Titans", boss rush). Keeps the
+    // current fraction, so a boss restored from a save at 40% stays at 40%.
+    final k = this is BossMonster || this is BossPart ? game.bossHpMultiplier : game.enemyHpMultiplier;
+    if (k != 1) {
+      final f = currentHp / maxHp;
+      hpScale *= k;
+      currentHp = maxHp * f;
+    }
   }
 
   @override

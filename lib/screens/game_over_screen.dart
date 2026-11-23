@@ -8,6 +8,7 @@ import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
 import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
+import '../game/data/endgame.dart';
 import '../game/novabolt_game.dart';
 import '../stats/stats_manager.dart';
 import '../ui/ui.dart';
@@ -72,6 +73,13 @@ class _GameOverScreenState extends State<GameOverScreen> {
     widget.game.restart();
   }
 
+  /// After a Victory that opened the next level: straight into it.
+  void _nextAscension() {
+    _awardCoins();
+    widget.game.mode = RunMode(ascension: widget.game.mode.ascension + 1);
+    widget.game.restart();
+  }
+
   void _goToMenu() {
     _awardCoins();
     widget.onMenu?.call();
@@ -81,7 +89,12 @@ class _GameOverScreenState extends State<GameOverScreen> {
   Widget build(BuildContext context) {
     final game = widget.game;
     final adReady = AdManager.instance.rewardedAdReady.value;
-    final canContinue = adReady && !game.hasUsedContinue && !_isShowingAd;
+    final won = game.isVictory;
+    final canContinue = adReady && !game.hasUsedContinue && !_isShowingAd && !won;
+    final mood = won ? NbColors.gold : NbColors.flare;
+    final title = !won
+        ? 'Ship destroyed'
+        : (game.mode.bossRush ? 'Boss rush cleared' : 'Ascension ${game.mode.ascension} cleared');
     final stats = StatsManager.instance;
 
     return Material(
@@ -102,7 +115,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
                   gradient: RadialGradient(
                     center: const Alignment(0, -0.55),
                     radius: 0.9,
-                    colors: [NbColors.flare.withValues(alpha: 0.22), NbColors.flare.withValues(alpha: 0)],
+                    colors: [mood.withValues(alpha: 0.22), mood.withValues(alpha: 0)],
                   ),
                 ),
               ),
@@ -118,15 +131,34 @@ class _GameOverScreenState extends State<GameOverScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (won)
+                        const Icon(PhosphorIconsFill.crown, size: 40, color: NbColors.gold)
+                            .animate()
+                            .fadeIn(duration: 300.ms)
+                            .scaleXY(begin: 0.4, end: 1, duration: 600.ms, curve: Curves.easeOutBack),
                       Text(
-                        'Ship destroyed',
+                        title,
                         textAlign: TextAlign.center,
-                        style: NbType.hero.copyWith(color: NbColors.flare),
+                        style: NbType.hero.copyWith(color: mood),
                       )
                           .animate()
                           .fadeIn(duration: 300.ms)
                           .scaleXY(begin: 1.15, end: 1, duration: 500.ms, curve: Curves.easeOutCubic)
-                          .shake(hz: 5, offset: const Offset(3, 0), duration: 350.ms),
+                          .shake(hz: 5, offset: const Offset(3, 0), duration: won ? 0.ms : 350.ms),
+                      if (won || game.mode.isEndgame) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          won
+                              ? (game.mode.bossRush
+                                  ? 'Victory! Every boss you\'ve beaten, beaten again.'
+                                  : game.openedAscension
+                                      ? 'Victory! Ascension ${game.mode.ascension + 1} unlocked.'
+                                      : 'Victory! The Singularity has fallen.')
+                              : game.mode.label,
+                          textAlign: TextAlign.center,
+                          style: NbType.body.copyWith(color: won ? NbColors.starlight : NbColors.plasma),
+                        ).animate().fadeIn(delay: 300.ms, duration: 300.ms),
+                      ],
                       if (game.isNewBest) ...[
                         const SizedBox(height: NbSpace.sm),
                         Center(child: _NewBestBadge())
@@ -189,7 +221,19 @@ class _GameOverScreenState extends State<GameOverScreen> {
                           .fadeIn(delay: 520.ms, duration: 350.ms)
                           .moveY(begin: 10, end: 0, curve: NbMotion.easeOut),
                       const SizedBox(height: NbSpace.xl),
-                      if (game.canFreeRevive) ...[
+                      if (game.openedAscension) ...[
+                        NbButton(
+                          label: 'Ascension ${game.mode.ascension + 1}',
+                          caption: 'Next level: ${AscensionRule.values[game.mode.ascension].title}',
+                          icon: PhosphorIconsFill.crown,
+                          color: NbColors.plasma,
+                          expand: true,
+                          height: 64,
+                          onPressed: _nextAscension,
+                        ).animate().fadeIn(delay: 520.ms, duration: 300.ms).moveY(begin: 12, end: 0, curve: NbMotion.easeOut),
+                        const SizedBox(height: NbSpace.sm),
+                      ],
+                      if (game.canFreeRevive && !won) ...[
                         NbButton(
                           label: 'Emergency reactor',
                           caption: 'Free revive at half hull (Hangar upgrade)',
@@ -218,7 +262,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
                             .shimmer(duration: 900.ms, color: Colors.white.withValues(alpha: 0.6)),
                         const SizedBox(height: NbSpace.sm),
                       ],
-                      (canContinue
+                      (canContinue || game.openedAscension
                               ? NbButton.secondary(
                                   label: 'Play again',
                                   icon: PhosphorIconsBold.arrowsClockwise,

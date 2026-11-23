@@ -12,6 +12,7 @@ import '../components/weapon_spread_shot.dart';
 import '../components/weapon_sword_aura.dart';
 import '../novabolt_game.dart';
 import 'balance.dart';
+import 'curses.dart';
 import 'relics.dart';
 
 enum UpgradeCategory { weapon, nova, mobility, relic }
@@ -45,7 +46,7 @@ enum CardRarity {
 enum CardGlyph {
   laser, scatter, pulse, homing, field, rocket, emp,
   targeting, overcharge, novaCharge, novaDuration, novaDamage,
-  afterburner, hull, repair, relic, evolve,
+  afterburner, hull, repair, relic, evolve, curse,
 }
 
 CardGlyph glyphForWeapon(Weapon w) => switch (w) {
@@ -443,7 +444,9 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
     picks.addAll(leftovers.take(3 - picks.length));
   }
 
-  return picks.take(3).toList();
+  final offer = picks.take(3).toList();
+  maybeOfferCurse(game, offer, rng);
+  return offer;
 }
 
 // Rolls 0–2 bonus HP cards (each 20% chance). Caller applies and displays them.

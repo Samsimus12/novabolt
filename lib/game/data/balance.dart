@@ -28,6 +28,9 @@ abstract final class Balance {
   /// shockwave (ReviveBlast) also clears every enemy bullet and hazard.
   static const double reviveGrace = 2.0;
 
+  /// Second wind relic: the hull fraction it brings you back with.
+  static const double secondWindHull = 0.5;
+
   // ── Player damage ─────────────────────────────────────────────────────────
   static const double baseCritChance = 0.05;
   static const double baseCritMultiplier = 2.0;
@@ -133,6 +136,11 @@ abstract final class Balance {
   static const double legendaryMultiplier = 2.3;
   static const double legendaryOdds = 0.025, epicOdds = 0.075, rareOdds = 0.20;
   static const double bossRarityShift = 2.0; // boss picks roll ~2x better
+
+  // Curse cards: a level-up sometimes swaps one pick for a risky deal.
+  static const double curseChance = 0.15;
+  static const int curseMinLevel = 4;
+  static const int maxCursesPerRun = 3;
   static const int freeRerollsPerRun = 1;
 
   // ── Relics ────────────────────────────────────────────────────────────────

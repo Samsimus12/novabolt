@@ -36,7 +36,7 @@ enum Relic {
         Relic.glassCannon =>
           '+${_pct(Balance.glassCannonDamage)} damage, but −${_pct(1 - Balance.glassCannonHull, isMultiplier: false)} max hull',
         Relic.magnetCore => 'Pickups fly to you from anywhere on screen',
-        Relic.secondWind => 'Once this run, survive a killing blow with 1 hull',
+        Relic.secondWind => 'Extra life: once this run, a killing blow leaves you at ${_pct(Balance.secondWindHull, isMultiplier: false)} hull instead',
         Relic.midas => '+${_pct(Balance.midasCoins)} NOVA coins from this run',
         Relic.scrapShield => 'Gain ${Balance.scrapShieldAmount.round()} shield for every ${Balance.scrapShieldKills} kills',
       };

@@ -4,7 +4,7 @@
 //   flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=3
 //
 // CLASS: vanguard | interceptor | bulwark | conduit (owns and flies it)
-// SCENE: menu | shop | hangar | records | missions | waves | nova | novaswitch | flow | revive | overdrive | wingman | boss | levelup | bossreward | gameover | countdown
+// SCENE: menu | shop | hangar | records | missions | waves | nova | novaswitch | flow | revive | overdrive | wingman | emp | boss | levelup | bossreward | gameover | countdown
 // PHASE: 0-9, the visual/boss phase to start in (default 0); for shop, the tab
 // Prefs dev_loadout (comma-separated ids to own + equip) and dev_focus (shop
 // item to focus) are optional.
@@ -27,6 +27,7 @@ import '../coins/hangar_manager.dart';
 import '../cosmetics/catalog.dart';
 import '../game/components/boss_projectile.dart';
 import '../game/components/joystick.dart';
+import '../game/components/emp.dart';
 import '../game/components/monster.dart';
 import '../game/components/wingman.dart';
 import '../game/components/monster_boss.dart';
@@ -356,6 +357,17 @@ class _DevGame extends NovaboltGame {
         _spawnRing(1, (p) => MonsterTank(position: p, playerLevel: lvl));
         final at = player.position + (_focus == 'pickup' ? Vector2(70, 40) : Vector2(30, 0));
         world.add(WingmanPickup(position: at));
+      case 'emp':
+        // An EMP pickup 30px off the ship in a mixed wave (dev_focus "pickup":
+        // 80px off, to look at the pickup), and a boss to see the weaker slow.
+        xpSystem.currentLevel = 8;
+        xpSystem.currentXp = -100000000;
+        player.add(WeaponSpreadShot());
+        _spawnRing(10, (p) => MonsterGrunt(position: p, playerLevel: lvl)..minion = true);
+        _spawnRing(5, (p) => MonsterSpeeder(position: p, playerLevel: lvl)..minion = true);
+        _spawnRing(3, (p) => MonsterCaster(position: p, playerLevel: lvl)..minion = true);
+        final at = player.position + (_focus == 'pickup' ? Vector2(70, 40) : Vector2(30, 0));
+        Future.delayed(const Duration(milliseconds: 900), () => world.add(EmpPickup(position: at)));
       case 'revive':
         // Ad continue in the middle of a crowded fight: full hull + shield,
         // nearby bullets cleared, ~2s blinking invulnerability.

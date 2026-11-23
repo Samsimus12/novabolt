@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../data/balance.dart';
 import '../data/monster_data.dart';
 import '../fx/glow.dart';
 import 'monster.dart';
@@ -16,6 +17,9 @@ import 'monster_boss.dart';
 class BossPart extends Monster {
   @override
   bool get tauntable => false;
+
+  @override
+  double get empSlow => Balance.empBossSlow;
 
   final BossMonster owner;
   final double orbitRadius;

@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../../audio/sfx.dart';
+import '../data/balance.dart';
 import '../fx/glow.dart';
 import 'boss_projectile.dart';
 import 'damage_text.dart';
@@ -12,6 +13,9 @@ import 'monster.dart';
 abstract class BossMonster extends Monster {
   @override
   bool get tauntable => false;
+
+  @override
+  double get empSlow => Balance.empBossSlow;
 
   final int playerLevel;
 

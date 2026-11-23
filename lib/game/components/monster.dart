@@ -12,6 +12,7 @@ import '../fx/glow.dart';
 import '../novabolt_game.dart';
 import '../systems/wave_events.dart';
 import 'damage_text.dart';
+import 'emp.dart';
 import 'death_particles.dart';
 import 'hazards.dart';
 import 'health_pickup.dart';
@@ -40,8 +41,14 @@ abstract class Monster extends PositionComponent
   double speedScale = 1.0;
   double get maxHp => stats.maxHp * hpScale;
   double get moveSpeed => stats.speed * speedScale;
-  double slowFactor = 1.0;
+  /// Movement multiplier: the strongest of this enemy's own slow (Frost
+  /// Shard, Cryo Field…) and a running EMP. Bosses read it too.
+  double get slowFactor => game.empActive ? math.min(_slow, empSlow) : _slow;
+  double _slow = 1.0;
   double _slowTimer = 0;
+
+  /// How hard an EMP slows this enemy ([Balance.empSlow]; bosses less).
+  double get empSlow => Balance.empSlow;
   double _flashTimer = 0;
   double _age = 0;
 
@@ -108,7 +115,7 @@ abstract class Monster extends PositionComponent
     if (_dmgAccum > 0 && _dmgTimer <= 0) _flushDamageText();
     if (_slowTimer > 0) {
       _slowTimer -= dt;
-      if (_slowTimer <= 0) slowFactor = 1.0;
+      if (_slowTimer <= 0) _slow = 1.0;
     }
     _updateAggro(dt);
     updateMovement(dt);
@@ -152,7 +159,7 @@ abstract class Monster extends PositionComponent
   }
 
   void applySlow(double factor, double duration) {
-    slowFactor = factor;
+    _slow = factor;
     _slowTimer = duration;
   }
 
@@ -222,9 +229,14 @@ abstract class Monster extends PositionComponent
       game.world.add(HealthPickup(position: position.clone()));
       dropped = true;
     }
-    // Wingman: same chance as a shield, one at a time.
-    if (!dropped && game.canDropWingman && rng.nextDouble() < stats.shieldDropChance * dropBoost) {
+    // Special drops, rarer than shield/health, one of each at a time.
+    final special = stats.shieldDropChance * dropBoost;
+    if (!dropped && game.canDropWingman && rng.nextDouble() < special * Balance.wingmanDropShare) {
       game.world.add(WingmanPickup(position: position.clone()));
+      dropped = true;
+    }
+    if (!dropped && game.canDropEmp && rng.nextDouble() < special * Balance.empDropShare) {
+      game.world.add(EmpPickup(position: position.clone()));
       dropped = true;
     }
     if (mod != null) {
@@ -330,12 +342,58 @@ abstract class Monster extends PositionComponent
     }
   }
 
+  static final _empPath = Path();
+  static final _empPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..blendMode = BlendMode.plus;
+
+  static double _noise(int n) {
+    n = (n << 13) ^ n;
+    return ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 0x7fffffff;
+  }
+
+  /// EMP'd: a short spark of lightning crawling round the enemy, re-drawn
+  /// ~14 times a second (skipping some beats), plus a faint blue glow.
+  /// Fades over the EMP's last second.
+  void _renderEmp(Canvas canvas, Offset c) {
+    final fade = math.min(1.0, game.emp);
+    final r = size.x / 2;
+    Glow.draw(canvas, c, r * 1.35, empColor.withValues(alpha: 0.16 * fade));
+    final seed = identityHashCode(this) & 0xffff;
+    final beat = (game.playTimeSeconds * 14).floor();
+    if ((beat + seed) % 4 == 0) return;
+    final a0 = _noise(seed * 31 + beat) * math.pi * 2;
+    _empPath.reset();
+    const n = 6;
+    for (var i = 0; i <= n; i++) {
+      final a = a0 + i * 0.4;
+      final rr = r * 1.08 + (_noise(seed + beat * 7 + i * 13) * 2 - 1) * 4.5;
+      final x = c.dx + math.cos(a) * rr;
+      final y = c.dy + math.sin(a) * rr;
+      if (i == 0) {
+        _empPath.moveTo(x, y);
+      } else {
+        _empPath.lineTo(x, y);
+      }
+    }
+    _empPaint
+      ..strokeWidth = 3
+      ..color = empColor.withValues(alpha: 0.45 * fade);
+    canvas.drawPath(_empPath, _empPaint);
+    _empPaint
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.85 * fade);
+    canvas.drawPath(_empPath, _empPaint);
+  }
+
   /// Hit flare + warp-in (+ the elite aura). Every monster calls this last in
   /// render().
   void renderFlash(Canvas canvas) {
     final c = Offset(size.x / 2, size.y / 2);
     final mod = elite;
     if (mod != null) _renderElite(canvas, c, mod);
+    if (game.empActive) _renderEmp(canvas, c);
     if (_age < 0.4) {
       // Warp-in: a ring collapsing onto the enemy as it arrives.
       final p = _age / 0.4;

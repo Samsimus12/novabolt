@@ -41,7 +41,7 @@ class MonsterCaster extends Monster {
   void update(double dt) {
     super.update(dt);
     if (isDead) return;
-    _fireTimer -= dt;
+    _fireTimer -= dt * (game.empActive ? empSlow : 1); // an EMP slows its charge-up too
     if (_fireTimer <= 0) {
       _fireTimer = _fireInterval;
       _fire();

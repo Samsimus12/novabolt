@@ -13,6 +13,7 @@ import '../coins/hangar_manager.dart';
 import '../stats/stats_manager.dart';
 import 'components/background.dart';
 import 'components/damage_text.dart';
+import 'components/emp.dart';
 import 'components/hazards.dart';
 import 'components/revive_blast.dart';
 import 'components/health_pickup.dart';
@@ -307,6 +308,27 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     SfxManager.instance.medium();
   }
 
+  // ── EMP bomb (pickup) ─────────────────────────────────────────────────────
+  /// Seconds of EMP left (0 = none): every enemy moves at
+  /// [Balance.empSlow] (bosses [Balance.empBossSlow]); see `Monster.slowFactor`.
+  double emp = 0;
+  bool get empActive => emp > 0;
+  double get empFraction => (emp / Balance.empDuration).clamp(0.0, 1.0);
+
+  /// One at a time: not while one is running or a pickup is lying about.
+  bool get canDropEmp => !empActive && !isGameOver && !world.children.any((c) => c is EmpPickup);
+
+  void triggerEmp() {
+    emp = Balance.empDuration;
+    world.add(EmpBlast(position: player.position.clone()));
+    announce('EMP', color: empColor);
+    SfxManager.instance.play(Sfx.zap, volume: 1.0);
+    SfxManager.instance.play(Sfx.nova, volume: 0.55);
+    SfxManager.instance.heavy();
+    shake(0.4);
+    hitStop(0.06);
+  }
+
   /// An enemy bullet passed close by without hitting ([at] = where).
   void onGraze(Vector2 at) {
     if (isGameOver) return;
@@ -554,6 +576,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     if (combo == 0) _overdriveArmed = true;
     if (overdrive > 0) overdrive = math.max(0, overdrive - scaled);
     if (wingmanCooldown > 0) wingmanCooldown = math.max(0, wingmanCooldown - scaled);
+    if (emp > 0) emp = math.max(0, emp - scaled);
     _grazeWindow += scaled;
     if (_grazeWindow >= 1) {
       _grazeWindow = 0;
@@ -1096,6 +1119,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     world.children.whereType<Wingman>().toList().forEach((w) => w.removeFromParent());
     wingman = null;
     wingmanCooldown = 0;
+    world.children.whereType<EmpPickup>().toList().forEach((e) => e.removeFromParent());
+    world.children.whereType<EmpBlast>().toList().forEach((e) => e.removeFromParent());
+    emp = 0;
     _clearHazards();
     world.children.whereType<StarBackground>().toList().forEach((b) => b.removeFromParent());
     world.add(StarBackground());

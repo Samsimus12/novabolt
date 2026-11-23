@@ -109,6 +109,7 @@ lib/
 │   │   ├── shield_pickup.dart        # Dropped by monsters; restores 50 shield HP
 │   │   ├── health_pickup.dart        # Dropped by monsters; heals 30 HP; 8s lifetime
 │   │   ├── wingman.dart              # WingmanPickup + Wingman: a temporary helper ship (see "Wingman")
+│   │   ├── emp.dart                  # EmpPickup + EmpBlast: the rarest drop, slows every enemy (see "EMP bomb")
 │   │   ├── supercharge_laser.dart    # World Component (priority 4) — damage logic; visuals via BeamArt + equipped beam
 │   │   ├── death_particles.dart      # Enemy death: ExplosionBurst in the equipped explosion style; `big` variant for bosses
 │   │   ├── background.dart           # StarBackground: per-phase sky baked once to an image + 3 parallax star layers + phase set-piece; re-added on boss kill
@@ -259,12 +260,19 @@ assets/
 
 ## Wingman (Nov 22, 2026)
 
-- **Pickup** (`WingmanPickup`, plasma diamond with two arrowheads): rolled in `Monster._die` after the shield and health rolls, with the **same chance as a shield** (`stats.shieldDropChance` × `dropChanceMultiplier`), only when nothing else dropped and `game.canDropWingman` (no wingman out, none lying about, `Balance.wingmanCooldown` (0) elapsed). 8 s lifetime, tractor beam applies, counts as a pickup for missions.
+- **Pickup** (`WingmanPickup`, plasma diamond with two arrowheads): rolled in `Monster._die` after the shield and health rolls, at **60% of the shield chance** (`Balance.wingmanDropShare` × `stats.shieldDropChance` × `dropChanceMultiplier`), only when nothing else dropped and `game.canDropWingman` (no wingman out, none lying about, `Balance.wingmanCooldown` (0) elapsed). 8 s lifetime, tractor beam applies, counts as a pickup for missions.
 - **Wingman** (`Wingman`, `game.wingman`): warps in beside you via `game.callWingman()` ("Wingman" announcement), stays `Balance.wingmanDuration` (15 s), then warps out; blinks for its last 2 s. A second pickup while one is out refreshes its time and hull. A mini copy of your equipped ship with a plasma engine, a hull arc and a slow beacon pulse. Circles you at ~88 px (radius wobbles), shoots the nearest on-screen enemy within 420 px every 0.33 s for 60% of your strongest weapon's `shotDamage` (crits and the damage multiplier apply via `takeDamage`).
 - **Draws attention:** `Monster.target` is where an enemy heads and aims; use it, not `game.player.position`. Each enemy re-decides every ~0.3–0.5 s: it goes for the wingman when it's within 260 px of it and the wingman is closer than 1.6× its distance to you (`wingmanAggroRadius` / `wingmanAggroBias`). Bosses and `BossPart`s are not `tauntable`. Casters aim at it and their shots hurt it; boss shots pass through.
 - **Hull** = 80% of your max hull. Enemies that reach it are rammed apart like a dash, costing it half their contact damage (`wingmanRamCost`); at 0 it explodes ("Wingman down"). Not saved with a run; cleared on restart. All numbers in `Balance` under "Wingman". HUD: "Wingman 12s" line under the combo / event line (below the boss bar in a fight).
 - **Flame gotcha:** a hitbox that starts wholly inside another (no crossing outlines) doesn't collide, so a pickup spawned exactly on the stationary harness ship is never collected. In play the ship moves, so it's fine.
 - Harness: `SCENE=wingman` (pickup 30 px off the ship in a mixed wave; `dev_focus` = `pickup` leaves it 80 px off to look at).
+
+## EMP bomb (Nov 22, 2026)
+
+- **Pickup** (`EmpPickup`, electric-blue diamond with a lightning bolt and three turning arcs): the **rarest drop**, rolled after the wingman at 30% of the shield chance (`Balance.empDropShare`). Drop chances per enemy, shield = 1.0: shield 1.0, health ~0.9, wingman 0.6, EMP 0.3. One at a time (`game.canDropEmp`: none running, none lying about).
+- **Effect:** `game.triggerEmp()` sets `game.emp` = `Balance.empDuration` (5 s). While it runs, `Monster.slowFactor` (now a getter: the stronger of the enemy's own slow from `applySlow` and the EMP) is at most `empSlow`: 0.35 for ordinary enemies, 0.65 for bosses and `BossPart`s (`empBossSlow`). Everything that already reads `slowFactor` (all movement, boss charges/orbits) slows with it, so do new spawns. Casters also charge their shots at that rate. Counts as "slowed" for the Cryo shatter relic. Not saved with a run; cleared on restart.
+- **Presentation:** `EmpBlast` from the ship: a white/blue core flash, 9 lightning forks, a jagged ring re-rolled every frame that races past the furthest screen corner in 0.55 s, a brief blue screen wash; "EMP" announcement, `Sfx.zap` + `Sfx.nova`, heavy haptic, shake and a short hit-stop. EMP'd enemies show a crawling lightning spark and a faint blue glow (cached glow + one small path each, fading over the last second). HUD: "EMP 4s" line, stacked with the wave event and wingman lines (`_renderTimer` in `hud.dart`).
+- Harness: `SCENE=emp` (a wave of minions, the pickup appears 30 px off the ship after 0.9 s; `dev_focus` = `pickup` leaves it 80 px off).
 
 ## Elites and wave events (Nov 22, 2026)
 
@@ -306,7 +314,7 @@ assets/
 ```bash
 flutter run -t lib/dev/scene_main.dart --dart-define=SCENE=boss --dart-define=PHASE=4
 ```
-- `SCENE`: `menu | shop | hangar | records | missions | waves | nova | novaswitch | revive | overdrive | wingman | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab. For `novaswitch`, `dev_focus` = `wheel:<slot>` opens the selector wheel, prefix `all:` unlocks every mode.
+- `SCENE`: `menu | shop | hangar | records | missions | waves | nova | novaswitch | revive | overdrive | wingman | emp | boss | levelup | bossreward | gameover | countdown | flow` (`flow` = die → continue → countdown → die → restart smoke test). For `nova`, `PHASE` picks the Nova attack (0 laser … 10 Event Horizon). For `boss`, `--dart-define=HP=0.3` starts the boss at 30% HP (its last stage). For `shop`, `PHASE` is the initial tab. For `novaswitch`, `dev_focus` = `wheel:<slot>` opens the selector wheel, prefix `all:` unlocks every mode.
 - Prefs `dev_loadout` (comma-separated item ids to grant + equip, e.g. `nebula,shield_corona,nova_helix,thruster_prism,boom_supernova`, or `--dart-define=LOADOUT=…`) and `dev_focus` (shop item to focus) are optional. Loadouts don't apply to the `menu` scene.
 - A `--dart-define` beats the `dev_*` prefs; prefer rebuilding with defines, since the simulator's prefs daemon can keep serving old values after a plist edit.
 - One simulator build can be relaunched into any scene without rebuilding: terminate the app, write `flutter.dev_scene` (string) / `flutter.dev_phase` (int) into the app container's `Library/Preferences/com.sammorrison.novabolt.plist` via `xcrun simctl spawn <udid> defaults write <plist-path> ...`, relaunch with `xcrun simctl launch`, then `xcrun simctl io <udid> screenshot`.

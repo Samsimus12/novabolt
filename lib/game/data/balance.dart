@@ -58,9 +58,21 @@ abstract final class Balance {
   static const double grazeComboTime = 0.4; // tops up the combo timer
   static const int grazesPerSecond = 4; // reward cap (max ~6% Nova/s), so bullet walls aren't farmed
 
+  // ── Special drops (rolled only when no shield/health dropped) ──────────
+  // Shares of each enemy's shieldDropChance (x the drop multiplier), so they
+  // follow the same per-enemy rates, just rarer. Shield/health are 1.0.
+  static const double wingmanDropShare = 0.6;
+  static const double empDropShare = 0.3; // the rarest drop
+
+  // ── EMP bomb (a pickup: slows every enemy for a while) ──────────────────
+  static const double empDuration = 5;
+  /// Speed multiplier on enemies while the EMP lasts (caster fire too).
+  static const double empSlow = 0.35;
+  /// Bosses and their armour shrug off some of it.
+  static const double empBossSlow = 0.65;
+
   // ── Wingman (a pickup: a helper ship for a while) ────────────────────────
-  // Drops with the same chance as a shield pickup (each enemy's
-  // shieldDropChance, x the drop multiplier), one at a time.
+  // One at a time; drops at [wingmanDropShare] of the shield chance.
   static const double wingmanDuration = 15;
   /// Seconds after a wingman leaves before another can drop (0 = straight away).
   static const double wingmanCooldown = 0;

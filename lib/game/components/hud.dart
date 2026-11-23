@@ -12,6 +12,7 @@ import '../../stats/run_log.dart';
 import '../novabolt_game.dart';
 import '../systems/supercharge_system.dart';
 import '../systems/wave_events.dart';
+import 'emp.dart';
 import 'wingman.dart';
 
 /// In-game heads-up display.
@@ -166,11 +167,20 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
       _renderCombo(canvas, barR, top + 40);
     }
     final ev = WaveEvents.instance;
-    final showEvent = ev != null && ev.active != null && _bossIn <= 0;
-    if (showEvent) _renderEvent(canvas, barR, top + 64, ev);
+    // Timed lines stack under the combo (under the boss bar in a fight).
+    var lineY = top + (_bossIn > 0 ? 100 : 64);
+    if (ev != null && ev.active != null && _bossIn <= 0) {
+      _renderEvent(canvas, barR, lineY, ev);
+      lineY += 24;
+    }
     final wing = game.wingman;
     if (wing != null && !wing.leaving) {
-      _renderWingman(canvas, barR, top + (_bossIn > 0 ? 100 : showEvent ? 88 : 64), wing);
+      _renderTimer(canvas, barR, lineY, 'Wingman', wing.remaining, wing.fraction, wingmanColor,
+          dot: 0.35 + 0.55 * wing.hullFraction);
+      lineY += 24;
+    }
+    if (game.empActive) {
+      _renderTimer(canvas, barR, lineY, 'EMP', game.emp, game.empFraction, empColor);
     }
     if (_bossIn > 0) _renderBoss(canvas, w, top + 62);
     if (_banner < 2.6) _renderBanner(canvas, w, h);
@@ -309,19 +319,20 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
     canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * ev.fraction, y + name.height + 3), _comboLine);
   }
 
-  /// "Wingman  12s" under the event line, in the same style: the underline
-  /// drains with its time; the dot dims as its hull goes.
-  void _renderWingman(Canvas canvas, double right, double y, Wingman w) {
-    const col = wingmanColor;
-    final name = _tp('Wingman', _eventStyle.copyWith(color: col));
-    final secs = _tp('${w.remaining.ceil()}s', _smallStyle.copyWith(color: col.withValues(alpha: 0.85)));
+  /// A pickup's timer line ("Wingman  12s", "EMP  4s"), in the event line's
+  /// style: the underline drains with its time; [dot] sets the dot's
+  /// brightness (the wingman's dims as its hull goes).
+  void _renderTimer(Canvas canvas, double right, double y, String title, double left, double fraction, Color col,
+      {double dot = 0.9}) {
+    final name = _tp(title, _eventStyle.copyWith(color: col));
+    final secs = _tp('${left.ceil()}s', _smallStyle.copyWith(color: col.withValues(alpha: 0.85)));
     final x = right - name.width - 6 - secs.width;
-    Glow.draw(canvas, Offset(x - 8, y + name.height / 2), 6, col.withValues(alpha: 0.35 + 0.55 * w.hullFraction), hot: true);
+    Glow.draw(canvas, Offset(x - 8, y + name.height / 2), 6, col.withValues(alpha: dot), hot: true);
     name.paint(canvas, Offset(x, y));
     secs.paint(canvas, Offset(x + name.width + 6, y + name.height - secs.height - 1));
     final lw = name.width + 6 + secs.width;
     _comboLine.color = col.withValues(alpha: 0.75);
-    canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * w.fraction, y + name.height + 3), _comboLine);
+    canvas.drawLine(Offset(right - lw, y + name.height + 3), Offset(right - lw + lw * fraction, y + name.height + 3), _comboLine);
   }
 
   static const _announceStyle = TextStyle(

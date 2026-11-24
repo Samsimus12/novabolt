@@ -79,6 +79,13 @@ class AudioManager {
     await _crossfadeTo(_pick(_gameTracks));
   }
 
+  /// Arcade games: a random track from the same playlist as a run (never
+  /// the one that just played), like the main game.
+  Future<void> playArcade() async {
+    if (!_musicEnabled) return;
+    await _crossfadeTo(_pick(_gameTracks));
+  }
+
   Future<void> playBoss() async {
     if (!_musicEnabled) return;
     await _crossfadeTo(_pick(_bossTracks));

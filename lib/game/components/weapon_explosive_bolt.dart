@@ -18,7 +18,7 @@ class WeaponExplosiveBolt extends Weapon {
   bool get isUpgradeable => false;
 
   @override
-  String get nextUpgradeDescription => 'Blast damage +30%';
+  String get nextUpgradeDescription => 'Blast damage +${upgradePercent()}%';
 
   @override
   void fire(Vector2 playerPos, Vector2 direction) {

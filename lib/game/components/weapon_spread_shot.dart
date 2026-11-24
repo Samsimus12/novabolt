@@ -13,9 +13,6 @@ class WeaponSpreadShot extends Weapon {
   String get displayName => 'Scatter Cannon';
 
   @override
-  String get nextUpgradeDescription => 'Damage +30%';
-
-  @override
   void fire(Vector2 playerPos, Vector2 direction) {
     final angles = evolved ? const [-0.52, -0.26, 0.0, 0.26, 0.52] : const [-0.35, 0.0, 0.35];
     for (final angle in angles) {

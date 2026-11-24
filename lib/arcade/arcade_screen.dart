@@ -1,14 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../audio/audio_manager.dart';
 import '../audio/sfx.dart';
 import '../coins/coin_manager.dart';
 import '../ui/ui.dart';
 import 'arcade_manager.dart';
 import 'assault/assault_screen.dart';
 import 'assault/assault_art.dart';
+import 'cockpit/cockpit_panel.dart' show paintCockpitPreview;
+import 'cockpit/cockpit_screen.dart';
+import 'invaders/invaders_art.dart';
+import 'shmup/shmup_art.dart';
+import 'shmup/shmup_screen.dart';
+import 'invaders/invaders_screen.dart';
 import 'thread/thread_art.dart';
 import 'thread/thread_overlays.dart' show ArcadeCapBar;
 import 'thread/thread_screen.dart';
@@ -55,9 +64,14 @@ class _ArcadeScreenState extends State<ArcadeScreen> with SingleTickerProviderSt
     final screen = switch (g) {
       ArcadeGame.threadTheNeedle => const ThreadScreen(),
       ArcadeGame.groundAssault => const AssaultScreen(),
+      ArcadeGame.swarmSiege => const InvadersScreen(),
+      ArcadeGame.cockpit => const CockpitScreen(game: ArcadeGame.cockpit),
+      ArcadeGame.shmup => const ShmupScreen(),
     };
     _ticker.muted = true; // the preview needn't run under the game
+    unawaited(AudioManager.instance.playArcade()); // a random game track, like a run
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    unawaited(AudioManager.instance.playMenu());
     _ticker.muted = false;
     if (mounted) setState(() {});
   }
@@ -215,6 +229,9 @@ class _GameCardState extends State<_GameCard> {
             painter: switch (g) {
               ArcadeGame.threadTheNeedle => _ThreadPreviewPainter(reduce ? ValueNotifier(1.2) : widget.time),
               ArcadeGame.groundAssault => _AssaultPreviewPainter(reduce ? ValueNotifier(2.0) : widget.time),
+              ArcadeGame.swarmSiege => _SiegePreviewPainter(reduce ? ValueNotifier(1.0) : widget.time),
+              ArcadeGame.cockpit => _CockpitPreviewPainter(reduce ? ValueNotifier(5.5) : widget.time),
+              ArcadeGame.shmup => _RiftPreviewPainter(reduce ? ValueNotifier(2.0) : widget.time),
             },
           ),
         ),
@@ -301,6 +318,9 @@ class _GameCardState extends State<_GameCard> {
   static Color _accentFor(ArcadeGame g) => switch (g) {
         ArcadeGame.threadTheNeedle => NbColors.ion,
         ArcadeGame.groundAssault => NbColors.flare,
+        ArcadeGame.swarmSiege => NbColors.mint,
+        ArcadeGame.cockpit => NbColors.gold,
+        ArcadeGame.shmup => NbColors.plasma,
       };
 }
 
@@ -357,6 +377,41 @@ class _SoonChip extends StatelessWidget {
 }
 
 // ── Previews ───────────────────────────────────────────────────────────────
+
+/// Mayday's window: the cockpit at master caution, its warning lights
+/// flipping to green one by one as the clock drains.
+/// Swarm Siege's window, drawn with the game's own art: the aurora sky,
+/// the swarm marching and stepping, the gold barge crossing, your ship
+/// firing from the rail.
+class _SiegePreviewPainter extends CustomPainter {
+  final ValueNotifier<double> t;
+  _SiegePreviewPainter(this.t) : super(repaint: t);
+  @override
+  void paint(Canvas canvas, Size size) => InvadersArt.paintPreview(canvas, size, t.value);
+  @override
+  bool shouldRepaint(_SiegePreviewPainter old) => false;
+}
+
+/// Rift Runner's window, drawn by the game's own art.
+class _RiftPreviewPainter extends CustomPainter {
+  final ValueNotifier<double> t;
+  _RiftPreviewPainter(this.t) : super(repaint: t);
+  @override
+  void paint(Canvas canvas, Size size) => ShmupArt.paintPreview(canvas, size, t.value);
+  @override
+  bool shouldRepaint(_RiftPreviewPainter old) => false;
+}
+
+class _CockpitPreviewPainter extends CustomPainter {
+  final ValueNotifier<double> t;
+  _CockpitPreviewPainter(this.t) : super(repaint: t);
+
+  @override
+  void paint(Canvas canvas, Size size) => paintCockpitPreview(canvas, size, t.value);
+
+  @override
+  bool shouldRepaint(_CockpitPreviewPainter old) => old.t != t;
+}
 
 class _ThreadPreviewPainter extends CustomPainter {
   final ValueNotifier<double> t;

@@ -27,10 +27,21 @@ import 'assault_weapons.dart';
 ///   * Read-only access to the sim each frame. World -> screen:
 ///     `viewRect.left + (x - cameraX) * tilePx`, `viewRect.top + y * tilePx`.
 ///
-/// Look ("dusk planet"): a baked violet-to-wine sky with a ringed gas giant,
-/// two parallax ridges (cached pictures), basalt ground with a sunset-lit
-/// lip on every walkable top, salvaged hull-plate platforms, flare crystal
-/// spikes. Colour keeps the app's meanings: flare = what hurts you, ion =
+/// Looks, one per stage theme (`sim.level.theme`; unknown ids fall back to
+/// 'dusk'):
+///   * 'dusk' (Crash Site): a baked violet-to-wine sky with a ringed gas
+///     giant, two parallax ridges, basalt ground with a sunset-lit lip on
+///     every walkable top, salvaged hull-plate platforms, flare crystal spikes.
+///   * 'caverns' (Crystal Caverns): a plum cave wall with crystal veins and
+///     distant glowing clusters, crystal spires in parallax, violet rock with
+///     rose crystals on its lips and hanging from its undersides, glassy
+///     crystal ledges, crystal spikes. The dusk sky shows through wherever
+///     the cave roof is open (the mouth and the exit).
+///   * 'ruins' (Old Colony): a navy night sky with a big low moon, two
+///     skyline layers (the near one with a few warm windows), slate concrete
+///     with moonlit edges and dark windows in thick blocks, steel girder
+///     ledges, barbed-wire spikes.
+/// All of it is baked or cached per size and theme. Colour keeps the app's meanings: flare = what hurts you, ion =
 /// you, gold = NOVA, plasma = upgrades. The pilot wears the equipped ship's
 /// colours; the exit is the equipped ship; explosions use the equipped
 /// explosion style. Characters are drawn in a 40-units-per-tile design space.
@@ -53,13 +64,18 @@ class AssaultArt extends Component {
   double _shake = 0;
   double _hurt = 0; // red edge wash, 1 → 0
   double _muzzle = 0;
+  double _boost = 0; // double-jump flame, 1 → 0
+
   double _runPhase = 0;
   double _bossFlash = 0;
   double _lastPilotX = 0;
 
   // ── Cached per-size assets ──────────────────────────────────────────────
   Image? _sky;
+  Image? _mouthSky; // caverns: the dusk sky seen through openings in the roof
   Size _skySize = Size.zero;
+  _Theme _th = _Theme.dusk;
+  String _themeId = '';
   Picture? _far;
   Picture? _near;
   double _ridgeW = 1;
@@ -75,10 +91,13 @@ class AssaultArt extends Component {
 
   void _bake() {
     _sky?.dispose();
+    _mouthSky?.dispose();
+    _mouthSky = null;
+    _themeId = sim.level.theme;
+    _th = _Theme.of(_themeId);
     final s = _view.size;
-    final rec = PictureRecorder();
-    paintSky(Canvas(rec), s);
-    _sky = rec.endRecording().toImageSync(s.width.ceil(), s.height.ceil());
+    _sky = _bakeImage(s, (c) => _th.paintBackdrop(c, s));
+    if (_th.id == 'caverns') _mouthSky = _bakeImage(s, (c) => paintSky(c, s));
     _skySize = s;
     _ridgeW = s.width * 1.6;
     final e = _tp * 1.6;
@@ -96,8 +115,14 @@ class AssaultArt extends Component {
       Gradient.linear(v.topLeft, v.topLeft.translate(e, 0), [on, off]),
       Gradient.linear(v.topRight, v.topRight.translate(-e, 0), [on, off]),
     ];
-    _far = _ridgePicture(s, _ridgeW, s.height * 0.69, s.height * 0.11, s.width / 11, const Color(0xFF2B1638), 3, false);
-    _near = _ridgePicture(s, _ridgeW, s.height * 0.775, s.height * 0.075, s.width / 18, const Color(0xFF1C1029), 8, true);
+    _far = _th.ridge(s, _ridgeW, true);
+    _near = _th.ridge(s, _ridgeW, false);
+  }
+
+  static Image _bakeImage(Size s, void Function(Canvas) paint) {
+    final rec = PictureRecorder();
+    paint(Canvas(rec));
+    return rec.endRecording().toImageSync(s.width.ceil(), s.height.ceil());
   }
 
   void onEvent(AssaultEvent e) {
@@ -105,6 +130,23 @@ class AssaultArt extends Component {
     switch (e.kind) {
       case AssaultEventKind.jump:
         _dust(x, y, 5);
+      case AssaultEventKind.doubleJump:
+        // Backpack thruster burst: a flare of the thruster colour downward,
+        // a ring under the feet, and the flame on the pilot (see [_boost]).
+        _boost = 1;
+        final eng = _thruster.color ?? _palette.engine;
+        final bx = x - sim.pilot.facing * 0.22, by = y - 0.75;
+        _rings.add(_Ring(x, y, eng, 0.35, 0.15, 0.9));
+        for (var i = 0; i < 9; i++) {
+          final a = math.pi / 2 + (_rng.nextDouble() - 0.5) * 0.9;
+          final sp = 4 + _rng.nextDouble() * 5;
+          _parts.add(_Part(bx, by, math.cos(a) * sp, math.sin(a) * sp, 0.32, 0.09 + _rng.nextDouble() * 0.06, eng, hot: true, drag: 5));
+        }
+        for (var i = 0; i < 4; i++) {
+          _parts.add(
+            _Part(x + (_rng.nextDouble() - 0.5) * 0.4, y, (_rng.nextDouble() - 0.5) * 2, 0.6, 0.5, 0.16, const Color(0xFF8E97C7), smoke: true, drag: 2),
+          );
+        }
       case AssaultEventKind.land:
         _dust(x, y, 6);
       case AssaultEventKind.shoot:
@@ -184,17 +226,28 @@ class AssaultArt extends Component {
   ExplosionStyle _style() => explosionStyleFor(CoinManager.instance.selectedExplosion);
 
   static String _weaponName(String? id) => switch (id) {
-        'spread' => 'Spread',
-        'laser' => 'Laser',
-        'rockets' => 'Rockets',
-        _ => 'Blaster',
-      };
+    'spread' => 'Spread',
+    'laser' => 'Laser',
+    'rockets' => 'Rockets',
+    _ => 'Blaster',
+  };
 
   void _dust(double x, double y, int n) {
     for (var i = 0; i < n; i++) {
       final dir = i.isEven ? 1 : -1;
-      _parts.add(_Part(x + dir * 0.1, y - 0.05, dir * (1 + _rng.nextDouble() * 2), -0.6 - _rng.nextDouble(), 0.4,
-          0.12 + _rng.nextDouble() * 0.08, const Color(0xFFB0786A), smoke: true, drag: 3));
+      _parts.add(
+        _Part(
+          x + dir * 0.1,
+          y - 0.05,
+          dir * (1 + _rng.nextDouble() * 2),
+          -0.6 - _rng.nextDouble(),
+          0.4,
+          0.12 + _rng.nextDouble() * 0.08,
+          const Color(0xFFB0786A),
+          smoke: true,
+          drag: 3,
+        ),
+      );
     }
   }
 
@@ -210,8 +263,20 @@ class AssaultArt extends Component {
     for (var i = 0; i < n; i++) {
       final a = -math.pi * (0.1 + 0.8 * _rng.nextDouble());
       final sp = 4 + _rng.nextDouble() * 7;
-      _parts.add(_Part(x, y, math.cos(a) * sp, math.sin(a) * sp, 0.9 + _rng.nextDouble() * 0.4, 0.08 + _rng.nextDouble() * 0.08,
-          c, chip: true, gravity: 30, spin: (_rng.nextDouble() - 0.5) * 16));
+      _parts.add(
+        _Part(
+          x,
+          y,
+          math.cos(a) * sp,
+          math.sin(a) * sp,
+          0.9 + _rng.nextDouble() * 0.4,
+          0.08 + _rng.nextDouble() * 0.08,
+          c,
+          chip: true,
+          gravity: 30,
+          spin: (_rng.nextDouble() - 0.5) * 16,
+        ),
+      );
     }
   }
 
@@ -223,6 +288,7 @@ class AssaultArt extends Component {
     if (_shake > 0) _shake = math.max(0, _shake - dt * 2.6);
     if (_hurt > 0) _hurt = math.max(0, _hurt - dt * 2.4);
     if (_muzzle > 0) _muzzle -= dt;
+    if (_boost > 0) _boost = math.max(0, _boost - dt / 0.35);
     if (_bossFlash > 0) _bossFlash = math.max(0, _bossFlash - dt * 1.6);
     final p = sim.pilot;
     if (p.onGround) _runPhase += (p.x - _lastPilotX).abs() * 2.2;
@@ -255,14 +321,23 @@ class AssaultArt extends Component {
     // Rocket smoke.
     for (final b in sim.bullets) {
       if (b is AssaultRocket && !b.dead && _rng.nextDouble() < dt * 40) {
-        _parts.add(_Part(b.x - b.vx * 0.02, b.y - b.vy * 0.02, (_rng.nextDouble() - 0.5) * 0.6, -0.4, 0.5, 0.1,
-            const Color(0xFF8E97C7), smoke: true, drag: 1));
+        _parts.add(_Part(b.x - b.vx * 0.02, b.y - b.vy * 0.02, (_rng.nextDouble() - 0.5) * 0.6, -0.4, 0.5, 0.1, const Color(0xFF8E97C7), smoke: true, drag: 1));
       }
     }
     // The wreck smokes at the start of the stage.
-    if (sim.cameraX < 12 && _rng.nextDouble() < dt * 6) {
-      _parts.add(_Part(1.3 + _rng.nextDouble() * 0.4, 10.4, 0.25 + _rng.nextDouble() * 0.2, -0.9 - _rng.nextDouble() * 0.4, 3.2,
-          0.18 + _rng.nextDouble() * 0.1, const Color(0xFF6E5A78), smoke: true));
+    if (_th.id == 'dusk' && sim.cameraX < 12 && _rng.nextDouble() < dt * 6) {
+      _parts.add(
+        _Part(
+          1.3 + _rng.nextDouble() * 0.4,
+          10.4,
+          0.25 + _rng.nextDouble() * 0.2,
+          -0.9 - _rng.nextDouble() * 0.4,
+          3.2,
+          0.18 + _rng.nextDouble() * 0.1,
+          const Color(0xFF6E5A78),
+          smoke: true,
+        ),
+      );
     }
   }
 
@@ -273,9 +348,11 @@ class AssaultArt extends Component {
   @override
   void render(Canvas canvas) {
     if (_tp == 0 || _sky == null) return;
+    if (sim.level.theme != _themeId) _bake();
     canvas.save();
     canvas.clipRect(_view);
     canvas.drawImageRect(_sky!, Offset.zero & _skySize, _view, _imgPaint);
+    if (_mouthSky != null) _paintRoofOpenings(canvas);
     _paintRidge(canvas, _far!, 0.1);
     _paintRidge(canvas, _near!, 0.28);
 
@@ -316,6 +393,39 @@ class AssaultArt extends Component {
   static final _imgPaint = Paint()..filterQuality = FilterQuality.low;
   static final _wash = Paint()..blendMode = BlendMode.plus;
 
+  /// Caverns: wherever the top row is open (the cave mouth, the exit), the
+  /// dusk sky shows instead of the cave wall, with a shadowed rim.
+  void _paintRoofOpenings(Canvas canvas) {
+    final c0 = math.max(0, sim.cameraX.floor() - 1);
+    final c1 = math.min(sim.level.width - 1, (sim.cameraX + AssaultTuning.viewTiles).ceil() + 1);
+    var col = c0;
+    while (col <= c1) {
+      if (_solid(col, 0)) {
+        col++;
+        continue;
+      }
+      final start = col;
+      while (col <= c1 && !_solid(col, 0)) {
+        col++;
+      }
+      final r = Rect.fromLTRB(math.max(_view.left, _sx(start.toDouble())), _view.top, math.min(_view.right, _sx(col.toDouble())), _view.bottom);
+      if (r.width <= 0) continue;
+      canvas.save();
+      canvas.clipRect(r);
+      canvas.drawImageRect(_mouthSky!, Offset.zero & _skySize, _view, _imgPaint);
+      canvas.restore();
+      // the cave's rim: a soft shadow just inside the wall on each side
+      final w = _tp * 0.8;
+      for (final (edge, dir) in [(r.left, -1.0), (r.right, 1.0)]) {
+        if ((dir < 0 && start == 0) || (dir > 0 && col >= sim.level.width)) continue;
+        final band = dir < 0 ? Rect.fromLTRB(edge, r.top, edge + w, r.bottom) : Rect.fromLTRB(edge - w, r.top, edge, r.bottom);
+        _fill.shader = Gradient.linear(Offset(edge, 0), Offset(edge - dir * w, 0), const [Color(0xCC0C0718), Color(0x000C0718)]);
+        canvas.drawRect(band, _fill);
+        _fill.shader = null;
+      }
+    }
+  }
+
   void _paintRidge(Canvas canvas, Picture pic, double factor) {
     final off = (sim.cameraX * _tp * factor) % _ridgeW;
     for (final k in [0.0, 1.0]) {
@@ -335,12 +445,12 @@ class AssaultArt extends Component {
     c.drawRect(
       r,
       Paint()
-        ..shader = Gradient.linear(Offset.zero, Offset(0, s.height), const [
-          Color(0xFF0A0C29),
-          Color(0xFF24143F),
-          Color(0xFF4A1E3E),
-          Color(0xFF6B2B45),
-        ], const [0, 0.45, 0.72, 1]),
+        ..shader = Gradient.linear(
+          Offset.zero,
+          Offset(0, s.height),
+          const [Color(0xFF0A0C29), Color(0xFF24143F), Color(0xFF4A1E3E), Color(0xFF6B2B45)],
+          const [0, 0.45, 0.72, 1],
+        ),
     );
     final rnd = math.Random(4);
     final star = Paint();
@@ -351,11 +461,7 @@ class AssaultArt extends Component {
     }
     // Horizon haze.
     final hz = Offset(s.width * 0.5, s.height * 0.78);
-    c.drawRect(
-      r,
-      Paint()
-        ..shader = Gradient.radial(hz, s.width * 0.75, const [Color(0x40FF6A5A), Color(0x14FF6A5A), Color(0x00FF6A5A)], const [0, 0.5, 1]),
-    );
+    c.drawRect(r, Paint()..shader = Gradient.radial(hz, s.width * 0.75, const [Color(0x40FF6A5A), Color(0x14FF6A5A), Color(0x00FF6A5A)], const [0, 0.5, 1]));
     // Gas giant.
     final gc = Offset(s.width * 0.2, s.height * 0.47);
     final gr = s.height * 0.085;
@@ -376,8 +482,7 @@ class AssaultArt extends Component {
     c.drawCircle(
       gc.translate(gr * 0.45, gr * 0.35),
       gr * 1.05,
-      Paint()
-        ..shader = Gradient.radial(gc.translate(gr * 0.45, gr * 0.35), gr * 1.05, const [Color(0xB0080619), Color(0x00080619)], const [0.2, 1]),
+      Paint()..shader = Gradient.radial(gc.translate(gr * 0.45, gr * 0.35), gr * 1.05, const [Color(0xB0080619), Color(0x00080619)], const [0.2, 1]),
     );
     c.restore();
     final ring = Paint()
@@ -434,14 +539,12 @@ class AssaultArt extends Component {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  static const _rockTop = Color(0xFF3A2238);
-  static const _rockDeep = Color(0xFF170E20);
-
   bool _solid(int c, int r) => r >= 0 && r < sim.level.height && c >= 0 && c < sim.level.width && sim.level.tiles[r][c] == AssaultTile.solid;
   bool _plat(int c, int r) => r >= 0 && r < sim.level.height && c >= 0 && c < sim.level.width && sim.level.tiles[r][c] == AssaultTile.platform;
 
   void _paintTiles(Canvas canvas) {
     final lv = sim.level;
+    final th = _th;
     final c0 = math.max(0, sim.cameraX.floor() - 1);
     final c1 = math.min(lv.width - 1, (sim.cameraX + AssaultTuning.viewTiles).ceil() + 1);
     final t = _tp;
@@ -449,102 +552,257 @@ class AssaultArt extends Component {
       final x = _sx(col.toDouble());
       for (var row = 0; row < lv.height; row++) {
         final y = _sy(row.toDouble());
+        final h = (col * 73856093) ^ (row * 19349663);
         switch (lv.tiles[row][col]) {
           case AssaultTile.empty:
             break;
           case AssaultTile.solid:
-            var depth = 0;
-            while (depth < 3 && _solid(col, row - depth - 1)) {
-              depth++;
-            }
-            _fill.color = Color.lerp(_rockTop, _rockDeep, depth / 3)!;
-            canvas.drawRect(Rect.fromLTWH(x - 0.5, y - 0.5, t + 1, t + 1), _fill);
-            // Craters and strata, fixed per tile.
-            final h = (col * 73856093) ^ (row * 19349663);
-            final cx = x + t * (0.2 + ((h >> 3) & 15) / 15 * 0.6);
-            final cy = y + t * (0.3 + ((h >> 7) & 15) / 15 * 0.5);
-            final cr = t * (0.05 + ((h >> 11) & 7) / 7 * 0.06);
-            _fill.color = const Color(0x660A0612);
-            canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy), width: cr * 2, height: cr * 1.4), _fill);
-            if ((h & 3) == 0) {
-              _stroke
-                ..strokeWidth = 1
-                ..color = const Color(0x33E0915A);
-              canvas.drawLine(Offset(x + t * 0.15, y + t * 0.7), Offset(x + t * 0.55, y + t * 0.62), _stroke);
-            }
-            if (!_solid(col, row - 1)) {
-              // Sunset-lit lip: a warm band, a bright hairline and tufts.
-              _fill.color = const Color(0xFF6E3A3E);
-              canvas.drawRect(Rect.fromLTWH(x - 0.5, y, t + 1, t * 0.14), _fill);
-              _fill.color = const Color(0xFFE0915A);
-              canvas.drawRect(Rect.fromLTWH(x - 0.5, y, t + 1, math.max(1.5, t * 0.05)), _fill);
-              for (var k = 0; k < 2; k++) {
-                final tx = x + t * (0.15 + ((h >> (13 + k * 3)) & 7) / 7 * 0.7);
-                canvas.drawPath(
-                  Path()
-                    ..moveTo(tx - t * 0.05, y)
-                    ..lineTo(tx, y - t * 0.1)
-                    ..lineTo(tx + t * 0.06, y),
-                  _fill,
-                );
-              }
-            }
-            if (!_solid(col - 1, row)) {
-              _fill.color = const Color(0x998A4A48);
-              canvas.drawRect(Rect.fromLTWH(x, y, math.max(1.5, t * 0.05), t), _fill);
-            }
-            if (!_solid(col + 1, row)) {
-              _fill.color = const Color(0x660A0612);
-              canvas.drawRect(Rect.fromLTWH(x + t * 0.94, y, t * 0.06, t), _fill);
-            }
+            _paintRock(canvas, col, row, x, y, t, h, th);
           case AssaultTile.platform:
-            // Salvaged hull plate on struts: a different material from rock.
-            _fill.color = const Color(0xFF2B3156);
-            canvas.drawRect(Rect.fromLTWH(x, y, t, t * 0.2), _fill);
-            _fill.color = const Color(0xFF9AA6E0);
-            canvas.drawRect(Rect.fromLTWH(x, y, t, math.max(1.5, t * 0.045)), _fill);
-            _fill.color = const Color(0xFF1C2140);
-            canvas.drawRect(Rect.fromLTWH(x, y + t * 0.2, t, t * 0.05), _fill);
-            if (!_plat(col - 1, row) || !_plat(col + 1, row)) {
-              final sxp = !_plat(col - 1, row) ? x + t * 0.2 : x + t * 0.8;
-              _stroke
-                ..strokeWidth = t * 0.08
-                ..color = const Color(0xFF2B3156);
-              canvas.drawLine(Offset(sxp, y + t * 0.24), Offset(sxp - t * 0.1, y + t * 0.5), _stroke);
-            }
-            // rivets
-            _fill.color = const Color(0x809AA6E0);
-            canvas.drawCircle(Offset(x + t * 0.5, y + t * 0.11), t * 0.025, _fill);
+            _paintPlatform(canvas, col, row, x, y, t, th);
           case AssaultTile.spikes:
-            // Flare-tipped crystal shards.
-            for (final (o, hgt) in const [(0.22, 0.42), (0.5, 0.55), (0.78, 0.4)]) {
-              final bx = x + t * o;
-              final path = Path()
-                ..moveTo(bx - t * 0.13, y + t)
-                ..lineTo(bx, y + t * (1 - hgt))
-                ..lineTo(bx + t * 0.13, y + t)
-                ..close();
-              _fill.color = const Color(0xFF7A1F3A);
-              canvas.drawPath(path, _fill);
-              _fill.color = _flare;
-              canvas.drawPath(
-                Path()
-                  ..moveTo(bx - t * 0.05, y + t * (1 - hgt * 0.55))
-                  ..lineTo(bx, y + t * (1 - hgt))
-                  ..lineTo(bx + t * 0.05, y + t * (1 - hgt * 0.55))
-                  ..close(),
-                _fill,
-              );
-            }
-            Glow.draw(canvas, Offset(x + t * 0.5, y + t * 0.6), t * 0.5, _flare.withValues(alpha: 0.25 + 0.1 * math.sin(_t * 4 + col)));
+            _paintSpikes(canvas, col, x, y, t, th);
         }
       }
     }
   }
 
+  void _paintRock(Canvas canvas, int col, int row, double x, double y, double t, int h, _Theme th) {
+    // Shade by depth from the nearest open face above or below.
+    final rows = sim.level.height;
+    bool rock(int r) => r < 0 || r >= rows || _solid(col, r);
+    var depth = 0;
+    while (depth < 3 && rock(row - depth - 1) && rock(row + depth + 1)) {
+      depth++;
+    }
+    final openAbove = !_solid(col, row - 1) && row > 0;
+    final openBelow = !_solid(col, row + 1) && row < sim.level.height - 1;
+    _fill.color = Color.lerp(th.rockTop, th.rockDeep, depth / 3)!;
+    canvas.drawRect(Rect.fromLTWH(x - 0.5, y - 0.5, t + 1, t + 1), _fill);
+    if (th.id == 'ruins' && depth >= 1 && row <= sim.level.height - 4 && (h & 7) == 0) {
+      // A window in the ruin's wall: mostly dark, a few still lit.
+      final lit = ((h >> 5) & 7) == 0;
+      final r = Rect.fromLTWH(x + t * 0.3, y + t * 0.25, t * 0.32, t * 0.4);
+      _fill.color = const Color(0xFF0A0D18);
+      canvas.drawRect(r, _fill);
+      if (lit) {
+        _fill.color = const Color(0x99E0A060);
+        canvas.drawRect(r.deflate(t * 0.04), _fill);
+      }
+    } else {
+      // Craters and strata, fixed per tile.
+      final cx = x + t * (0.2 + ((h >> 3) & 15) / 15 * 0.6);
+      final cy = y + t * (0.3 + ((h >> 7) & 15) / 15 * 0.5);
+      final cr = t * (0.05 + ((h >> 11) & 7) / 7 * 0.06);
+      _fill.color = th.crater;
+      canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy), width: cr * 2, height: cr * 1.4), _fill);
+      if ((h & 3) == 0) {
+        _stroke
+          ..strokeWidth = 1
+          ..color = th.strata;
+        canvas.drawLine(Offset(x + t * 0.15, y + t * 0.7), Offset(x + t * 0.55, y + t * 0.62), _stroke);
+      }
+    }
+    if (openAbove) {
+      // The lit lip on every walkable top.
+      _fill.color = th.lipBand;
+      canvas.drawRect(Rect.fromLTWH(x - 0.5, y, t + 1, t * 0.14), _fill);
+      _fill.color = th.lipLine;
+      canvas.drawRect(Rect.fromLTWH(x - 0.5, y, t + 1, math.max(1.5, t * 0.05)), _fill);
+      switch (th.id) {
+        case 'caverns':
+          if ((h & 7) == 0) _crystals(canvas, Offset(x + t * (0.3 + ((h >> 4) & 3) * 0.12), y), t, 1, h);
+        case 'ruins':
+          if ((h & 7) == 1) {
+            // rebar poking out of broken concrete
+            _stroke
+              ..strokeWidth = math.max(1, t * 0.03)
+              ..color = const Color(0xFF6A7290);
+            final rx = x + t * 0.6;
+            canvas.drawLine(Offset(rx, y), Offset(rx + t * 0.08, y - t * 0.22), _stroke);
+            canvas.drawLine(Offset(rx + t * 0.1, y), Offset(rx + t * 0.04, y - t * 0.16), _stroke);
+          }
+        default:
+          for (var k = 0; k < 2; k++) {
+            final tx = x + t * (0.15 + ((h >> (13 + k * 3)) & 7) / 7 * 0.7);
+            canvas.drawPath(
+              Path()
+                ..moveTo(tx - t * 0.05, y)
+                ..lineTo(tx, y - t * 0.1)
+                ..lineTo(tx + t * 0.06, y),
+              _fill,
+            );
+          }
+      }
+    }
+    if (openBelow) {
+      // The underside of a ledge or the cave roof: a shadow and a cool rim.
+      _fill.color = const Color(0x660A0612);
+      canvas.drawRect(Rect.fromLTWH(x - 0.5, y + t * 0.8, t + 1, t * 0.2), _fill);
+      _fill.color = th.underLine;
+      canvas.drawRect(Rect.fromLTWH(x - 0.5, y + t - math.max(1.2, t * 0.035), t + 1, math.max(1.2, t * 0.035)), _fill);
+      if (th.id == 'caverns' && (h & 7) == 3) _crystals(canvas, Offset(x + t * 0.5, y + t), t, -1, h);
+    }
+    if (!_solid(col - 1, row)) {
+      _fill.color = th.sideLit;
+      canvas.drawRect(Rect.fromLTWH(x, y, math.max(1.5, t * 0.05), t), _fill);
+    }
+    if (!_solid(col + 1, row)) {
+      _fill.color = const Color(0x660A0612);
+      canvas.drawRect(Rect.fromLTWH(x + t * 0.94, y, t * 0.06, t), _fill);
+    }
+  }
+
+  /// A small cluster of rose crystals growing up (dir 1) or hanging (-1).
+  void _crystals(Canvas canvas, Offset base, double t, int dir, int h) {
+    final d = -dir.toDouble();
+    for (final (o, hgt, w) in [(-0.12, 0.28, 0.07), (0.0, 0.42, 0.09), (0.13, 0.22, 0.06)]) {
+      final hh = hgt * (0.8 + ((h >> 9) & 3) * 0.1);
+      final bx = base.dx + t * o;
+      final tip = Offset(bx + t * o * 0.4, base.dy + d * t * hh);
+      _fill.color = const Color(0xFFB04A9E);
+      canvas.drawPath(
+        Path()
+          ..moveTo(bx - t * w, base.dy)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(bx + t * w, base.dy)
+          ..close(),
+        _fill,
+      );
+      _fill.color = const Color(0xFFFFB8EC);
+      canvas.drawPath(
+        Path()
+          ..moveTo(bx - t * w * 0.2, base.dy)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(bx + t * w, base.dy)
+          ..close(),
+        _fill,
+      );
+    }
+    Glow.draw(canvas, base.translate(0, d * t * 0.2), t * 0.55, const Color(0xFFFF7AD9).withValues(alpha: 0.3 + 0.08 * math.sin(_t * 1.6 + h)));
+  }
+
+  void _paintPlatform(Canvas canvas, int col, int row, double x, double y, double t, _Theme th) {
+    final endL = !_plat(col - 1, row), endR = !_plat(col + 1, row);
+    switch (th.id) {
+      case 'caverns':
+        // A glassy crystal slab: translucent body, bright top, one facet.
+        _fill.color = const Color(0xCC4A2466);
+        canvas.drawRect(Rect.fromLTWH(x, y, t, t * 0.24), _fill);
+        _fill.color = const Color(0xFFFF9AE0);
+        canvas.drawRect(Rect.fromLTWH(x, y, t, math.max(1.5, t * 0.045)), _fill);
+        _stroke
+          ..strokeWidth = 1
+          ..color = const Color(0x66FFD6F3);
+        canvas.drawLine(Offset(x + t * 0.15, y + t * 0.2), Offset(x + t * 0.45, y + t * 0.05), _stroke);
+        if (endL || endR) {
+          final ex = endL ? x : x + t;
+          final dir = endL ? -1.0 : 1.0;
+          _fill.color = const Color(0xCC4A2466);
+          canvas.drawPath(
+            Path()
+              ..moveTo(ex, y)
+              ..lineTo(ex + dir * t * 0.12, y + t * 0.12)
+              ..lineTo(ex, y + t * 0.24)
+              ..close(),
+            _fill,
+          );
+        }
+        if (((col * 31 + row) & 3) == 0) Glow.draw(canvas, Offset(x + t * 0.5, y + t * 0.1), t * 0.5, const Color(0xFFFF7AD9).withValues(alpha: 0.18));
+      case 'ruins':
+        // A steel girder: flanges and a zig-zag truss.
+        _fill.color = const Color(0xFF2E3750);
+        canvas.drawRect(Rect.fromLTWH(x, y, t, t * 0.26), _fill);
+        _fill.color = const Color(0xFFA9B6D6);
+        canvas.drawRect(Rect.fromLTWH(x, y, t, math.max(1.5, t * 0.045)), _fill);
+        _fill.color = const Color(0xFF4A5674);
+        canvas.drawRect(Rect.fromLTWH(x, y + t * 0.22, t, t * 0.04), _fill);
+        _stroke
+          ..strokeWidth = math.max(1, t * 0.03)
+          ..color = const Color(0xFF4A5674);
+        canvas.drawLine(Offset(x, y + t * 0.22), Offset(x + t * 0.5, y + t * 0.06), _stroke);
+        canvas.drawLine(Offset(x + t * 0.5, y + t * 0.06), Offset(x + t, y + t * 0.22), _stroke);
+        if (endL || endR) {
+          _fill.color = const Color(0x809AA6E0);
+          final bx = endL ? x + t * 0.12 : x + t * 0.88;
+          canvas.drawCircle(Offset(bx, y + t * 0.13), t * 0.03, _fill);
+        }
+      default:
+        // Salvaged hull plate on struts: a different material from rock.
+        _fill.color = const Color(0xFF2B3156);
+        canvas.drawRect(Rect.fromLTWH(x, y, t, t * 0.2), _fill);
+        _fill.color = const Color(0xFF9AA6E0);
+        canvas.drawRect(Rect.fromLTWH(x, y, t, math.max(1.5, t * 0.045)), _fill);
+        _fill.color = const Color(0xFF1C2140);
+        canvas.drawRect(Rect.fromLTWH(x, y + t * 0.2, t, t * 0.05), _fill);
+        if (endL || endR) {
+          final sxp = endL ? x + t * 0.2 : x + t * 0.8;
+          _stroke
+            ..strokeWidth = t * 0.08
+            ..color = const Color(0xFF2B3156);
+          canvas.drawLine(Offset(sxp, y + t * 0.24), Offset(sxp - t * 0.1, y + t * 0.5), _stroke);
+        }
+        _fill.color = const Color(0x809AA6E0);
+        canvas.drawCircle(Offset(x + t * 0.5, y + t * 0.11), t * 0.025, _fill);
+    }
+  }
+
+  void _paintSpikes(Canvas canvas, int col, double x, double y, double t, _Theme th) {
+    if (th.id == 'ruins') {
+      // Barbed wire: a coil on two stakes with flare barbs.
+      _stroke
+        ..strokeWidth = math.max(1.2, t * 0.04)
+        ..color = const Color(0xFF3A4258);
+      canvas.drawLine(Offset(x + t * 0.15, y + t), Offset(x + t * 0.15, y + t * 0.45), _stroke);
+      canvas.drawLine(Offset(x + t * 0.85, y + t), Offset(x + t * 0.85, y + t * 0.45), _stroke);
+      _stroke
+        ..strokeWidth = math.max(1, t * 0.03)
+        ..color = const Color(0xFF8A93B0);
+      for (var k = 0; k < 3; k++) {
+        canvas.drawOval(Rect.fromCenter(center: Offset(x + t * (0.22 + k * 0.28), y + t * 0.68), width: t * 0.34, height: t * 0.36), _stroke);
+      }
+      _fill.color = _flare;
+      for (var k = 0; k < 4; k++) {
+        final bx = x + t * (0.12 + k * 0.25);
+        canvas.drawPath(
+          Path()
+            ..moveTo(bx - t * 0.04, y + t * 0.52)
+            ..lineTo(bx, y + t * 0.42)
+            ..lineTo(bx + t * 0.04, y + t * 0.52)
+            ..close(),
+          _fill,
+        );
+      }
+      Glow.draw(canvas, Offset(x + t * 0.5, y + t * 0.6), t * 0.45, _flare.withValues(alpha: 0.18 + 0.08 * math.sin(_t * 4 + col)));
+      return;
+    }
+    // Flare-tipped crystal shards (rose-bodied in the caverns).
+    final body = th.id == 'caverns' ? const Color(0xFF8A2F7A) : const Color(0xFF7A1F3A);
+    for (final (o, hgt) in const [(0.22, 0.42), (0.5, 0.55), (0.78, 0.4)]) {
+      final bx = x + t * o;
+      final path = Path()
+        ..moveTo(bx - t * 0.13, y + t)
+        ..lineTo(bx, y + t * (1 - hgt))
+        ..lineTo(bx + t * 0.13, y + t)
+        ..close();
+      _fill.color = body;
+      canvas.drawPath(path, _fill);
+      _fill.color = _flare;
+      canvas.drawPath(
+        Path()
+          ..moveTo(bx - t * 0.05, y + t * (1 - hgt * 0.55))
+          ..lineTo(bx, y + t * (1 - hgt))
+          ..lineTo(bx + t * 0.05, y + t * (1 - hgt * 0.55))
+          ..close(),
+        _fill,
+      );
+    }
+    Glow.draw(canvas, Offset(x + t * 0.5, y + t * 0.6), t * 0.5, _flare.withValues(alpha: 0.25 + 0.1 * math.sin(_t * 4 + col)));
+  }
+
   // The lander you crash-landed in, nose in the dirt at the start.
   void _paintWreck(Canvas canvas) {
-    if (sim.cameraX > 6) return;
+    if (_th.id != 'dusk' || sim.cameraX > 6) return;
     final t = _tp;
     final c = Offset(_sx(1.4), _sy(11) - t * 0.15);
     canvas.save();
@@ -737,11 +995,11 @@ class AssaultArt extends Component {
   }
 
   static Color weaponColor(WeaponKind w) => switch (w) {
-        WeaponKind.blaster => _ion,
-        WeaponKind.spread => const Color(0xFFF4A800),
-        WeaponKind.laser => const Color(0xFFB8F6FF),
-        WeaponKind.rockets => const Color(0xFFFF8C00),
-      };
+    WeaponKind.blaster => _ion,
+    WeaponKind.spread => const Color(0xFFF4A800),
+    WeaponKind.laser => const Color(0xFFB8F6FF),
+    WeaponKind.rockets => const Color(0xFFFF8C00),
+  };
 
   // ── Enemies ─────────────────────────────────────────────────────────────
   void _paintEnemies(Canvas canvas) {
@@ -796,8 +1054,7 @@ class AssaultArt extends Component {
 
   /// The grunt: a hunched carapace biped with an arm cannon. Its muzzle
   /// charges (flare) while aiming. Shared with the hub preview.
-  static void paintGrunt(Canvas canvas, Offset foot, double t, int facing, double anim, String state, double tele,
-      double flash, bool walking) {
+  static void paintGrunt(Canvas canvas, Offset foot, double t, int facing, double anim, String state, double tele, double flash, bool walking) {
     canvas.save();
     canvas.translate(foot.dx, foot.dy);
     canvas.scale(t / 40 * facing, t / 40);
@@ -943,8 +1200,13 @@ class AssaultArt extends Component {
     canvas.drawRect(const Rect.fromLTWH(18, -4.5, 5, 9), _fill);
     final charging = state == 'charge';
     final firing = state == 'burst';
-    Glow.draw(canvas, const Offset(24, 0), 5 + (charging ? tele * 14 : (firing ? 12 : 0)),
-        _ember.withValues(alpha: charging ? 0.4 + 0.6 * tele : (firing ? 0.9 : 0.35)), hot: firing);
+    Glow.draw(
+      canvas,
+      const Offset(24, 0),
+      5 + (charging ? tele * 14 : (firing ? 12 : 0)),
+      _ember.withValues(alpha: charging ? 0.4 + 0.6 * tele : (firing ? 0.9 : 0.35)),
+      hot: firing,
+    );
     canvas.restore();
     // dome
     final dome = Path()..addArc(Rect.fromCircle(center: const Offset(0, -9), radius: 15), math.pi, math.pi);
@@ -988,8 +1250,7 @@ class AssaultArt extends Component {
   /// The Warden: a 3x3-tile walker. Plates crack in phase 2, the core is
   /// bare and blazing in phase 3. It rears back as a slam winds up, a
   /// shoulder cannon glows before volleys, its antenna glows to summon.
-  void _paintWarden(Canvas canvas, Offset foot, double t, int facing, double anim, String state, double tele, double flash,
-      int phase, double hpFrac) {
+  void _paintWarden(Canvas canvas, Offset foot, double t, int facing, double anim, String state, double tele, double flash, int phase, double hpFrac) {
     canvas.save();
     canvas.translate(foot.dx, foot.dy);
     final roar = state == 'roar';
@@ -1107,8 +1368,11 @@ class AssaultArt extends Component {
     canvas.restore();
     // Floor warning under it while a slam winds up.
     if (state == 'slamWind') {
-      Glow.drawOval(canvas, Rect.fromCenter(center: const Offset(0, -2), width: 220 * (0.4 + tele * 0.6), height: 14),
-          _flare.withValues(alpha: 0.3 + 0.4 * tele));
+      Glow.drawOval(
+        canvas,
+        Rect.fromCenter(center: const Offset(0, -2), width: 220 * (0.4 + tele * 0.6), height: 14),
+        _flare.withValues(alpha: 0.3 + 0.4 * tele),
+      );
     }
     canvas.restore();
   }
@@ -1122,8 +1386,8 @@ class AssaultArt extends Component {
     final pose = !p.onGround
         ? PilotPose.jump
         : p.crouching
-            ? PilotPose.crouch
-            : (p.vx.abs() > 0.5 ? PilotPose.run : PilotPose.idle);
+        ? PilotPose.crouch
+        : (p.vx.abs() > 0.5 ? PilotPose.run : PilotPose.idle);
     paintPilot(
       canvas,
       Offset(_sx(p.x), _sy(p.y)),
@@ -1131,25 +1395,37 @@ class AssaultArt extends Component {
       _palette,
       _thruster.color ?? _palette.engine,
       facing: p.facing,
-      aim: p.aim,
+      aimX: p.aimX,
+      aimY: p.aimY,
       pose: pose,
       run: _runPhase,
       time: _t,
       rising: p.vy < 0,
+      boost: _boost,
       muzzle: _muzzle > 0 ? weaponColor(p.weapon) : null,
     );
   }
 
   /// The pilot in the equipped ship's colours: helmet with an ion visor,
-  /// backpack thruster, a gun arm on 8 directions. Shared with the hub.
-  static void paintPilot(Canvas canvas, Offset foot, double t, ShipPalette pal, Color engine,
-      {required int facing,
-      required AimDir aim,
-      required PilotPose pose,
-      double run = 0,
-      double time = 0,
-      bool rising = false,
-      Color? muzzle}) {
+  /// backpack thruster (flame while rising, a burst on the double jump), a
+  /// gun arm along the aim (always forward: straight, 45 up or 45 down).
+  /// The whole body faces [facing]. Shared with the hub.
+  static void paintPilot(
+    Canvas canvas,
+    Offset foot,
+    double t,
+    ShipPalette pal,
+    Color engine, {
+    required int facing,
+    required double aimX,
+    required double aimY,
+    required PilotPose pose,
+    double run = 0,
+    double time = 0,
+    bool rising = false,
+    double boost = 0,
+    Color? muzzle,
+  }) {
     canvas.save();
     canvas.translate(foot.dx, foot.dy);
     canvas.scale(t / 40 * facing, t / 40);
@@ -1160,18 +1436,6 @@ class AssaultArt extends Component {
     final limb = pal.wing;
     final accent = pal.accent;
 
-    // Thruster flame while rising.
-    if (pose == PilotPose.jump && rising) {
-      Glow.draw(canvas, Offset(-9, -h * 0.42), 12, engine.withValues(alpha: 0.75));
-      _fill.color = const Color(0xFFE9FCFF);
-      canvas.drawPath(
-        Path()
-          ..moveTo(-12, -h * 0.5)
-          ..lineTo(-6, -h * 0.5)
-          ..lineTo(-9, -h * 0.5 + 12 + math.sin(time * 40) * 2),
-        _fill,
-      );
-    }
     // Legs.
     _fill.color = limb;
     if (pose == PilotPose.run) {
@@ -1209,6 +1473,20 @@ class AssaultArt extends Component {
     }
     canvas.translate(0, -bob - (crouch ? -2 : 0));
     final top = -h;
+    // Backpack thruster flame: while rising, and a burst on the double jump.
+    if (boost > 0 || (pose == PilotPose.jump && rising)) {
+      final k = math.max(boost, 0.55);
+      Glow.draw(canvas, Offset(-9, top + 34), 10 + 10 * k, engine.withValues(alpha: 0.55 + 0.35 * k));
+      _fill.color = const Color(0xFFE9FCFF);
+      canvas.drawPath(
+        Path()
+          ..moveTo(-12.5, top + 32)
+          ..lineTo(-5.5, top + 32)
+          ..lineTo(-9, top + 32 + 8 + 12 * k + math.sin(time * 40) * 2)
+          ..close(),
+        _fill,
+      );
+    }
     // Backpack.
     _fill.color = const Color(0xFF8E97C7);
     canvas.drawRRect(RRect.fromLTRBR(-13, top + 14, -5, top + 32, const Radius.circular(2)), _fill);
@@ -1231,8 +1509,9 @@ class AssaultArt extends Component {
       _fill,
     );
     Glow.draw(canvas, Offset(5, top + 7.5), 7, const Color(0xFF4DE8FF).withValues(alpha: 0.55));
-    // Gun arm on the aim direction (mirrored space: x flips with facing).
-    final a = math.atan2(aim.dy, aim.dx * facing);
+    // Gun arm on the aim angle: forward, or 45 degrees up / down-forward
+    // (the canvas is mirrored by [facing], so forward is +x here).
+    final a = math.atan2(aimY, (aimX * facing).abs());
     final sh = Offset(2, top + 19);
     final end = sh + Offset(math.cos(a), math.sin(a)) * 19;
     _stroke
@@ -1245,7 +1524,20 @@ class AssaultArt extends Component {
       ..color = const Color(0xFF9AA6E0);
     canvas.drawLine(sh, end, _stroke);
     if (muzzle != null) {
-      Glow.draw(canvas, end + Offset(math.cos(a), math.sin(a)) * 3, 10, muzzle.withValues(alpha: 0.9), hot: true);
+      // Muzzle flash along the aim: a hot core and a short cone.
+      final dir = Offset(math.cos(a), math.sin(a));
+      final side = Offset(-dir.dy, dir.dx);
+      final tip = end + dir * 3;
+      Glow.draw(canvas, tip, 10, muzzle.withValues(alpha: 0.9), hot: true);
+      _fill.color = muzzle.withValues(alpha: 0.85);
+      canvas.drawPath(
+        Path()
+          ..moveTo(tip.dx + side.dx * 3, tip.dy + side.dy * 3)
+          ..lineTo(tip.dx + dir.dx * 11, tip.dy + dir.dy * 11)
+          ..lineTo(tip.dx - side.dx * 3, tip.dy - side.dy * 3)
+          ..close(),
+        _fill,
+      );
     }
     canvas.restore();
   }
@@ -1308,8 +1600,7 @@ class AssaultArt extends Component {
           _fill,
         );
         if (_rng.nextDouble() < 0.3) {
-          _parts.add(_Part(b.x - lead * 0.2, b.y + 0.3, -lead * 1.5, -3 - _rng.nextDouble() * 2, 0.4, 0.07, _ember,
-              chip: true, gravity: 20));
+          _parts.add(_Part(b.x - lead * 0.2, b.y + 0.3, -lead * 1.5, -3 - _rng.nextDouble() * 2, 0.4, 0.07, _ember, chip: true, gravity: 20));
         }
       } else {
         // Hostile orb: ringed, hot core (threat reads by shape too).
@@ -1397,13 +1688,15 @@ class AssaultArt extends Component {
     final key = '${p.text}|${p.color.toARGB32()}';
     final para = _popText.putIfAbsent(key, () {
       final b = ParagraphBuilder(ParagraphStyle(textAlign: TextAlign.center))
-        ..pushStyle(TextStyle(
-          color: p.color,
-          fontSize: 16,
-          fontFamily: 'ChakraPetch',
-          fontWeight: FontWeight.w700,
-          shadows: const [Shadow(color: Color(0xCC050817), blurRadius: 4)],
-        ))
+        ..pushStyle(
+          TextStyle(
+            color: p.color,
+            fontSize: 16,
+            fontFamily: 'ChakraPetch',
+            fontWeight: FontWeight.w700,
+            shadows: const [Shadow(color: Color(0xCC050817), blurRadius: 4)],
+          ),
+        )
         ..addText(p.text);
       return b.build()..layout(const ParagraphConstraints(width: 140));
     });
@@ -1416,21 +1709,37 @@ class AssaultArt extends Component {
     canvas.restore();
   }
 
-  // ── Hub preview ─────────────────────────────────────────────────────────
-  static final _previewSky = <Size, Image>{};
-  static final _previewRidge = <Size, Picture>{};
+  // ── Hub preview and stage thumbnails ───────────────────────────────────
+  static final _previewSky = <String, Image>{};
+  static final _previewRidge = <String, Picture>{};
+
+  /// The stage's accent colour for cards and the stage select: the light
+  /// of that place (sunset sand, crystal rose, moonlight).
+  static Color themeAccent(String theme) => switch (theme) {
+    'caverns' => const Color(0xFFFF9AE0),
+    'ruins' => const Color(0xFFC9D3F0),
+    _ => const Color(0xFFE0915A),
+  };
 
   /// A live window for the arcade hub's card: the dusk sky, a ridge, a strip
   /// of ground, the pilot running and firing at a grunt, the ship waiting.
-  static void paintPreview(Canvas canvas, Size s, double t) {
-    final sky = _previewSky.putIfAbsent(s, () {
-      final rec = PictureRecorder();
-      paintSky(Canvas(rec), Size(s.width, s.height * 1.35));
-      return rec.endRecording().toImageSync(s.width.ceil(), (s.height * 1.35).ceil());
-    });
+  static void paintPreview(Canvas canvas, Size s, double t) => paintStagePreview(canvas, s, t);
+
+  /// The same window in any stage's look ([theme] as in assault_levels.dart).
+  /// [action] false draws a calm still: the pilot standing, no shots.
+  static void paintStagePreview(Canvas canvas, Size s, double t, {String theme = 'dusk', bool action = true}) {
+    final th = _Theme.of(theme);
+    final key = '${th.id}:${s.width.round()}x${s.height.round()}';
+    final skySize = Size(s.width, s.height * 1.35);
+    final sky = _previewSky.putIfAbsent(key, () => _bakeImage(skySize, (c) => th.paintBackdrop(c, skySize)));
     canvas.drawImageRect(sky, Rect.fromLTWH(0, s.height * 0.2, s.width, s.height * 1.15), Offset.zero & s, _imgPaint);
-    final ridge = _previewRidge.putIfAbsent(s, () => _ridgePicture(s, s.width * 1.6, s.height * 0.68, s.height * 0.1, s.width / 14, const Color(0xFF1C1029), 8, true));
-    final off = (t * 8) % (s.width * 1.6);
+    final ridge = _previewRidge.putIfAbsent(
+      key,
+      () => th.id == 'dusk'
+          ? _ridgePicture(s, s.width * 1.6, s.height * 0.68, s.height * 0.1, s.width / 14, const Color(0xFF1C1029), 8, true)
+          : th.ridge(s, s.width * 1.6, false),
+    );
+    final off = action ? (t * 8) % (s.width * 1.6) : 0.0;
     for (final k in [0.0, 1.0]) {
       canvas.save();
       canvas.translate(-off + k * s.width * 1.6, 0);
@@ -1440,35 +1749,56 @@ class AssaultArt extends Component {
     final tile = s.height / 4.2;
     final ground = s.height - tile * 0.9;
     // ground strip with the lit lip, scrolling
-    _fill.color = _rockTop;
+    _fill.color = th.rockTop;
     canvas.drawRect(Rect.fromLTRB(0, ground, s.width, s.height), _fill);
-    _fill.color = const Color(0xFF6E3A3E);
+    _fill.color = th.lipBand;
     canvas.drawRect(Rect.fromLTRB(0, ground, s.width, ground + tile * 0.14), _fill);
-    _fill.color = const Color(0xFFE0915A);
+    _fill.color = th.lipLine;
     canvas.drawRect(Rect.fromLTRB(0, ground, s.width, ground + 2), _fill);
-    final scroll = (t * tile * 2.5) % tile;
-    _fill.color = const Color(0x660A0612);
+    if (th.id == 'caverns') {
+      // the cave roof along the top
+      _fill.color = th.rockDeep;
+      canvas.drawRect(Rect.fromLTRB(0, 0, s.width, tile * 0.35), _fill);
+      _fill.color = th.underLine;
+      canvas.drawRect(Rect.fromLTRB(0, tile * 0.35 - 1.5, s.width, tile * 0.35), _fill);
+    }
+    final scroll = action ? (t * tile * 2.5) % tile : 0.0;
+    _fill.color = th.crater;
     for (var x = -scroll; x < s.width; x += tile) {
       canvas.drawOval(Rect.fromCenter(center: Offset(x + tile * 0.4, ground + tile * 0.5), width: tile * 0.16, height: tile * 0.1), _fill);
     }
     // pilot running right, firing; a grunt ahead; shots in flight
     final pal = shipPaletteFor(CoinManager.instance.selectedSkin);
-    final th = thrusterSpecFor(CoinManager.instance.selectedThruster);
+    final thr = thrusterSpecFor(CoinManager.instance.selectedThruster);
     final px = s.width * 0.26;
-    paintPilot(canvas, Offset(px, ground), tile, pal, th.color ?? pal.engine,
-        facing: 1, aim: AimDir.right, pose: PilotPose.run, run: t * 12, time: t, muzzle: (t * 6).floor().isEven ? _ion : null);
+    paintPilot(
+      canvas,
+      Offset(px, ground),
+      tile,
+      pal,
+      thr.color ?? pal.engine,
+      facing: 1,
+      aimX: 1,
+      aimY: 0,
+      pose: action ? PilotPose.run : PilotPose.idle,
+      run: t * 12,
+      time: t,
+      muzzle: action && (t * 6).floor().isEven ? _ion : null,
+    );
     final gx = s.width * 0.74;
-    paintGrunt(canvas, Offset(gx, ground), tile, -1, t, 'aim', (t * 0.8) % 1, ((t * 6) % 1) < 0.15 ? 1 : 0, false);
-    for (var i = 0; i < 3; i++) {
-      final f = ((t * 2.2) + i / 3) % 1;
-      final x = px + tile * 0.6 + (gx - px - tile * 0.9) * f;
-      _streak(canvas, Offset(x, ground - tile * 0.95), const Offset(1, 0), tile * 0.5, tile * 0.09, _ion);
+    paintGrunt(canvas, Offset(gx, ground), tile, -1, t, 'aim', action ? (t * 0.8) % 1 : 0, action && ((t * 6) % 1) < 0.15 ? 1 : 0, false);
+    if (action) {
+      for (var i = 0; i < 3; i++) {
+        final f = ((t * 2.2) + i / 3) % 1;
+        final x = px + tile * 0.6 + (gx - px - tile * 0.9) * f;
+        _streak(canvas, Offset(x, ground - tile * 0.95), const Offset(1, 0), tile * 0.5, tile * 0.09, _ion);
+      }
     }
     // the ship waiting on the right
     canvas.save();
     canvas.translate(s.width * 0.93, ground - tile * 1.1);
     canvas.scale(tile * 1.9 / 42);
-    ShipArt.paint(canvas, pal, time: t, thrust: 0.12, engine: th.color);
+    ShipArt.paint(canvas, pal, time: t, thrust: 0.12, engine: thr.color);
     canvas.restore();
   }
 }
@@ -1480,7 +1810,7 @@ class _Burst {
   final ExplosionBurst burst;
   double age = 0;
   _Burst(this.x, this.y, ExplosionStyle style, double radiusTiles, {bool big = false})
-      : burst = ExplosionBurst(style: style, radius: 40 * radiusTiles, big: big);
+    : burst = ExplosionBurst(style: style, radius: 40 * radiusTiles, big: big);
 }
 
 class _Part {
@@ -1489,8 +1819,21 @@ class _Part {
   final Color color;
   final bool hot, smoke, chip;
   double age = 0, rot = 0;
-  _Part(this.x, this.y, this.vx, this.vy, this.life, this.size, this.color,
-      {this.hot = false, this.smoke = false, this.chip = false, this.drag = 0, this.gravity = 0, this.spin = 0});
+  _Part(
+    this.x,
+    this.y,
+    this.vx,
+    this.vy,
+    this.life,
+    this.size,
+    this.color, {
+    this.hot = false,
+    this.smoke = false,
+    this.chip = false,
+    this.drag = 0,
+    this.gravity = 0,
+    this.spin = 0,
+  });
 }
 
 class _Ring {
@@ -1506,4 +1849,235 @@ class _Pop {
   final Color color;
   double age = 0;
   _Pop(this.x, this.y, this.text, this.color);
+}
+
+/// One stage look. Ids: 'dusk' (default), 'caverns', 'ruins'.
+class _Theme {
+  final String id;
+  final Color rockTop, rockDeep, crater, strata, lipBand, lipLine, underLine, sideLit;
+  const _Theme(
+    this.id, {
+    required this.rockTop,
+    required this.rockDeep,
+    required this.crater,
+    required this.strata,
+    required this.lipBand,
+    required this.lipLine,
+    required this.underLine,
+    required this.sideLit,
+  });
+
+  static const dusk = _Theme(
+    'dusk',
+    rockTop: Color(0xFF3A2238),
+    rockDeep: Color(0xFF170E20),
+    crater: Color(0x660A0612),
+    strata: Color(0x33E0915A),
+    lipBand: Color(0xFF6E3A3E),
+    lipLine: Color(0xFFE0915A),
+    underLine: Color(0x668A4A48),
+    sideLit: Color(0x998A4A48),
+  );
+  static const caverns = _Theme(
+    'caverns',
+    rockTop: Color(0xFF34224E),
+    rockDeep: Color(0xFF140C22),
+    crater: Color(0x66080414),
+    strata: Color(0x33FF7AD9),
+    lipBand: Color(0xFF4A2C66),
+    lipLine: Color(0xFFFF9AE0),
+    underLine: Color(0x99B06AD0),
+    sideLit: Color(0x996A4A8A),
+  );
+  static const ruins = _Theme(
+    'ruins',
+    rockTop: Color(0xFF353D52),
+    rockDeep: Color(0xFF121625),
+    crater: Color(0x55080A14),
+    strata: Color(0x33C9D3F0),
+    lipBand: Color(0xFF4A5470),
+    lipLine: Color(0xFFC9D3F0),
+    underLine: Color(0x665A6684),
+    sideLit: Color(0x995A6684),
+  );
+
+  static _Theme of(String id) => switch (id) {
+    'caverns' => caverns,
+    'ruins' => ruins,
+    _ => dusk,
+  };
+
+  void paintBackdrop(Canvas c, Size s) => switch (id) {
+    'caverns' => _paintCaveWall(c, s),
+    'ruins' => _paintNightSky(c, s),
+    _ => AssaultArt.paintSky(c, s),
+  };
+
+  Picture ridge(Size s, double w, bool far) => switch (id) {
+    'caverns' => _crystalRidge(s, w, far),
+    'ruins' => _skyline(s, w, far),
+    _ =>
+      far
+          ? AssaultArt._ridgePicture(s, w, s.height * 0.69, s.height * 0.11, s.width / 11, const Color(0xFF2B1638), 3, false)
+          : AssaultArt._ridgePicture(s, w, s.height * 0.775, s.height * 0.075, s.width / 18, const Color(0xFF1C1029), 8, true),
+  };
+
+  /// The cave's back wall: plum dark, faint crystal veins, a few distant
+  /// glowing clusters and drips.
+  static void _paintCaveWall(Canvas c, Size s) {
+    final r = Offset.zero & s;
+    c.drawRect(
+      r,
+      Paint()
+        ..shader = Gradient.linear(
+          Offset.zero,
+          Offset(0, s.height),
+          const [Color(0xFF0A0614), Color(0xFF1A1030), Color(0xFF241640), Color(0xFF120A20)],
+          const [0, 0.35, 0.7, 1],
+        ),
+    );
+    final rnd = math.Random(11);
+    for (var i = 0; i < 5; i++) {
+      final cc = Offset(rnd.nextDouble() * s.width, s.height * (0.3 + rnd.nextDouble() * 0.45));
+      final rr = s.height * (0.12 + rnd.nextDouble() * 0.12);
+      c.drawCircle(cc, rr, Paint()..shader = Gradient.radial(cc, rr, const [Color(0x30FF7AD9), Color(0x10A07CFF), Color(0x00A07CFF)], const [0, 0.5, 1]));
+    }
+    final vein = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (var i = 0; i < 9; i++) {
+      var p = Offset(rnd.nextDouble() * s.width, rnd.nextDouble() * s.height);
+      final path = Path()..moveTo(p.dx, p.dy);
+      for (var k = 0; k < 5; k++) {
+        p = p.translate((rnd.nextDouble() - 0.3) * s.width * 0.08, (rnd.nextDouble() - 0.5) * s.height * 0.1);
+        path.lineTo(p.dx, p.dy);
+      }
+      vein.color = const Color(0xFFFF9AE0).withValues(alpha: 0.06 + rnd.nextDouble() * 0.08);
+      c.drawPath(path, vein);
+    }
+    final dot = Paint();
+    for (var i = 0; i < 60; i++) {
+      dot.color = const Color(0xFFFFD6F3).withValues(alpha: 0.08 + rnd.nextDouble() * 0.25);
+      c.drawCircle(Offset(rnd.nextDouble() * s.width, rnd.nextDouble() * s.height), 0.5 + rnd.nextDouble() * 0.9, dot);
+    }
+  }
+
+  /// Crystal spires growing up from the floor and hanging from the roof.
+  static Picture _crystalRidge(Size s, double w, bool far) {
+    final rec = PictureRecorder();
+    final c = Canvas(rec);
+    final r = math.Random(far ? 5 : 9);
+    final body = Paint()..color = far ? const Color(0xFF2A1A40) : const Color(0xFF1B1030);
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFFF9AE0).withValues(alpha: far ? 0.12 : 0.22);
+    final step = s.width / (far ? 7 : 10);
+    final n = (w / step).ceil();
+    for (var i = 0; i < n; i++) {
+      final x = i * w / n + r.nextDouble() * step * 0.4;
+      for (final up in [true, false]) {
+        if (!up && r.nextDouble() < 0.4) continue;
+        final hgt = s.height * (far ? 0.18 : 0.12) * (0.5 + r.nextDouble());
+        final bw = step * (0.18 + r.nextDouble() * 0.2);
+        final base = up ? s.height * (far ? 0.86 : 0.92) : s.height * (far ? 0.14 : 0.08);
+        final tip = Offset(x + bw * (r.nextDouble() - 0.5), up ? base - hgt : base + hgt);
+        final path = Path()
+          ..moveTo(x - bw, up ? s.height : 0)
+          ..lineTo(x - bw, base)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(x + bw, base)
+          ..lineTo(x + bw, up ? s.height : 0)
+          ..close();
+        c.drawPath(path, body);
+        c.drawLine(Offset(x - bw, base), tip, edge);
+      }
+    }
+    return rec.endRecording();
+  }
+
+  /// Night: navy sky, stars, a big low moon behind thin cloud bands.
+  static void _paintNightSky(Canvas c, Size s) {
+    final r = Offset.zero & s;
+    c.drawRect(
+      r,
+      Paint()
+        ..shader = Gradient.linear(
+          Offset.zero,
+          Offset(0, s.height),
+          const [Color(0xFF03060F), Color(0xFF0A1430), Color(0xFF16224A), Color(0xFF1E2A4E)],
+          const [0, 0.4, 0.75, 1],
+        ),
+    );
+    final rnd = math.Random(21);
+    final star = Paint();
+    for (var i = 0; i < 140; i++) {
+      star.color = Color.fromRGBO(220, 230, 255, 0.2 + rnd.nextDouble() * 0.6);
+      c.drawCircle(Offset(rnd.nextDouble() * s.width, rnd.nextDouble() * s.height * 0.6), 0.4 + rnd.nextDouble() * 0.8, star);
+    }
+    final mc = Offset(s.width * 0.7, s.height * 0.36);
+    final mr = s.height * 0.12;
+    c.drawCircle(mc, mr * 3, Paint()..shader = Gradient.radial(mc, mr * 3, const [Color(0x40C9D3F0), Color(0x10C9D3F0), Color(0x00C9D3F0)], const [0, 0.4, 1]));
+    c.drawCircle(mc, mr, Paint()..color = const Color(0xFFDCE4F7));
+    final crater = Paint()..color = const Color(0x33707C9C);
+    for (final (dx, dy, k) in const [(-0.3, -0.2, 0.22), (0.25, 0.1, 0.16), (-0.05, 0.38, 0.12), (0.4, -0.35, 0.1)]) {
+      c.drawCircle(mc.translate(dx * mr, dy * mr), k * mr, crater);
+    }
+    // Two thin, soft cloud wisps drifting across the lower edge of the moon.
+    for (final (dy, len, th, dx) in const [(0.42, 1.5, 0.07, -0.35), (0.7, 1.1, 0.05, 0.3)]) {
+      final rr = Rect.fromCenter(center: mc.translate(dx * mr, dy * mr), width: mr * 2 * len, height: mr * th * 2);
+      c.drawRRect(
+        RRect.fromRectAndRadius(rr, Radius.circular(mr * th)),
+        Paint()
+          ..shader = Gradient.linear(rr.centerLeft, rr.centerRight, const [Color(0x000E1734), Color(0xB30E1734), Color(0x000E1734)], const [0, 0.5, 1]),
+      );
+    }
+  }
+
+  /// The colony's skyline: blocks with broken tops and antennas; the near
+  /// layer has a few warm windows.
+  static Picture _skyline(Size s, double w, bool far) {
+    final rec = PictureRecorder();
+    final c = Canvas(rec);
+    final r = math.Random(far ? 31 : 37);
+    final body = Paint()..color = far ? const Color(0xFF16203C) : const Color(0xFF0D1428);
+    final rim = Paint()..color = const Color(0xFFC9D3F0).withValues(alpha: far ? 0.1 : 0.18);
+    final win = Paint()..color = const Color(0xFFE0A060).withValues(alpha: 0.55);
+    final base = s.height * (far ? 0.72 : 0.8);
+    var x = 0.0;
+    while (x < w) {
+      final bw = s.width * (far ? 0.08 : 0.11) * (0.6 + r.nextDouble());
+      final bh = s.height * (far ? 0.22 : 0.16) * (0.4 + r.nextDouble());
+      final top = base - bh;
+      final path = Path()..moveTo(x, s.height);
+      path.lineTo(x, top);
+      if (r.nextDouble() < 0.45) {
+        // broken top
+        path
+          ..lineTo(x + bw * 0.35, top - bh * 0.08)
+          ..lineTo(x + bw * 0.55, top + bh * 0.12)
+          ..lineTo(x + bw, top + bh * 0.04);
+      } else {
+        path.lineTo(x + bw, top);
+      }
+      path
+        ..lineTo(x + bw, s.height)
+        ..close();
+      c.drawPath(path, body);
+      c.drawRect(Rect.fromLTWH(x + bw - 1, top, 1, bh * 0.6), rim);
+      if (r.nextDouble() < 0.25) {
+        c.drawRect(Rect.fromLTWH(x + bw * 0.3, top - bh * 0.3, 1.2, bh * 0.3), body);
+      }
+      if (!far) {
+        for (var k = 0; k < 4; k++) {
+          if (r.nextDouble() < 0.3) {
+            c.drawRect(Rect.fromLTWH(x + bw * (0.15 + r.nextDouble() * 0.6), top + bh * (0.2 + r.nextDouble() * 0.6), 2.2, 2.6), win);
+          }
+        }
+      }
+      x += bw + s.width * 0.01 * r.nextDouble();
+    }
+    // wrap seam: repeat the first slice so the loop tiles (the layer scrolls modulo w)
+    return rec.endRecording();
+  }
 }

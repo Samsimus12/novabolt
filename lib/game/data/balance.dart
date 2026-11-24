@@ -38,7 +38,7 @@ abstract final class Balance {
   /// Cap on all *stacking* damage bonuses combined (Hangar firepower, Glass
   /// cannon, Bloodlust, Shadow Veil, Cryo shatter). Crits and per-weapon
   /// upgrade levels are separate and not capped.
-  static const double maxDamageBonus = 2.0;
+  static const double maxDamageBonus = 1.8;
 
   // ── Combo ─────────────────────────────────────────────────────────────────
   static const double comboWindow = 2.0;
@@ -118,15 +118,39 @@ abstract final class Balance {
   // +15% cards = +30%), apply to every weapon including later ones, and stop
   // being offered once the cap is reached.
   static const fireRateTiers = [10, 15, 20, 30];
-  static const maxFireRateBonus = 100;
+  static const maxFireRateBonus = 80;
   static const weaponDamageTiers = [10, 15, 20, 30]; // Targeting Array: never Common
-  static const maxWeaponDamageBonus = 100;
+  static const maxWeaponDamageBonus = 80;
   static const novaChargeTiers = [15, 20, 30, 40];
   static const maxNovaChargeBonus = 150;
   static const novaDurationTiers = [15, 20, 30, 40];
   static const maxNovaDurationBonus = 120;
   static const novaDamageTiers = [15, 25, 35, 50];
   static const maxNovaDamageBonus = 200;
+
+  // ── Weapon upgrade levels and evolution ──────────────────────────────────
+  /// Upgrade levels per weapon before evolving.
+  static const int maxWeaponLevel = 10;
+  /// Each upgrade multiplies a weapon's damage by this, up to level
+  /// [upgradeLateFrom]-1; from that level on the (smaller) late step applies,
+  /// so a fully levelled weapon is ~5.8x its base, not ~10.6x.
+  static const double upgradeStepEarly = 1.30, upgradeStepLate = 1.15;
+  static const int upgradeLateFrom = 6;
+  /// An evolved weapon starts a fresh track: Lv1, base damage x
+  /// [evolvedDamageMult] (about a Lv5 weapon, so evolving never loses
+  /// power), then up to [evolvedMaxLevel] at [evolvedStep] per level.
+  static const double evolvedDamageMult = 2.4;
+  static const double evolvedStep = 1.15;
+  static const int evolvedMaxLevel = 6;
+
+  /// Damage multiplier of upgrading a weapon TO [toLevel].
+  static double upgradeDamageStep(int toLevel, {required bool evolved}) =>
+      evolved ? evolvedStep : (toLevel >= upgradeLateFrom ? upgradeStepLate : upgradeStepEarly);
+
+  /// Fire-rate multiplier for weapons whose upgrade is fire rate (Pulse
+  /// Cannon): two thirds of the damage step's gain (+20% / +10%).
+  static double upgradeRateStep(int toLevel, {required bool evolved}) =>
+      1 + (upgradeDamageStep(toLevel, evolved: evolved) - 1) * 2 / 3;
 
   // ── Upgrade cards ─────────────────────────────────────────────────────────
   /// Rarity multiplier for weapon-upgrade cards' bonus damage only; stat

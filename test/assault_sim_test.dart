@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novabolt/arcade/assault/assault_level.dart';
 import 'package:novabolt/arcade/assault/assault_levels.dart';
@@ -11,9 +13,9 @@ class _StubWeapon extends AssaultWeapon {
   @override
   double get cooldown => 0.2;
   @override
-  void fire(AssaultWorld world, double x, double y, AimDir aim) {
+  void fire(AssaultWorld world, double x, double y, double aimX, double aimY) {
     world.addBullet(AssaultBullet(
-      x: x, y: y, vx: aim.dx * 20, vy: aim.dy * 20, fromPlayer: true, damage: 1, weapon: kind,
+      x: x, y: y, vx: aimX * 20, vy: aimY * 20, fromPlayer: true, damage: 1, weapon: kind,
     ));
   }
 }
@@ -90,12 +92,15 @@ void main() {
       expect(() => parseAssaultLevel('x', bad), throwsArgumentError);
     });
 
-    test('assaultLevels[0] parses', () {
-      final src = assaultLevels[0];
-      final lvl = parseAssaultLevel(src.name, src.rows);
-      expect(lvl.height, 13);
-      final sim = makeSim(lvl);
-      expect(sim.exitX, greaterThan(sim.pilot.x));
+    test('every stage in assaultLevels parses and has a reachable-looking exit', () {
+      expect(assaultLevels.length, greaterThanOrEqualTo(3));
+      for (final src in assaultLevels) {
+        final lvl = parseAssaultLevel(src.name, src.rows, theme: src.theme);
+        expect(lvl.height, 13);
+        expect(lvl.theme, src.theme);
+        final sim = makeSim(lvl);
+        expect(sim.exitX, greaterThan(sim.pilot.x), reason: src.name);
+      }
     });
   });
 
@@ -140,7 +145,8 @@ void main() {
               g[12][c] = ' ';
             }
           }));
-      // Walk off the ledge, wait `delay`, press jump.
+      // Walk off the ledge, wait `delay`, press jump. True if it was the
+      // ground jump (a late press is only the mid-air jump now).
       bool jumps(double delay) {
         final sim = ledge();
         sim.input.moveX = 1;
@@ -153,7 +159,7 @@ void main() {
         sim.input.jumpPressed = true;
         sim.input.jumpHeld = true;
         sim.step(1 / 60);
-        return sim.pilot.vy < 0;
+        return sim.drainEvents().any((e) => e.kind == AssaultEventKind.jump);
       }
 
       expect(jumps(0.05), isTrue);
@@ -222,7 +228,6 @@ void main() {
       sim.input.moveX = 0.6; // down-right: crouch-forward
       run(sim, 0.5);
       expect(sim.pilot.x, x);
-      expect(sim.pilot.aim, AimDir.right);
       sim.input
         ..moveX = 0
         ..moveY = 0;
@@ -230,21 +235,259 @@ void main() {
       expect(sim.pilot.crouching, isFalse);
     });
 
-    test('8-way aim from the stick, facing otherwise', () {
+    test('double jump: one mid-air jump, weaker, resets on landing', () {
       final sim = makeSim(makeLevel());
       run(sim, 0.2);
-      sim.input.moveY = -1;
-      run(sim, 0.05);
-      expect(sim.pilot.aim, AimDir.up);
       sim.input
-        ..moveX = -1
-        ..moveY = -1;
+        ..jumpPressed = true
+        ..jumpHeld = true;
+      run(sim, 0.15);
+      expect(sim.pilot.onGround, isFalse);
+      sim.input.jumpHeld = true;
+      sim.input.jumpPressed = true;
+      sim.step(1 / 60);
+      expect(sim.pilot.vy, closeTo(AssaultTuning.jumpVelocity * AssaultTuning.doubleJumpFactor + AssaultTuning.gravity / 60, 0.8));
+      expect(sim.pilot.vy, lessThan(-10));
+      expect(sim.drainEvents().where((e) => e.kind == AssaultEventKind.doubleJump), hasLength(1));
+      // A third press in the air does nothing.
+      run(sim, 0.1);
+      final vy = sim.pilot.vy;
+      sim.input.jumpPressed = true;
+      sim.step(1 / 60);
+      expect(sim.pilot.vy, greaterThan(vy));
+      expect(sim.drainEvents().where((e) => e.kind == AssaultEventKind.doubleJump), isEmpty);
+      // Land, and it's back.
+      sim.input.jumpHeld = false;
+      run(sim, 1.5);
+      expect(sim.pilot.onGround, isTrue);
+      sim.input
+        ..jumpPressed = true
+        ..jumpHeld = true;
+      run(sim, 0.15);
+      sim.input.jumpPressed = true;
+      sim.step(1 / 60);
+      expect(sim.drainEvents().where((e) => e.kind == AssaultEventKind.doubleJump), hasLength(1));
+    });
+
+    test('double jump reaches higher than a single jump; release still cuts it', () {
+      double apex({required bool second, bool hold = true}) {
+        final sim = makeSim(makeLevel());
+        run(sim, 0.2);
+        final y0 = sim.pilot.y;
+        var minY = y0;
+        sim.input
+          ..jumpPressed = true
+          ..jumpHeld = true;
+        for (var i = 0; i < 150; i++) {
+          sim.step(1 / 60);
+          if (second && i == 20) sim.input.jumpPressed = true;
+          if (!hold && i == 21) sim.input.jumpHeld = false;
+          if (sim.pilot.y < minY) minY = sim.pilot.y;
+        }
+        return y0 - minY;
+      }
+
+      expect(apex(second: true), greaterThan(apex(second: false) + 1.5));
+      expect(apex(second: true, hold: false), lessThan(apex(second: true)));
+    });
+
+    test('a coyote jump is the ground jump, so the double jump is still available', () {
+      final sim = makeSim(makeLevel(edit: (g) {
+        for (var c = 8; c < 40; c++) {
+          g[11][c] = ' ';
+          g[12][c] = ' ';
+        }
+      }));
+      sim.input.moveX = 1;
+      sim.step(1 / 120);
+      while (sim.pilot.onGround) {
+        sim.step(1 / 120);
+      }
       run(sim, 0.05);
-      expect(sim.pilot.aim, AimDir.upLeft);
+      sim.input.jumpPressed = true;
+      sim.input.jumpHeld = true;
+      sim.step(1 / 60);
+      expect(sim.drainEvents().map((e) => e.kind), contains(AssaultEventKind.jump));
+      run(sim, 0.1);
+      sim.input.jumpPressed = true;
+      sim.step(1 / 60);
+      expect(sim.drainEvents().map((e) => e.kind), contains(AssaultEventKind.doubleJump));
+    });
+
+    test('walking off a ledge and pressing jump late is the double jump (once)', () {
+      final sim = makeSim(makeLevel(edit: (g) {
+        for (var c = 8; c < 40; c++) {
+          g[11][c] = ' ';
+          g[12][c] = ' ';
+        }
+      }));
+      sim.input.moveX = 1;
+      sim.step(1 / 120);
+      while (sim.pilot.onGround) {
+        sim.step(1 / 120);
+      }
+      run(sim, 0.25);
+      sim.input.jumpPressed = true;
+      sim.input.jumpHeld = true;
+      sim.step(1 / 60);
+      expect(sim.drainEvents().map((e) => e.kind), contains(AssaultEventKind.doubleJump));
+    });
+  });
+
+  group('continuous fire and aim', () {
+    int shots(AssaultSim sim) => sim.drainEvents().where((e) => e.kind == AssaultEventKind.shoot).length;
+
+    test('fires continuously with nothing in sight, at the weapon cooldown', () {
+      final sim = makeSim(makeLevel());
+      run(sim, 2);
+      // Stub cooldown 0.2 s: the sim emits one shoot event per shot.
+      expect(sim.drainEvents().where((e) => e.kind == AssaultEventKind.shoot).length, inInclusiveRange(9, 11));
+      expect(sim.bullets.where((b) => b.fromPlayer), isNotEmpty);
+    });
+
+    test('shoots straight ahead along the facing direction, both ways', () {
+      final sim = makeSim(makeLevel(edit: (g) {
+        g[10][2] = ' ';
+        g[10][12] = 'P';
+      }));
+      run(sim, 0.3);
+      expect(sim.pilot.aimAngle, closeTo(0, 1e-9));
+      final b = sim.bullets.firstWhere((b) => b.fromPlayer);
+      expect(b.vy, closeTo(0, 1e-9));
+      expect(b.vx, greaterThan(0));
+      sim.input.moveX = -1;
+      run(sim, 0.4);
       expect(sim.pilot.facing, -1);
-      sim.input.clear();
+      expect(sim.pilot.aimX, closeTo(-1, 1e-9));
+      expect(sim.pilot.aimY, closeTo(0, 1e-9));
+      sim.bullets.clear();
+      run(sim, 0.3);
+      final l = sim.bullets.firstWhere((b) => b.fromPlayer);
+      expect(l.vx, lessThan(0));
+      expect(l.vy.abs(), lessThan(1e-9));
+    });
+
+    test('stick up angles the shot 45 degrees up-forward, on the ground too', () {
+      final sim = makeSim(makeLevel());
+      sim.input.moveY = -1;
+      run(sim, 0.3);
+      expect(sim.pilot.onGround, isTrue);
+      expect(sim.pilot.aimAngle, closeTo(-math.pi / 4, 1e-9));
+      final b = sim.bullets.firstWhere((b) => b.fromPlayer);
+      expect(b.vx, greaterThan(0));
+      expect(b.vy, lessThan(0));
+      expect(b.vx, closeTo(-b.vy, 1e-6));
+      // Facing left: up-left.
+      sim.input.moveX = -1;
+      run(sim, 0.3);
+      expect(sim.pilot.aimX, closeTo(-math.sqrt1_2, 1e-9));
+      expect(sim.pilot.aimY, closeTo(-math.sqrt1_2, 1e-9));
+      // Released: straight again.
+      sim.input.moveY = 0;
+      run(sim, 0.1);
+      expect(sim.pilot.aimY.abs(), lessThan(1e-9));
+    });
+
+    test('stick down angles the shot down only while airborne; on the ground it crouches', () {
+      final sim = makeSim(makeLevel());
+      sim.input.moveY = 1;
+      run(sim, 0.3);
+      expect(sim.pilot.crouching, isTrue);
+      expect(sim.pilot.aimY.abs(), lessThan(1e-9), reason: 'crouching: gun stays level');
+      sim.input.moveY = 0;
+      run(sim, 0.2);
+      sim.input.jumpPressed = true;
+      sim.input.jumpHeld = true;
+      sim.step(1 / 60);
+      run(sim, 0.1);
+      expect(sim.pilot.onGround, isFalse);
+      sim.input.moveY = 0.8;
       run(sim, 0.05);
-      expect(sim.pilot.aim, AimDir.left);
+      expect(sim.pilot.aimAngle, closeTo(math.pi / 4, 1e-9));
+      expect(sim.pilot.aimX, closeTo(math.sqrt1_2, 1e-9));
+      expect(sim.pilot.aimY, closeTo(math.sqrt1_2, 1e-9));
+      sim.bullets.clear();
+      run(sim, 0.25);
+      final b = sim.bullets.firstWhere((b) => b.fromPlayer);
+      expect(b.vy, greaterThan(0));
+    });
+
+    test('a light stick touch under the threshold does not tilt the gun', () {
+      final sim = makeSim(makeLevel());
+      sim.input.moveY = -0.3;
+      run(sim, 0.3);
+      expect(sim.pilot.aimAngle, closeTo(0, 1e-9));
+    });
+
+    test('no shooting while dead, and it resumes after respawning', () {
+      final sim = makeSim(makeLevel());
+      run(sim, 0.5);
+      sim.pilot.y = 30;
+      run(sim, 0.3);
+      expect(sim.phase, AssaultPhase.dying);
+      sim.drainEvents();
+      sim.bullets.clear();
+      run(sim, 0.5);
+      expect(shots(sim), 0);
+      run(sim, 1.5);
+      expect(sim.phase, AssaultPhase.playing);
+      run(sim, 0.5);
+      expect(shots(sim), greaterThan(0));
+    });
+
+    test('shots kill what is straight ahead with no targeting', () {
+      final sim = makeSim(makeLevel(edit: (g) => g[10][8] = 'g'),
+          enemies: (s) => _StubEnemy(s, hp: 1, score: 1, contact: false));
+      run(sim, 1);
+      expect(sim.kills, 1);
+    });
+  });
+
+  group('progress', () {
+    test('starts at 0, follows the furthest x, never goes back', () {
+      final sim = makeSim(makeLevel());
+      expect(sim.progress, 0);
+      sim.input.moveX = 1;
+      run(sim, 2);
+      final span = sim.exitX - sim.startX;
+      final p1 = sim.progress;
+      expect(p1, closeTo((sim.pilot.x - sim.startX) / span, 0.02));
+      expect(p1, greaterThan(0.1));
+      sim.input.moveX = -1;
+      run(sim, 0.5);
+      final p2 = sim.progress;
+      expect(p2, greaterThanOrEqualTo(p1));
+      run(sim, 0.5);
+      expect(sim.progress, p2, reason: 'walking back never lowers it');
+      expect(sim.pilot.x, lessThan(sim.startX + p2 * span));
+    });
+
+    test('survives a death; percent is whole and below 100 until cleared', () {
+      final sim = makeSim(makeLevel());
+      sim.input.moveX = 1;
+      run(sim, 3);
+      final pct = sim.progressPercent;
+      expect(pct, inInclusiveRange(1, 99));
+      sim.pilot.y = 30;
+      run(sim, 2);
+      expect(sim.progressPercent, pct);
+    });
+
+    test('clearing the stage is exactly 100%', () {
+      final sim = makeSim(makeLevel());
+      sim.input.moveX = 1;
+      run(sim, 8);
+      expect(sim.phase, AssaultPhase.cleared);
+      expect(sim.progress, 1);
+      expect(sim.progressPercent, 100);
+    });
+
+    test('reset returns it to 0', () {
+      final sim = makeSim(makeLevel());
+      sim.input.moveX = 1;
+      run(sim, 2);
+      sim.reset();
+      expect(sim.progress, 0);
     });
   });
 
@@ -414,13 +657,6 @@ void main() {
       run(sim, 1);
       expect(sim.pilot.weapon, WeaponKind.laser);
       expect(sim.shards, 0);
-    });
-
-    test('no enemy and no stick means silence', () {
-      final sim = makeSim(makeLevel());
-      run(sim, 1);
-      expect(sim.bullets, isEmpty);
-      expect(sim.drainEvents().where((e) => e.kind == AssaultEventKind.shoot), isEmpty);
     });
 
     test('kills score; clearing gives bonus (+5 with no deaths)', () {

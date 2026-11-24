@@ -783,7 +783,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _picksRemaining = picksTotal;
     SfxManager.instance.play(Sfx.levelUp);
     isRelicPick = isBossKill && Relic.values.any((r) => !relics.contains(r) && relicAllowed(r));
-    currentCards = isRelicPick ? generateRelicCards(this) : generateUpgradeCards(this);
+    currentCards = _makeOffer();
     bonusCards = rollBonusCards(this);
     for (final bonus in bonusCards) {
       bonus.apply(this);
@@ -808,11 +808,22 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     resumeFromLevelUp();
   }
 
+  /// The cards for the current pick; never empty.
+  List<UpgradeCard> _makeOffer() =>
+      ensureOffer(this, isRelicPick ? generateRelicCards(this) : generateUpgradeCards(this));
+
+  /// Last-resort exit: the level-up screen's Continue button, shown only if an
+  /// offer is somehow empty, so the run can never get stuck on it.
+  void skipEmptyOffer() {
+    if (!overlays.isActive('LevelUp') || currentCards.isNotEmpty) return;
+    resumeFromLevelUp();
+  }
+
   /// Swap the cards on offer for a fresh set (costs one reroll).
   void rerollCards() {
     if (rerollsLeft <= 0) return;
     rerollsLeft--;
-    currentCards = isRelicPick ? generateRelicCards(this) : generateUpgradeCards(this);
+    currentCards = _makeOffer();
     overlays.remove('LevelUp');
     overlays.add('LevelUp');
   }
@@ -1039,7 +1050,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       picksTotal = (lu['p'] as int?) ?? 1;
       _picksRemaining = picksTotal;
       isRelicPick = (lu['r'] as bool?) ?? false;
-      currentCards = isRelicPick ? generateRelicCards(this) : generateUpgradeCards(this);
+      currentCards = _makeOffer();
       bonusCards = [];
       overlays.add('LevelUp');
     } else {
@@ -1173,7 +1184,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     overlays.remove('LevelUp');
     if (_picksRemaining > 0) {
       isRelicPick = false;
-      currentCards = generateUpgradeCards(this);
+      currentCards = _makeOffer();
       overlays.add('LevelUp');
     } else {
       currentCards = [];

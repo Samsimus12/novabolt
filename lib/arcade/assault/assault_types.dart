@@ -24,6 +24,8 @@ abstract final class AssaultTuning {
   static const double jumpCutFactor = 0.45; // vy multiplier when jump is released while rising
   static const double coyoteTime = 0.10; // s after leaving a ledge you can still jump
   static const double jumpBuffer = 0.12; // s a jump press is remembered before landing
+  /// Mid-air jump: one per airtime, this fraction of the ground jump's speed.
+  static const double doubleJumpFactor = 0.85;
   static const int heartsPerLife = 3;
   static const int lives = 3;
   static const double hurtInvulnerable = 1.2; // s
@@ -41,17 +43,22 @@ abstract final class AssaultTuning {
   static const double cullBehindTiles = 4;
 
   // ── Combat ──────────────────────────────────────────────────────────────
-  /// Auto-fire triggers when an awake enemy is within the view (plus this
-  /// margin) or the stick is pushed.
-  static const double autoFireRangeTiles = 0.5;
   static const double stickDeadzone = 0.2;
+
+  /// The gun fires continuously, straight ahead along the facing direction.
+  /// Holding the stick up (past this, -moveY) angles it 45 degrees up-forward;
+  /// holding it down while airborne angles it 45 degrees down-forward.
+  /// (On the ground, down crouches instead.)
+  static const double aimStickThreshold = 0.4;
+  static const double aimDiagonal = math.pi / 4;
 
   // ── Scoring ─────────────────────────────────────────────────────────────
   static const int clearBonus = 10;
   static const int noDeathBonus = 5;
 }
 
-/// Eight aim directions. [dx]/[dy] are unit vectors (y down).
+/// Eight compass directions (y down). Not used by the sim (the aim is
+/// [AssaultPilot.aimAngle]: forward, 45 up or 45 down); kept for UI dials.
 enum AimDir {
   right(1, 0),
   upRight(math.sqrt1_2, -math.sqrt1_2),
@@ -78,7 +85,7 @@ enum AimDir {
 /// writes it; the sim reads it and clears [jumpPressed].
 class AssaultInput {
   double moveX = 0; // -1..1
-  double moveY = 0; // -1..1, up is -1
+  double moveY = 0; // -1..1, up is -1; only "down" matters (crouch on the ground)
   bool jumpHeld = false;
   bool jumpPressed = false; // edge: set on press, cleared by the sim
 
@@ -107,7 +114,12 @@ class AssaultLevel {
   final int height; // tiles (always AssaultTuning.levelRows)
   final List<List<AssaultTile>> tiles; // [row][col]
   final List<AssaultSpawn> spawns; // everything that isn't terrain, in level order
+
+  /// Visual theme id from the level source (`AssaultLevelSource.theme`); the
+  /// art reads it (`sim.level.theme`) to pick a palette. Default 'dusk'.
+  final String theme;
   const AssaultLevel({
+    this.theme = 'dusk',
     required this.name,
     required this.width,
     required this.height,
@@ -170,7 +182,15 @@ class AssaultPilot {
   bool onGround = false;
   bool crouching = false;
   int facing = 1; // 1 right, -1 left
-  AimDir aim = AimDir.right;
+
+  /// The direction the gun actually fires, in radians, `atan2(dy, dx)` with
+  /// y down (0 = right, pi = left, -pi/4 = up-forward when facing right).
+  /// Always one of: straight along [facing], 45 degrees up-forward (stick
+  /// up), 45 degrees down-forward (stick down while airborne). Set by the sim
+  /// every frame; no turning delay, no targeting.
+  double aimAngle = 0;
+  double get aimX => math.cos(aimAngle);
+  double get aimY => math.sin(aimAngle);
   WeaponKind weapon = WeaponKind.blaster;
   int hearts = AssaultTuning.heartsPerLife;
   int lives = AssaultTuning.lives;
@@ -183,8 +203,9 @@ class AssaultPilot {
   double get top => y - height;
 
   /// Where shots leave the gun (chest height, a little forward).
-  double get muzzleX => x + aim.dx * 0.45;
-  double get muzzleY => y - height * 0.62 + aim.dy * 0.35;
+  double get chestY => y - height * 0.62;
+  double get muzzleX => x + aimX * 0.45;
+  double get muzzleY => chestY + aimY * 0.35;
 }
 
 /// An enemy. The combat engineer implements the kinds; the sim owns the list,
@@ -237,8 +258,9 @@ abstract class AssaultWeapon {
   /// Seconds between shots.
   double get cooldown;
 
-  /// Adds this weapon's bullets for one shot from (x, y) towards [aim].
-  void fire(AssaultWorld world, double x, double y, AimDir aim);
+  /// Adds this weapon's bullets for one shot from (x, y) along the unit
+  /// vector ([aimX], [aimY]) (y down).
+  void fire(AssaultWorld world, double x, double y, double aimX, double aimY);
 }
 
 /// What enemies and weapons may use from the sim (the core sim implements it).
@@ -270,6 +292,7 @@ enum AssaultPhase {
 
 enum AssaultEventKind {
   jump,
+  doubleJump, // x, y = the pilot's feet (puff the backpack thruster)
   land,
   shoot, // detail: weapon name
   enemyHit, // x, y = hit point

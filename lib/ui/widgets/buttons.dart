@@ -82,14 +82,16 @@ class _NbButtonState extends State<NbButton> {
     final ShapeDecoration? deco = switch (kind) {
       NbButtonKind.primary => ShapeDecoration(
           shape: const ChamferBorder(cut: NbCut.control),
-          gradient: enabled
-              ? LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color.lerp(c, Colors.white, _down ? 0.05 : 0.28)!, c],
-                )
-              : null,
-          color: enabled ? null : NbColors.raised,
+          // Always a gradient (flat when disabled): AnimatedContainer lerps
+          // between the two states, and a ShapeDecoration lerped from a
+          // colour to a gradient briefly has both, which asserts.
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: enabled
+                ? [Color.lerp(c, Colors.white, _down ? 0.05 : 0.28)!, c]
+                : const [NbColors.raised, NbColors.raised],
+          ),
           shadows: enabled
               ? [BoxShadow(color: c.withValues(alpha: _down ? 0.25 : 0.45), blurRadius: _down ? 10 : 22)]
               : null,

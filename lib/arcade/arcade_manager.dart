@@ -16,6 +16,21 @@ enum ArcadeGame {
     'assault',
     'Ground Assault',
     'Crash-landed. Fight your way back to the ship.',
+  ),
+  swarmSiege(
+    'invaders',
+    'Swarm Siege',
+    "Hold the line. Don't let the swarm land.",
+  ),
+  cockpit(
+    'cockpit',
+    'Mayday',
+    'Alarms everywhere. Fix the cockpit before time runs out.',
+  ),
+  shmup(
+    'shmup',
+    'Rift Runner',
+    'Fly the rift, dodge the rock, break its guardian.',
   );
 
   /// Stable id used in prefs keys. Never rename.

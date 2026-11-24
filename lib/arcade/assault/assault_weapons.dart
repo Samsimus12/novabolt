@@ -4,7 +4,7 @@ import 'assault_types.dart';
 
 /// Ground Assault weapons (combat engineer). One behaviour per [WeaponKind];
 /// the sim calls `assaultWeapon(pilot.weapon)`, respects `cooldown`, and calls
-/// `fire(world, muzzleX, muzzleY, aim)`.
+/// `fire(world, muzzleX, muzzleY, aimX, aimY)` (aim = unit vector).
 ///
 /// Tuning (speeds in tiles/s):
 ///  blaster: 1 bolt, 20 t/s, dmg 1.0, cooldown 0.16 (a grunt, hp 3, dies in ~0.5 s)
@@ -50,9 +50,9 @@ class _Blaster implements AssaultWeapon {
   @override
   double get cooldown => 0.16;
   @override
-  void fire(AssaultWorld world, double x, double y, AimDir aim) {
+  void fire(AssaultWorld world, double x, double y, double aimX, double aimY) {
     world.addBullet(AssaultBullet(
-      x: x, y: y, vx: aim.dx * 20, vy: aim.dy * 20,
+      x: x, y: y, vx: aimX * 20, vy: aimY * 20,
       fromPlayer: true, damage: 1, radius: 0.12, weapon: kind, life: 0.9,
     ));
     world.emit(AssaultEvent(AssaultEventKind.shoot, x, y, kind.name));
@@ -65,8 +65,8 @@ class _Spread implements AssaultWeapon {
   @override
   double get cooldown => 0.32;
   @override
-  void fire(AssaultWorld world, double x, double y, AimDir aim) {
-    final base = math.atan2(aim.dy, aim.dx);
+  void fire(AssaultWorld world, double x, double y, double aimX, double aimY) {
+    final base = math.atan2(aimY, aimX);
     for (var i = -2; i <= 2; i++) {
       final a = base + i * (12 * math.pi / 180);
       world.addBullet(AssaultBullet(
@@ -84,9 +84,9 @@ class _Laser implements AssaultWeapon {
   @override
   double get cooldown => 0.22;
   @override
-  void fire(AssaultWorld world, double x, double y, AimDir aim) {
+  void fire(AssaultWorld world, double x, double y, double aimX, double aimY) {
     world.addBullet(AssaultBullet(
-      x: x, y: y, vx: aim.dx * 26, vy: aim.dy * 26,
+      x: x, y: y, vx: aimX * 26, vy: aimY * 26,
       fromPlayer: true, damage: 1.4, radius: 0.16, weapon: kind, pierce: true, life: 0.9,
     ));
     world.emit(AssaultEvent(AssaultEventKind.shoot, x, y, kind.name));
@@ -99,10 +99,10 @@ class _Rockets implements AssaultWeapon {
   @override
   double get cooldown => 0.5;
   @override
-  void fire(AssaultWorld world, double x, double y, AimDir aim) {
+  void fire(AssaultWorld world, double x, double y, double aimX, double aimY) {
     world.addBullet(AssaultRocket(
       x: x, y: y,
-      vx: aim.dx * AssaultRocket.startSpeed, vy: aim.dy * AssaultRocket.startSpeed,
+      vx: aimX * AssaultRocket.startSpeed, vy: aimY * AssaultRocket.startSpeed,
     ));
     world.emit(AssaultEvent(AssaultEventKind.shoot, x, y, kind.name));
   }

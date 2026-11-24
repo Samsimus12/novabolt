@@ -178,7 +178,7 @@ const colossusStats = MonsterStats(
 
 // Boss 5 — Storm Phantom
 const phantomStats = MonsterStats(
-  maxHp: 2000,
+  maxHp: 2200,
   speed: 65,
   contactDamagePerSecond: 28,
   size: 90,
@@ -192,7 +192,7 @@ const phantomStats = MonsterStats(
 
 // Boss 6 — Cosmic Behemoth
 const behemothStats = MonsterStats(
-  maxHp: 4000,
+  maxHp: 3150,
   speed: 20,
   contactDamagePerSecond: 50,
   size: 140,
@@ -206,7 +206,7 @@ const behemothStats = MonsterStats(
 
 // Boss 7 — Shadow Reaper
 const reaperStats = MonsterStats(
-  maxHp: 2800,
+  maxHp: 4770,
   speed: 55,
   contactDamagePerSecond: 36,
   size: 100,
@@ -220,7 +220,7 @@ const reaperStats = MonsterStats(
 
 // Boss 8 — Solar Titan (note: titanStats name is taken by Void Tyrant)
 const solarTitanStats = MonsterStats(
-  maxHp: 3600,
+  maxHp: 4790,
   speed: 30,
   contactDamagePerSecond: 42,
   size: 120,
@@ -234,7 +234,7 @@ const solarTitanStats = MonsterStats(
 
 // Boss 9 — Void Emperor
 const emperorStats = MonsterStats(
-  maxHp: 4800,
+  maxHp: 5540,
   speed: 40,
   contactDamagePerSecond: 48,
   size: 115,
@@ -248,7 +248,7 @@ const emperorStats = MonsterStats(
 
 // Boss 10 — The Singularity
 const singularityStats = MonsterStats(
-  maxHp: 6000,
+  maxHp: 5300,
   speed: 15,
   contactDamagePerSecond: 60,
   size: 150,
@@ -259,3 +259,9 @@ const singularityStats = MonsterStats(
   speedScaleRate: 0.01,
   speedScaleCap: 1.2,
 );
+
+/// The ten bosses in order (boss 1 first).
+const bossStatsByIndex = [
+  bossStats, tyrantStats, leviathanStats, colossusStats, phantomStats,
+  behemothStats, reaperStats, solarTitanStats, emperorStats, singularityStats,
+];

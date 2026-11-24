@@ -43,6 +43,11 @@ void paintNovaGlyph(Canvas canvas, Offset c, double r, NovaMode m, Color color) 
   canvas.drawCircle(c, r * 0.24, p);
 }
 
+/// Whether the ship at [ship] (screen logical px) is on or just under a
+/// control occupying [button]: inside it grown by [margin] on every side.
+bool shipUnderButton(Rect button, Offset ship, {double margin = NovaCore.fadeMargin}) =>
+    button.inflate(margin).contains(ship);
+
 /// The Nova trigger: a circular core whose ring fills with charge.
 ///
 /// - Tap fires when charged.
@@ -53,6 +58,12 @@ class NovaCore extends StatefulWidget {
   final NovaboltGame game;
 
   const NovaCore({super.key, required this.game});
+
+  /// The button fades to [fadedOpacity] while the ship is on or within
+  /// [fadeMargin] px of it, over [fadeDuration].
+  static const fadeMargin = 24.0;
+  static const fadedOpacity = 0.38;
+  static const fadeDuration = Duration(milliseconds: 150);
 
   /// Dev harness hook: set to a slot index to open the wheel with that slot
   /// highlighted (-1 for none), for screenshots. Unused in the app.
@@ -71,6 +82,8 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
   late final _wheel = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
   late final _flash = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
 
+  final _coreKey = GlobalKey();
+  final _shipUnder = ValueNotifier<bool>(false);
   bool _down = false;
   bool _wheelOpen = false;
   int? _hover;
@@ -82,9 +95,24 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _ticker = createTicker((e) => _t.value = e.inMicroseconds / 1e6)..start();
+    _ticker = createTicker((e) {
+      _t.value = e.inMicroseconds / 1e6;
+      _checkShipUnder();
+    })..start();
     game.nova.addListener(_onModeChanged);
     NovaCore.debugWheel.addListener(_onDebugWheel);
+  }
+
+  /// Fades the button while the ship is over it. Runs on the existing ticker
+  /// but only notifies (and so rebuilds) when the answer changes.
+  void _checkShipUnder() {
+    var under = false;
+    final box = _coreKey.currentContext?.findRenderObject();
+    if (!_wheelOpen && box is RenderBox && box.attached && box.hasSize && game.player.isMounted) {
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      under = shipUnderButton(rect, Offset(game.player.position.x, game.player.position.y));
+    }
+    if (_shipUnder.value != under) _shipUnder.value = under;
   }
 
   void _onDebugWheel() {
@@ -110,6 +138,7 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
     game.novaSelectorOpen = false;
     _ticker.dispose();
     _t.dispose();
+    _shipUnder.dispose();
     _wheel.dispose();
     _flash.dispose();
     super.dispose();
@@ -139,6 +168,7 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
       _hover = null;
     });
     _wheel.forward(from: 0);
+    _shipUnder.value = false;
   }
 
   void _moveWheel(Offset local) {
@@ -298,10 +328,18 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
                   Positioned(
                     left: 0,
                     top: 0,
-                    child: AnimatedScale(
-                      scale: _wheelOpen ? 0.86 : (_down && ready ? 0.9 : 1),
-                      duration: NbMotion.tap,
-                      child: core,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: _shipUnder,
+                      builder: (context, under, child) => AnimatedOpacity(
+                        opacity: under ? NovaCore.fadedOpacity : 1,
+                        duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : NovaCore.fadeDuration,
+                        child: child,
+                      ),
+                      child: AnimatedScale(
+                        scale: _wheelOpen ? 0.86 : (_down && ready ? 0.9 : 1),
+                        duration: NbMotion.tap,
+                        child: KeyedSubtree(key: _coreKey, child: core),
+                      ),
                     ),
                   ),
                   if (multi) ...[

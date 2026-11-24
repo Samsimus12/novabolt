@@ -85,6 +85,20 @@ class AssaultSim implements AssaultWorld {
   double cameraX = 0;
 
   double get exitX => _exit.x;
+  double get startX => _start.x;
+
+  /// How far through the stage the pilot has got, 0..1: the furthest x ever
+  /// reached (it never goes back down, even after a death) from the start to
+  /// the exit. Exactly 1 once cleared; never 1 before.
+  double get progress {
+    if (phase == AssaultPhase.cleared) return 1;
+    final span = _exit.x - _start.x;
+    if (span <= 0) return 0;
+    return ((_furthestX - _start.x) / span).clamp(0.0, 0.999);
+  }
+
+  /// [progress] as a whole percent, rounded down: 0..99, or 100 once cleared.
+  int get progressPercent => (progress * 100).floor();
   double get exitY => _exit.y;
 
   final List<AssaultEvent> _events = [];
@@ -94,8 +108,10 @@ class AssaultSim implements AssaultWorld {
 
   double _coyote = 0;
   double _jumpBuf = 0;
+  bool _airJumpUsed = false; // the mid-air jump has been spent this airtime
   bool _jumping = false; // rising from a jump (eligible for the variable-height cut)
   double _fireCd = 0;
+  double _furthestX = 0;
   bool _finalDeath = false;
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -131,7 +147,9 @@ class AssaultSim implements AssaultWorld {
     _coyote = 0;
     _jumpBuf = 0;
     _jumping = false;
+    _airJumpUsed = false;
     _fireCd = 0;
+    _furthestX = _start.x;
     _events.clear();
     _pendingEnemies.clear();
     bullets.clear();
@@ -170,7 +188,7 @@ class AssaultSim implements AssaultWorld {
       ..onGround = false
       ..crouching = false
       ..facing = 1
-      ..aim = AimDir.right
+      ..aimAngle = 0
       ..weapon = WeaponKind.blaster
       ..hearts = AssaultTuning.heartsPerLife
       ..lives = AssaultTuning.lives
@@ -278,25 +296,19 @@ class AssaultSim implements AssaultWorld {
     final p = pilot;
     if (p.invulnerable > 0) p.invulnerable = math.max(0, p.invulnerable - h);
 
-    // Aim / crouch / facing.
-    final dir = AimDir.fromStick(input.moveX, input.moveY);
-    final downish = dir == AimDir.down || dir == AimDir.downLeft || dir == AimDir.downRight;
-    final wantCrouch = p.onGround && downish;
-    if (dir != null && dir.dx.abs() > 0.1) p.facing = dir.dx > 0 ? 1 : -1;
+    // Crouch / facing (the stick moves; up/down only tilt the gun).
+    final wantCrouch = p.onGround && input.moveY > 0.6 && input.moveY >= input.moveX.abs();
     if (input.moveX.abs() >= AssaultTuning.stickDeadzone) p.facing = input.moveX > 0 ? 1 : -1;
     if (wantCrouch) {
       p.crouching = true;
-      p.aim = p.facing > 0 ? AimDir.right : AimDir.left;
-    } else {
-      if (p.crouching && !_solidInRect(p.left, p.y - AssaultTuning.pilotHeight, p.right, p.y)) {
-        p.crouching = false;
-      }
-      p.aim = dir ?? (p.facing > 0 ? AimDir.right : AimDir.left);
+    } else if (p.crouching && !_solidInRect(p.left, p.y - AssaultTuning.pilotHeight, p.right, p.y)) {
+      p.crouching = false;
     }
 
     // Coyote / buffer.
     if (p.onGround) {
       _coyote = AssaultTuning.coyoteTime;
+      _airJumpUsed = false;
     } else {
       _coyote -= h;
     }
@@ -308,6 +320,12 @@ class AssaultSim implements AssaultWorld {
       _jumpBuf = 0;
       _jumping = true;
       emit(AssaultEvent(AssaultEventKind.jump, p.x, p.y));
+    } else if (_jumpBuf > 0 && !p.onGround && !_airJumpUsed) {
+      p.vy = AssaultTuning.jumpVelocity * AssaultTuning.doubleJumpFactor;
+      _airJumpUsed = true;
+      _jumpBuf = 0;
+      _jumping = true;
+      emit(AssaultEvent(AssaultEventKind.doubleJump, p.x, p.y));
     }
     if (_jumping && !input.jumpHeld && p.vy < 0) {
       p.vy *= AssaultTuning.jumpCutFactor;
@@ -341,6 +359,8 @@ class AssaultSim implements AssaultWorld {
       if (p.vx > 0) p.vx = 0;
     }
 
+    _updateAim();
+    if (p.alive && p.x > _furthestX) _furthestX = p.x;
     _spikes();
     if (p.alive && phase == AssaultPhase.playing && p.top > level.height + 0.5) {
       _loseLife();
@@ -470,12 +490,13 @@ class AssaultSim implements AssaultWorld {
       ..onGround = false
       ..crouching = false
       ..facing = 1
-      ..aim = AimDir.right
+      ..aimAngle = 0
       ..weapon = WeaponKind.blaster
       ..hearts = AssaultTuning.heartsPerLife
       ..invulnerable = AssaultTuning.hurtInvulnerable
       ..alive = true;
     _jumping = false;
+    _airJumpUsed = false;
     _jumpBuf = 0;
     _fireCd = 0;
     bullets.removeWhere((b) => !b.fromPlayer);
@@ -705,27 +726,30 @@ class AssaultSim implements AssaultWorld {
     }
   }
 
-  // ── Auto-fire ───────────────────────────────────────────────────────────
+  // ── Aim and continuous fire ─────────────────────────────────────────────
 
+  /// The gun points along the facing direction; stick up angles it 45 degrees
+  /// up-forward, stick down while airborne 45 degrees down-forward.
+  void _updateAim() {
+    final p = pilot;
+    if (!p.alive) return;
+    final forward = p.facing > 0 ? 0.0 : math.pi;
+    final tilt = input.moveY < -AssaultTuning.aimStickThreshold
+        ? -AssaultTuning.aimDiagonal
+        : (!p.onGround && !p.crouching && input.moveY > AssaultTuning.aimStickThreshold ? AssaultTuning.aimDiagonal : 0.0);
+    // Facing left mirrors the tilt: up-left is atan2(-1, -1) = -3pi/4.
+    p.aimAngle = p.facing > 0 ? forward + tilt : forward - tilt;
+    if (p.aimAngle > math.pi) p.aimAngle -= 2 * math.pi;
+  }
+
+  /// The gun never stops: it fires every [AssaultWeapon.cooldown] seconds
+  /// along the aim direction while the pilot is alive and in play.
   void _autoFire(double h) {
     final p = pilot;
     _fireCd -= h;
     if (!p.alive || _fireCd > 0) return;
-    final stick = AimDir.fromStick(input.moveX, input.moveY) != null;
-    var enemyInView = false;
-    if (!stick) {
-      final lo = cameraX - AssaultTuning.autoFireRangeTiles;
-      final hi = cameraX + AssaultTuning.viewTiles + AssaultTuning.autoFireRangeTiles;
-      for (final e in enemies) {
-        if (e.awake && !e.dead && e.x >= lo && e.x <= hi) {
-          enemyInView = true;
-          break;
-        }
-      }
-    }
-    if (!stick && !enemyInView) return;
     final w = _weapons(p.weapon);
-    w.fire(this, p.muzzleX, p.muzzleY, p.aim);
+    w.fire(this, p.muzzleX, p.muzzleY, p.aimX, p.aimY);
     _fireCd = w.cooldown;
     emit(AssaultEvent(AssaultEventKind.shoot, p.muzzleX, p.muzzleY, p.weapon.name));
   }

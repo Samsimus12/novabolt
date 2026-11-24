@@ -15,36 +15,46 @@ import 'assault_types.dart';
 ///     deck (`game.deckRect`: the bottom strip under the game view) and
 ///     leaves the rest of the screen untouchable so touches reach the HUD.
 ///   * It writes `game.sim.input` directly: the move stick sets `moveX` /
-///     `moveY` in -1..1 (up is -1, raw; the sim applies the deadzone); Jump
-///     sets `jumpHeld = true` and `jumpPressed = true` on press and
-///     `jumpHeld = false` on release/cancel. Only once `game.isLoaded`.
+///     `moveY` in -1..1 (up is -1, raw; the sim applies the deadzone). The
+///     stick moves (and crouches when pushed down on the ground); the gun
+///     fires continuously straight ahead, tilting 45 degrees up when the
+///     stick is held up and 45 down when held down in the air
+///     (`pilot.aimAngle`). Jump sets
+///     `jumpHeld = true` and `jumpPressed = true` on press and
+///     `jumpHeld = false` on release/cancel; a second press in the air is
+///     the double jump. Only once `game.isLoaded`.
 ///   * Multi-touch: the stick and Jump each use their own pointer Listener.
 ///   * Listens to `game.inputReset` and drops any held state when it changes.
 ///
 /// Look: a smoked-glass console under the view with a hairline top edge and
 /// an ion bezel light. Top strip: the weapon chip (glyph, name, a mint
-/// light while auto-fire is shooting). Left half: the move dial, an
-/// instrument ring with 8 aim ticks (the live aim tick lights ion); it rests
+/// light while the gun is firing). Left half: the move dial, an instrument
+/// ring with a left and a right chevron (the one you're running toward
+/// lights ion), an up chevron (gun tilted up) and a down chevron (crouching,
+/// or gun tilted down in the air); it rests
 /// in the middle of the left half and jumps to wherever the thumb lands.
-/// Right half: the Jump octagon (ion rim, double chevrons); the whole half
-/// is its touch zone. Sizes scale with the deck so small phones fit.
+/// Right half: the Jump octagon (ion rim, double chevrons = jump, then jump
+/// again in the air); the whole half is its touch zone. Sizes scale with the
+/// deck so small phones fit.
 class AssaultControls extends StatelessWidget {
   final AssaultGame game;
   const AssaultControls({super.key, required this.game});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final deck = AssaultLayout(c.biggest).deckRect;
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: SizedBox(
-          width: deck.width,
-          height: deck.height,
-          child: _Deck(game: game),
-        ),
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        final deck = AssaultLayout(c.biggest).deckRect;
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            width: deck.width,
+            height: deck.height,
+            child: _Deck(game: game),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -62,6 +72,7 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
   Offset _stickKnob = Offset.zero; // thumb offset from origin, clamped to radius
   double _radius = 60;
   int? _jumpPointer;
+  int _jumps = 0; // presses this session: the double-jump hint shows until the second
 
   // Auto-fire light: on while the player's shots are in the air.
   late final Ticker _ticker;
@@ -77,8 +88,7 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
       if (!widget.game.isLoaded) return;
       final f = widget.game.sim.bullets.any((b) => b.fromPlayer && !b.dead);
       if (f != _firing) setState(() => _firing = f);
-    })
-      ..start();
+    })..start();
   }
 
   @override
@@ -141,7 +151,10 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
       ?..jumpHeld = true
       ..jumpPressed = true;
     SfxManager.instance.tap();
-    setState(() => _jumpPointer = e.pointer);
+    setState(() {
+      _jumpPointer = e.pointer;
+      _jumps++;
+    });
   }
 
   void _jumpUp(PointerEvent e) {
@@ -152,96 +165,120 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final w = c.maxWidth, h = c.maxHeight;
-      final bottomInset = MediaQuery.of(context).padding.bottom;
-      final strip = math.min(54.0, h * 0.18); // weapon strip at the top
-      final usable = h - strip - bottomInset * 0.6;
-      _radius = (math.min(w / 4 - 14, usable * 0.4)).clamp(34.0, 74.0);
-      final jumpR = (math.min(w / 4 - 18, usable * 0.4)).clamp(34.0, 72.0);
-      final midY = strip + usable / 2;
-      final home = Offset(w / 4, midY);
-      final origin = _stickOrigin ?? home;
-      final aim = AimDir.fromStick(_stickKnob.dx / (_radius * 0.72), _stickKnob.dy / (_radius * 0.72));
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth, h = c.maxHeight;
+        final bottomInset = MediaQuery.of(context).padding.bottom;
+        final strip = math.min(54.0, h * 0.18); // weapon strip at the top
+        final usable = h - strip - bottomInset * 0.6;
+        _radius = (math.min(w / 4 - 14, usable * 0.4)).clamp(34.0, 74.0);
+        final jumpR = (math.min(w / 4 - 18, usable * 0.4)).clamp(34.0, 72.0);
+        final midY = strip + usable / 2;
+        final home = Offset(w / 4, midY);
+        final origin = _stickOrigin ?? home;
+        // Which way the stick is driving (matches the sim's deadzone/crouch rule).
+        final kx = _stickPointer == null ? 0.0 : _stickKnob.dx / (_radius * 0.72);
+        final ky = _stickPointer == null ? 0.0 : _stickKnob.dy / (_radius * 0.72);
+        final crouch = ky > 0.6 && ky >= kx.abs();
+        final dir = crouch || kx.abs() < AssaultTuning.stickDeadzone ? 0 : (kx > 0 ? 1 : -1);
+        // Up tilts the gun 45 degrees up; down crouches on the ground and
+        // tilts the gun 45 degrees down in the air.
+        final aimUp = ky < -AssaultTuning.aimStickThreshold;
+        final aimDown = ky > AssaultTuning.aimStickThreshold;
 
-      return Stack(
-        children: [
-          // Console background.
-          Positioned.fill(child: CustomPaint(painter: _ConsolePainter())),
-          // Weapon chip.
-          Positioned(
-            left: 0,
-            right: 0,
-            top: (strip - 34) / 2 + 2,
-            child: IgnorePointer(
-              child: Center(
-                child: ValueListenableBuilder<WeaponKind>(
-                  valueListenable: widget.game.weapon,
-                  builder: (_, wk, _) => _WeaponChip(weapon: wk, firing: _firing),
+        return Stack(
+          children: [
+            // Console background.
+            Positioned.fill(child: CustomPaint(painter: _ConsolePainter())),
+            // Weapon chip.
+            Positioned(
+              left: 0,
+              right: 0,
+              top: (strip - 34) / 2 + 2,
+              child: IgnorePointer(
+                child: Center(
+                  child: ValueListenableBuilder<WeaponKind>(
+                    valueListenable: widget.game.weapon,
+                    builder: (_, wk, _) => _WeaponChip(weapon: wk, firing: _firing),
+                  ),
                 ),
               ),
             ),
-          ),
-          // Left half: move / aim. The whole half is the touch zone.
-          Positioned(
-            left: 0,
-            top: 0,
-            width: w / 2,
-            bottom: 0,
-            child: Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: _stickDown,
-              onPointerMove: _stickMove,
-              onPointerUp: _stickUp,
-              onPointerCancel: _stickUp,
-              child: const SizedBox.expand(),
+            // Left half: move. The whole half is the touch zone.
+            Positioned(
+              left: 0,
+              top: 0,
+              width: w / 2,
+              bottom: 0,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _stickDown,
+                onPointerMove: _stickMove,
+                onPointerUp: _stickUp,
+                onPointerCancel: _stickUp,
+                child: const SizedBox.expand(),
+              ),
             ),
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _DialPainter(
-                  center: origin,
-                  radius: _radius,
-                  knob: _stickKnob,
-                  active: _stickPointer != null,
-                  aim: aim,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _DialPainter(
+                    center: origin,
+                    radius: _radius,
+                    knob: _stickKnob,
+                    active: _stickPointer != null,
+                    dir: dir,
+                    up: aimUp,
+                    down: aimDown || crouch,
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            width: w / 2,
-            top: origin.dy + _radius + 8,
-            child: IgnorePointer(
-              child: AnimatedOpacity(
-                opacity: _stickPointer == null ? 1 : 0,
-                duration: NbMotion.quick,
-                child: const Text('Move and aim', style: NbType.caption, textAlign: TextAlign.center),
+            Positioned(
+              left: 0,
+              width: w / 2,
+              top: origin.dy + _radius + 8,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _stickPointer == null ? 1 : 0,
+                  duration: NbMotion.quick,
+                  child: const Text('Up to aim up, down to crouch', style: NbType.caption, textAlign: TextAlign.center),
+                ),
               ),
             ),
-          ),
-          // Right half: Jump. The whole half is the touch zone.
-          Positioned(
-            left: w / 2,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            child: Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: _jumpDown,
-              onPointerUp: _jumpUp,
-              onPointerCancel: _jumpUp,
-              child: Align(
-                alignment: Alignment(0, (midY / h) * 2 - 1),
-                child: _JumpButton(radius: jumpR, down: _jumpPointer != null),
+            // Right half: Jump. The whole half is the touch zone.
+            Positioned(
+              left: w / 2,
+              top: 0,
+              right: 0,
+              bottom: 0,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _jumpDown,
+                onPointerUp: _jumpUp,
+                onPointerCancel: _jumpUp,
+                child: Align(
+                  alignment: Alignment(0, (midY / h) * 2 - 1),
+                  child: _JumpButton(radius: jumpR, down: _jumpPointer != null),
+                ),
               ),
             ),
-          ),
-        ],
-      );
-    });
+            Positioned(
+              left: w / 2,
+              right: 0,
+              top: midY + jumpR + 8,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _jumps < 2 ? 1 : 0,
+                  duration: NbMotion.enter,
+                  child: const Text('Tap again in the air to jump higher', style: NbType.caption, textAlign: TextAlign.center),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -263,8 +300,7 @@ class _ConsolePainter extends CustomPainter {
     canvas.drawLine(Offset.zero, Offset(s.width, 0), Paint()..color = NbColors.lineStrong);
     canvas.drawRect(
       Rect.fromLTWH(0, 0, s.width * 0.22, 2),
-      Paint()
-        ..shader = LinearGradient(colors: [NbColors.ion, NbColors.ion.withValues(alpha: 0)]).createShader(Rect.fromLTWH(0, 0, s.width * 0.22, 2)),
+      Paint()..shader = LinearGradient(colors: [NbColors.ion, NbColors.ion.withValues(alpha: 0)]).createShader(Rect.fromLTWH(0, 0, s.width * 0.22, 2)),
     );
     // Faint ribs under the edge: a console, not a void.
     final rib = Paint()
@@ -290,15 +326,18 @@ class _ConsolePainter extends CustomPainter {
   bool shouldRepaint(_ConsolePainter old) => false;
 }
 
-/// The move dial: instrument ring, 8 aim ticks (the live one lit ion), and
-/// the knob under the thumb.
+/// The move dial: instrument ring, a left and a right chevron (the way
+/// you're running lights ion), an up chevron (lit while the gun tilts up), a
+/// down chevron (lit while crouching or tilting the gun down in the air),
+/// and the knob under the thumb. Firing is automatic, straight ahead.
 class _DialPainter extends CustomPainter {
   final Offset center;
   final double radius;
   final Offset knob;
   final bool active;
-  final AimDir? aim;
-  _DialPainter({required this.center, required this.radius, required this.knob, required this.active, required this.aim});
+  final int dir; // -1 left, 0 none, 1 right
+  final bool up, down;
+  _DialPainter({required this.center, required this.radius, required this.knob, required this.active, required this.dir, required this.up, required this.down});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -313,38 +352,47 @@ class _DialPainter extends CustomPainter {
         ..strokeWidth = 1.2
         ..color = NbColors.starlight.withValues(alpha: active ? 0.35 : 0.22),
     );
-    canvas.drawCircle(
-      c,
-      r * 0.62,
+    // A horizontal track: this stick is mostly left / right.
+    canvas.drawLine(
+      c.translate(-r * 0.62, 0),
+      c.translate(r * 0.62, 0),
       Paint()
-        ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = NbColors.starlight.withValues(alpha: 0.1),
+        ..color = NbColors.starlight.withValues(alpha: 0.12),
     );
-    for (final d in AimDir.values) {
-      final lit = active && d == aim;
-      final dir = Offset(d.dx, d.dy);
-      final p0 = c + dir * (r - (lit ? 15 : 9));
-      final p1 = c + dir * (r - 3);
+    void chevron(Offset at, Offset pointing, bool lit) {
+      final side = Offset(-pointing.dy, pointing.dx);
+      final s = r * 0.11;
+      final path = Path()
+        ..moveTo(at.dx - pointing.dx * s + side.dx * s * 1.2, at.dy - pointing.dy * s + side.dy * s * 1.2)
+        ..lineTo(at.dx + pointing.dx * s, at.dy + pointing.dy * s)
+        ..lineTo(at.dx - pointing.dx * s - side.dx * s * 1.2, at.dy - pointing.dy * s - side.dy * s * 1.2);
       if (lit) {
-        canvas.drawLine(
-          p0,
-          p1,
+        canvas.drawPath(
+          path,
           Paint()
+            ..style = PaintingStyle.stroke
             ..strokeWidth = 9
             ..strokeCap = StrokeCap.round
-            ..color = NbColors.ion.withValues(alpha: 0.25),
+            ..strokeJoin = StrokeJoin.round
+            ..color = NbColors.ion.withValues(alpha: 0.22),
         );
       }
-      canvas.drawLine(
-        p0,
-        p1,
+      canvas.drawPath(
+        path,
         Paint()
-          ..strokeWidth = lit ? 3 : 1.6
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = lit ? 3 : 1.8
           ..strokeCap = StrokeCap.round
-          ..color = lit ? NbColors.ion : NbColors.haze.withValues(alpha: 0.5),
+          ..strokeJoin = StrokeJoin.round
+          ..color = lit ? NbColors.ion : NbColors.haze.withValues(alpha: 0.55),
       );
     }
+
+    chevron(c.translate(-r * 0.8, 0), const Offset(-1, 0), active && dir < 0);
+    chevron(c.translate(r * 0.8, 0), const Offset(1, 0), active && dir > 0);
+    chevron(c.translate(0, -r * 0.8), const Offset(0, -1), active && up);
+    chevron(c.translate(0, r * 0.8), const Offset(0, 1), active && down);
     // Knob.
     final k = c + knob;
     final kr = r * 0.4;
@@ -369,7 +417,7 @@ class _DialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DialPainter old) =>
-      old.center != center || old.knob != knob || old.active != active || old.aim != aim || old.radius != radius;
+      old.center != center || old.knob != knob || old.active != active || old.dir != dir || old.up != up || old.down != down || old.radius != radius;
 }
 
 class _JumpButton extends StatelessWidget {
@@ -425,9 +473,12 @@ class _JumpPainter extends CustomPainter {
     final outer = _oct(r, cut);
     // Emission only from the active/pressed state (the system's rule).
     if (down) {
-      canvas.drawPath(outer, Paint()
-        ..color = NbColors.ion.withValues(alpha: 0.35)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 14));
+      canvas.drawPath(
+        outer,
+        Paint()
+          ..color = NbColors.ion.withValues(alpha: 0.35)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 14),
+      );
     }
     canvas.drawPath(outer, Paint()..color = down ? const Color(0xFF1A5A86) : const Color(0xFF0E2346));
     canvas.drawPath(
@@ -478,18 +529,21 @@ class _WeaponChip extends StatelessWidget {
   const _WeaponChip({required this.weapon, required this.firing});
 
   static String name(WeaponKind w) => switch (w) {
-        WeaponKind.blaster => 'Blaster',
-        WeaponKind.spread => 'Spread',
-        WeaponKind.laser => 'Laser',
-        WeaponKind.rockets => 'Rockets',
-      };
+    WeaponKind.blaster => 'Blaster',
+    WeaponKind.spread => 'Spread',
+    WeaponKind.laser => 'Laser',
+    WeaponKind.rockets => 'Rockets',
+  };
 
   @override
   Widget build(BuildContext context) {
     final upgraded = weapon != WeaponKind.blaster;
     return AnimatedSwitcher(
       duration: NbMotion.quick,
-      transitionBuilder: (c, a) => ScaleTransition(scale: Tween(begin: 1.25, end: 1.0).animate(a), child: FadeTransition(opacity: a, child: c)),
+      transitionBuilder: (c, a) => ScaleTransition(
+        scale: Tween(begin: 1.25, end: 1.0).animate(a),
+        child: FadeTransition(opacity: a, child: c),
+      ),
       child: Container(
         key: ValueKey(weapon),
         height: 34,
@@ -504,11 +558,7 @@ class _WeaponChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: CustomPaint(painter: _GlyphPainter(weapon)),
-            ),
+            SizedBox(width: 22, height: 22, child: CustomPaint(painter: _GlyphPainter(weapon))),
             const SizedBox(width: 8),
             Text(name(weapon), style: NbType.button.copyWith(fontSize: 14)),
             const SizedBox(width: 10),
@@ -534,8 +584,7 @@ class _GlyphPainter extends CustomPainter {
   _GlyphPainter(this.w);
 
   @override
-  void paint(Canvas canvas, Size s) =>
-      AssaultArt.paintWeaponGlyph(canvas, s.center(Offset.zero), s.width * 0.4, w, AssaultArt.weaponColor(w));
+  void paint(Canvas canvas, Size s) => AssaultArt.paintWeaponGlyph(canvas, s.center(Offset.zero), s.width * 0.4, w, AssaultArt.weaponColor(w));
 
   @override
   bool shouldRepaint(_GlyphPainter old) => old.w != w;

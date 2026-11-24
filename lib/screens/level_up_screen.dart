@@ -41,6 +41,7 @@ Color rarityColor(CardRarity r) => switch (r) {
 /// How a card presents: accent colour + the short tag in its corner.
 ({Color color, String tag}) _styleFor(UpgradeCard card) {
   if (card is CurseCard) return (color: NbColors.flare, tag: 'Curse');
+  if (card is SupplyCard) return (color: NbColors.mint, tag: 'Supplies');
   if (card is RelicCard) return (color: NbColors.gold, tag: 'Relic');
   if (card is EvolutionCard) return (color: NbColors.gold, tag: 'Evolution');
   if (card is NewWeaponCard) return (color: NbColors.gold, tag: 'New weapon');
@@ -157,6 +158,15 @@ class LevelUpScreen extends StatelessWidget {
                               .animate()
                               .fadeIn(delay: next(), duration: 280.ms)
                               .moveX(begin: 36, end: 0, delay: Duration(milliseconds: delay), duration: 420.ms, curve: NbMotion.easeOut),
+                        ),
+                      // Safety net: an offer should never be empty (see
+                      // ensureOffer), but if it ever is, never trap the player.
+                      if (cards.isEmpty)
+                        NbButton(
+                          label: 'Continue',
+                          icon: PhosphorIconsBold.arrowRight,
+                          expand: true,
+                          onPressed: game.skipEmptyOffer,
                         ),
                       if (game.rerollsLeft > 0)
                         Center(
@@ -314,7 +324,7 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
         padding: const EdgeInsets.only(top: 8),
         child: Row(
           children: [
-            NbPips(filled: lvl, total: 10, color: c, highlight: lvl),
+            NbPips(filled: lvl, total: card.weapon.maxUpgradeLevel, color: c, highlight: lvl),
             const SizedBox(width: 6),
             Text('Lv $lvl to ${lvl + 1}', style: NbType.caption.copyWith(color: NbColors.haze)),
           ],

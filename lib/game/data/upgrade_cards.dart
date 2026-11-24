@@ -192,17 +192,68 @@ class EvolutionCard extends UpgradeCard {
   UpgradeCategory get category => UpgradeCategory.weapon;
   @override
   void apply(NovaboltGame game) {
-    weapon.evolved = true;
-    weapon.evolvedName = name;
+    weapon.evolve(name);
     _boost(weapon);
     game.announce('$name online', color: const Color(0xFFFFC23D));
   }
 }
 
-/// Three relics the player doesn't have yet.
+/// Filler pick that is always valid (even at full hull, with every weapon
+/// maxed): what the level-up offer falls back on when the real pool runs dry,
+/// so the screen can never be empty.
+class SupplyCard extends StatBuffCard {
+  SupplyCard({
+    required super.title,
+    required super.description,
+    required super.glyph,
+    required super.apply,
+  }) : super(category: UpgradeCategory.mobility);
+}
+
+/// [count] distinct supply cards (there are always at least four kinds).
+List<UpgradeCard> supplyCards(NovaboltGame game, [int count = 3, math.Random? rng]) {
+  final all = <UpgradeCard>[
+    SupplyCard(
+      title: 'Hull Repair',
+      description: 'Repair half of your hull',
+      glyph: CardGlyph.repair,
+      apply: (g) => g.player.currentHp = math.min(g.player.maxHp, g.player.currentHp + g.player.maxHp * 0.5),
+    ),
+    SupplyCard(
+      title: 'Reinforced Hull',
+      description: '+25 max hull, and repair 25',
+      glyph: CardGlyph.hull,
+      apply: (g) {
+        g.player.maxHp += 25;
+        g.player.currentHp = math.min(g.player.maxHp, g.player.currentHp + 25);
+      },
+    ),
+    SupplyCard(
+      title: 'Salvage Haul',
+      description: '+10% NOVA coins this run',
+      glyph: CardGlyph.relic,
+      apply: (g) => g.runCoinMultiplier *= 1.10,
+    ),
+    SupplyCard(
+      title: 'Nova Cell',
+      description: 'Instantly adds 30% Nova charge',
+      glyph: CardGlyph.novaCharge,
+      apply: (g) => g.superchargeSystem.addCharge(30 / g.superchargeSystem.chargeMultiplier),
+    ),
+  ]..shuffle(rng);
+  return all.take(count.clamp(1, all.length)).toList();
+}
+
+/// An offer that is never empty: [cards] as given, or supplies if the pool
+/// ran dry. Every place that builds an offer goes through this.
+List<UpgradeCard> ensureOffer(NovaboltGame game, List<UpgradeCard> cards) =>
+    cards.isEmpty ? supplyCards(game) : cards;
+
+/// Three relics the player doesn't have yet (fewer when few are left; falls
+/// back to supplies if none are, e.g. a resumed save).
 List<UpgradeCard> generateRelicCards(NovaboltGame game) {
   final left = Relic.values.where((r) => !game.relics.contains(r) && game.relicAllowed(r)).toList()..shuffle();
-  return left.take(3).map(RelicCard.new).toList();
+  return ensureOffer(game, left.take(3).map<UpgradeCard>(RelicCard.new).toList());
 }
 
 /// Evolutions whose recipe is met right now.
@@ -280,7 +331,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
   // --- Weapon category ---
 
   for (final w in player.activeWeapons) {
-    if (w.isUpgradeable && w.upgradeLevel < 10) pool.add(WeaponUpgradeCard(w, rarity: roll()));
+    if (w.canUpgrade) pool.add(WeaponUpgradeCard(w, rarity: roll()));
   }
 
   if (!player.hasWeapon<WeaponSpreadShot>()) {
@@ -437,12 +488,14 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
     }
   }
 
-  // Guard: pad if pool was tiny (all weapons maxed, no nova, no mobility).
+  // Guard: pad if the pool was tiny (all weapons maxed, every bonus capped).
   if (picks.length < 3) {
     final chosen = picks.toSet();
     final leftovers = pool.where((c) => !chosen.contains(c)).toList()..shuffle(rng);
     picks.addAll(leftovers.take(3 - picks.length));
   }
+  // Still short: supplies, so there are always three valid cards.
+  if (picks.length < 3) picks.addAll(supplyCards(game, 3 - picks.length, rng));
 
   final offer = picks.take(3).toList();
   maybeOfferCurse(game, offer, rng);

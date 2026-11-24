@@ -4,7 +4,7 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart' show KeyEventResult;
+import 'package:flutter/widgets.dart' show KeyEventResult, VoidCallback;
 
 import '../../audio/sfx.dart';
 import '../arcade_manager.dart';
@@ -12,6 +12,7 @@ import 'assault_art.dart';
 import 'assault_enemies.dart';
 import 'assault_level.dart';
 import 'assault_levels.dart';
+import 'assault_progress.dart';
 import 'assault_sim.dart';
 import 'assault_types.dart';
 import 'assault_weapons.dart';
@@ -40,7 +41,7 @@ class AssaultLayout {
 /// while paused; [resultsOverlay] opens [resultsDelay] seconds after the
 /// stage is cleared or the last life is lost.
 class AssaultGame extends FlameGame with KeyboardEvents {
-  AssaultGame({this.seed});
+  AssaultGame({this.seed, int stage = 0}) : stage = stage.clamp(0, assaultLevels.length - 1);
 
   static const hudOverlay = 'AssaultHud';
   static const controlsOverlay = 'AssaultControls';
@@ -54,6 +55,26 @@ class AssaultGame extends FlameGame with KeyboardEvents {
   static const double resultsDelay = 1.2;
 
   final int? seed;
+
+  /// Which entry of [assaultLevels] this game plays (0-based).
+  final int stage;
+  AssaultLevelSource get source => assaultLevels[stage];
+  bool get hasNextStage => stage + 1 < assaultLevels.length;
+
+  /// Set by the screen: switch to another stage (Next stage / Stages).
+  void Function(int stage)? onPlayStage;
+
+  /// Set by the screen: back to the stage picker.
+  VoidCallback? onStages;
+
+  /// Opens the next stage (results panel's "Next stage").
+  void nextStage() => onPlayStage?.call(stage + 1);
+
+  /// Completion 0..1 for the HUD (see [AssaultSim.progress]).
+  final ValueNotifier<double> progress = ValueNotifier(0);
+
+  /// What this attempt changed in the saved progress (set with [result]).
+  AssaultStageRecord? record;
   late AssaultSim sim;
   late AssaultArt art;
 
@@ -88,9 +109,9 @@ class AssaultGame extends FlameGame with KeyboardEvents {
   double _shootGap = 0;
 
   AssaultSim _buildSim() {
-    final src = assaultLevels[0];
+    final src = source;
     return AssaultSim(
-      parseAssaultLevel(src.name, src.rows),
+      parseAssaultLevel(src.name, src.rows, theme: src.theme),
       seed: seed,
       weapons: assaultWeapon,
       enemyFactory: createAssaultEnemy,
@@ -149,6 +170,7 @@ class AssaultGame extends FlameGame with KeyboardEvents {
     if (weapon.value != sim.pilot.weapon) weapon.value = sim.pilot.weapon;
     if (shards.value != sim.shards) shards.value = sim.shards;
     if (phase.value != sim.phase) phase.value = sim.phase;
+    if (progress.value != sim.progress) progress.value = sim.progress;
   }
 
   void _onEvent(AssaultEvent e) {
@@ -156,6 +178,8 @@ class AssaultGame extends FlameGame with KeyboardEvents {
     switch (e.kind) {
       case AssaultEventKind.jump:
         sfx.play(Sfx.dash, volume: 0.3);
+      case AssaultEventKind.doubleJump:
+        sfx.play(Sfx.dash, volume: 0.35);
       case AssaultEventKind.land:
         break;
       case AssaultEventKind.shoot:
@@ -208,6 +232,13 @@ class AssaultGame extends FlameGame with KeyboardEvents {
       score: sim.score,
       bonus: sim.shards,
     );
+    record = await AssaultProgress.record(
+      stage: stage,
+      stageCount: assaultLevels.length,
+      percent: sim.progressPercent,
+      score: sim.score,
+      cleared: sim.phase == AssaultPhase.cleared,
+    );
     result = r;
     if (r.newBest) SfxManager.instance.play(Sfx.levelUp);
     overlays.add(resultsOverlay);
@@ -217,9 +248,10 @@ class AssaultGame extends FlameGame with KeyboardEvents {
 
   static final _left = {LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.keyA};
   static final _right = {LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.keyD};
-  static final _up = {LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyW};
   static final _down = {LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.keyS};
-  static final _jump = {LogicalKeyboardKey.space, LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyK};
+  // Aim up (45 degrees): I. Aim down is S/Down while airborne. Arrow-up/W stay jump.
+  static final _up = {LogicalKeyboardKey.keyI};
+  static final _jump = {LogicalKeyboardKey.space, LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyW, LogicalKeyboardKey.keyK};
 
   bool _anyHeld(Set<LogicalKeyboardKey> group) => group.any(_keys.contains);
 
@@ -227,7 +259,7 @@ class AssaultGame extends FlameGame with KeyboardEvents {
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     if (!isLoaded || paused || _resultsShown) return KeyEventResult.ignored;
     final key = event.logicalKey;
-    final relevant = _left.contains(key) || _right.contains(key) || _up.contains(key) || _down.contains(key) || _jump.contains(key);
+    final relevant = _left.contains(key) || _right.contains(key) || _down.contains(key) || _up.contains(key) || _jump.contains(key);
     if (!relevant) return KeyEventResult.ignored;
     if (event is KeyUpEvent) {
       _keys.remove(key);
@@ -248,6 +280,7 @@ class AssaultGame extends FlameGame with KeyboardEvents {
   void restart() {
     overlays.remove(resultsOverlay);
     result = null;
+    record = null;
     _resultsShown = false;
     _endedFor = 0;
     _introLeft = introDuration;

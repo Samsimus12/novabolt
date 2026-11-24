@@ -19,7 +19,7 @@ class WeaponSwordAura extends Weapon {
   String get displayName => 'Force Field';
 
   @override
-  String get nextUpgradeDescription => 'Field damage +30%';
+  String get nextUpgradeDescription => 'Field damage +${upgradePercent()}%';
 
   @override
   void update(double dt) {

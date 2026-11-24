@@ -58,7 +58,7 @@ void main() {
       final w = FakeWorld();
       final wp = assaultWeapon(WeaponKind.blaster);
       expect(identical(wp, assaultWeapon(WeaponKind.blaster)), isTrue);
-      wp.fire(w, 5, 5, AimDir.upRight);
+      wp.fire(w, 5, 5, math.sqrt1_2, -math.sqrt1_2);
       expect(w.bullets.length, 1);
       final b = w.bullets.single;
       expect(b.fromPlayer, isTrue);
@@ -75,7 +75,7 @@ void main() {
 
     test('spread fans 5 bolts +-24 deg', () {
       final w = FakeWorld();
-      assaultWeapon(WeaponKind.spread).fire(w, 0, 0, AimDir.right);
+      assaultWeapon(WeaponKind.spread).fire(w, 0, 0, 1, 0);
       expect(w.bullets.length, 5);
       final angles = w.bullets.map((b) => math.atan2(b.vy, b.vx) * 180 / math.pi).toList()..sort();
       expect(angles.first, closeTo(-24, 1e-6));
@@ -85,15 +85,27 @@ void main() {
       expect(w.events.length, 1);
     });
 
+    test('weapons fire along any aim vector (blaster, spread fan centre)', () {
+      final a = 0.4; // ~23 degrees below the horizontal, not an 8-way angle
+      final w = FakeWorld();
+      assaultWeapon(WeaponKind.blaster).fire(w, 0, 0, math.cos(a), math.sin(a));
+      expect(math.atan2(w.bullets.single.vy, w.bullets.single.vx), closeTo(a, 1e-9));
+      final w2 = FakeWorld();
+      assaultWeapon(WeaponKind.spread).fire(w2, 0, 0, math.cos(a), math.sin(a));
+      final angles = w2.bullets.map((b) => math.atan2(b.vy, b.vx)).toList()..sort();
+      expect(angles[2], closeTo(a, 1e-9));
+      expect(angles.last - angles.first, closeTo(48 * math.pi / 180, 1e-9));
+    });
+
     test('laser pierces, rockets splash and accelerate', () {
       final w = FakeWorld();
-      assaultWeapon(WeaponKind.laser).fire(w, 0, 0, AimDir.left);
+      assaultWeapon(WeaponKind.laser).fire(w, 0, 0, -1, 0);
       final l = w.bullets.single;
       expect(l.pierce, isTrue);
       expect(l.damage, 1.4);
       expect(l.vx, lessThan(0));
       final w2 = FakeWorld();
-      assaultWeapon(WeaponKind.rockets).fire(w2, 0, 0, AimDir.up);
+      assaultWeapon(WeaponKind.rockets).fire(w2, 0, 0, 0, -1);
       final r = w2.bullets.single as AssaultRocket;
       expect(r.splash, closeTo(1.3, 1e-9));
       expect(r.damage, 3);

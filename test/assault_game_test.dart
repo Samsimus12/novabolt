@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novabolt/arcade/arcade_manager.dart';
 import 'package:novabolt/arcade/assault/assault_controls.dart';
 import 'package:novabolt/arcade/assault/assault_game.dart';
+import 'package:novabolt/arcade/assault/assault_levels.dart';
 import 'package:novabolt/arcade/assault/assault_overlays.dart';
+import 'package:novabolt/arcade/assault/assault_progress.dart';
 import 'package:novabolt/arcade/assault/assault_screen.dart';
 import 'package:novabolt/arcade/assault/assault_types.dart';
 import 'package:novabolt/coins/coin_manager.dart';
@@ -17,8 +19,8 @@ Future<void> run(WidgetTester t, double seconds) async {
   }
 }
 
-Future<AssaultGame> mountGame(WidgetTester t) async {
-  final game = AssaultGame(seed: 1);
+Future<AssaultGame> mountGame(WidgetTester t, {int stage = 0}) async {
+  final game = AssaultGame(seed: 1, stage: stage);
   await t.pumpWidget(MaterialApp(
     home: Scaffold(
       body: GameWidget<AssaultGame>(
@@ -134,6 +136,92 @@ void main() {
     expect(game.isOver, isFalse);
     expect(game.phase.value, AssaultPhase.intro);
     expect(find.text('Play again'), findsNothing);
+    expect(t.takeException(), isNull);
+  });
+
+  test('AssaultProgress: bests only rise, clearing unlocks the next stage', () async {
+    expect(await AssaultProgress.unlocked(stageCount: 3), 0);
+    var r = await AssaultProgress.record(stage: 0, stageCount: 3, percent: 40, score: 12, cleared: false);
+    expect(r.newBestPercent, isTrue);
+    expect(r.newBestScore, isTrue);
+    expect(r.unlockedNext, isFalse);
+    r = await AssaultProgress.record(stage: 0, stageCount: 3, percent: 25, score: 30, cleared: false);
+    expect(r.newBestPercent, isFalse);
+    expect(r.newBestScore, isTrue);
+    expect(await AssaultProgress.bestPercent(0), 40);
+    expect(await AssaultProgress.bestScore(0), 30);
+    r = await AssaultProgress.record(stage: 0, stageCount: 3, percent: 100, score: 20, cleared: true);
+    expect(r.percent, 100);
+    expect(r.unlockedNext, isTrue);
+    expect(await AssaultProgress.unlocked(stageCount: 3), 1);
+    expect(await AssaultProgress.bestPercent(0), 100);
+    // The last stage unlocks nothing; re-clearing doesn't re-announce.
+    r = await AssaultProgress.record(stage: 0, stageCount: 3, percent: 100, score: 5, cleared: true);
+    expect(r.unlockedNext, isFalse);
+    r = await AssaultProgress.record(stage: 2, stageCount: 3, percent: 100, score: 5, cleared: true);
+    expect(r.unlockedNext, isFalse);
+    expect(await AssaultProgress.unlocked(stageCount: 3), 1);
+  });
+
+  testWidgets('a game over shows how far you got and saves it', (t) async {
+    await t.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    final game = await mountGame(t);
+    await run(t, 2.0);
+    game.sim.pilot.x = game.sim.startX + (game.sim.exitX - game.sim.startX) * 0.5;
+    game.sim.pilot.lives = 1;
+    await run(t, 0.2);
+    game.sim.pilot.y = AssaultTuning.levelRows + 5.0;
+    await run(t, 4.0);
+    expect(game.phase.value, AssaultPhase.over);
+    final pct = game.sim.progressPercent;
+    expect(pct, inInclusiveRange(45, 99));
+    expect(find.text('Reached $pct%'), findsOneWidget);
+    expect(find.text('New best'), findsOneWidget);
+    expect(find.text('Next stage'), findsNothing);
+    expect(await AssaultProgress.bestPercent(0), pct);
+    expect(await AssaultProgress.unlocked(stageCount: 3), 0);
+  });
+
+  testWidgets('clearing a stage shows 100% and Next stage; the screen moves on', (t) async {
+    await t.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    await t.pumpWidget(MaterialApp(home: AssaultScreen(seed: 1, stage: 1)));
+    await run(t, 2.0);
+    final game = t.widget<AssaultHud>(find.byType(AssaultHud)).game;
+    expect(game.stage, 1);
+    // Real stages have a boss guarding the exit: count it as beaten first.
+    for (final e in game.sim.enemies) {
+      if (e.kind == 'boss') e.dead = true;
+    }
+    game.sim.pilot.x = game.sim.exitX;
+    game.sim.pilot.y = game.sim.exitY;
+    await run(t, 3.0);
+    expect(game.phase.value, AssaultPhase.cleared);
+    expect(game.sim.progressPercent, 100);
+    expect(find.text('Stage 2 complete'), findsOneWidget);
+    expect(find.text('New best'), findsOneWidget);
+    expect(await AssaultProgress.unlocked(stageCount: assaultLevels.length), 2);
+    await t.tap(find.text('Next stage'));
+    await run(t, 0.6);
+    expect(find.text(assaultLevels[2].name), findsOneWidget);
+    expect(find.text('Stage 3'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('with stage 2 unlocked the screen opens the stage select', (t) async {
+    SharedPreferences.setMockInitialValues({'assault_unlocked': 1, 'assault_best_pct_0': 100, 'assault_best_score_0': 33});
+    await t.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    await t.pumpWidget(const MaterialApp(home: AssaultScreen(seed: 1)));
+    await run(t, 0.5);
+    expect(find.text(assaultLevels[0].name), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+    expect(find.text('Best 33'), findsOneWidget);
+    expect(find.text('Locked'), findsWidgets);
+    await t.tap(find.text(assaultLevels[1].name));
+    await run(t, 0.6);
+    expect(find.text('Stage 2'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 }

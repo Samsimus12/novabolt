@@ -3,8 +3,8 @@
 Arcade game 2. A side-scrolling run-and-gun, our own design and art (genre
 only; no existing game's names, characters, look or levels). Your pilot has
 crash-landed on a hostile planet and fights through on foot to reach the
-ship at the far end of the stage. Portrait phone, one stage to start
-("Crash Site"), 2-4 minutes long.
+ship at the far end of the stage. Portrait phone, several stages
+("Crash Site" first), 2-4 minutes each.
 
 The lead (main session) owns this file and `assault_types.dart`. Anything
 that changes a shared type or contract goes through the lead: ask, don't edit.
@@ -23,7 +23,7 @@ from things off screen. Three hearts per life, three lives, checkpoints.
   the level's full height (levels are `AssaultTuning.levelRows` = 13 tiles
   tall). Whatever height is left under the view is the **control deck**.
 - **Control deck** (bottom): a move stick on the left and a big Jump button
-  on the right, so thumbs never cover the action. Firing is automatic.
+  on the right, so thumbs never cover the action. Firing is continuous.
 - **HUD** over the game view: hearts, lives, score, NOVA shards, current
   weapon, pause.
 
@@ -31,14 +31,54 @@ from things off screen. Three hearts per life, three lives, checkpoints.
 
 Written each frame by the control deck (and by the keyboard in test builds):
 - `moveX` -1..1: run left/right (deadzone 0.2).
-- `moveY` -1..1 (up is -1): aims up/down; holding down on the ground crouches
-  (smaller hit box, aims forward low).
+- `moveY` -1..1 (up is -1): down on the ground (past 0.6 and at least as much
+  as |moveX|) crouches (smaller hit box, can't run); up / down-in-the-air tilt
+  the gun 45 degrees (see below).
 - `jumpHeld`, `jumpPressed` (one-frame edge, the sim clears it).
-- Aim: 8 directions from the stick when it's past the deadzone, otherwise
-  the facing direction. Standing on the ground you can't aim straight down.
-- Auto-fire: the current weapon fires in the aim direction whenever an
-  enemy is inside the view (`AssaultTuning.autoFireRangeTiles`) or the stick
-  is pushed. Silence otherwise, so a quiet stretch stays quiet.
+- **Jump:** variable height (release cuts it), coyote time and a jump buffer.
+  **One extra jump in mid-air** (press Jump again while airborne): about 85%
+  of the ground jump's speed (`doubleJumpFactor`), resets on landing, emits
+  `AssaultEventKind.doubleJump` (art: backpack thruster puff). A coyote-time
+  jump counts as the ground jump; walking off a ledge and pressing late is
+  the mid-air jump.
+- **Continuous fire, no auto-aim:** the gun fires all the time, every
+  `weapon.cooldown` seconds while the pilot is alive and the stage is in play,
+  straight ahead along the facing direction (the last horizontal stick
+  direction). Only two aim helps: holding the stick **up** (`-moveY` past
+  `AssaultTuning.aimStickThreshold`, 0.4, moving or standing) angles the shot
+  45 degrees up-forward; holding **down** while airborne (`moveY` past 0.4)
+  angles it 45 degrees down-forward (on the ground down crouches and the gun
+  stays level). No targeting, no line of sight, no turn rate: the angle
+  changes instantly. `pilot.aimAngle` (radians, y down; also `aimX`/`aimY`) is
+  always the real firing direction, so the art can draw it. `pilot.target`
+  and the targeting tuning no longer exist.
+- Keyboard (test builds): A/D (or arrows) move, S/Down crouch (aim down in
+  the air), **I aim up**, Space/W/Up/K jump.
+
+## Stages, progress and saving
+
+- `assaultLevels` is a list of `AssaultLevelSource(name, rows, {theme,
+  tagline})`, played in order. `AssaultGame(stage: i)` plays one;
+  `AssaultScreen(stage:)` too. With no `stage` (how the arcade opens it) a
+  new player goes straight into stage 1, and once stage 2 is unlocked the
+  stage select (`AssaultStageSelect`) opens first.
+- `sim.progress` (0..1) = the furthest x the pilot has reached from the start
+  to the exit, never decreasing (even after a death), capped just under 1
+  until the stage is cleared, exactly 1 once cleared. `sim.progressPercent` is
+  the whole percent (0..99, 100 when cleared). `game.progress` is a
+  ValueNotifier of it for the HUD.
+- Results: "Reached N%" (game over) or "Stage N complete: 100%", with "New
+  best" when the stored best completion is beaten. Clearing offers **Next
+  stage** (`game.nextStage()`), Play again, Stages (`game.onStages`) and Back.
+- Saved (`assault_progress.dart`, SharedPreferences): `assault_unlocked`
+  (highest unlocked stage index), `assault_best_pct_<i>`,
+  `assault_best_score_<i>`. Clearing stage i unlocks i + 1. `game.record`
+  (an `AssaultStageRecord`) says what the last attempt changed. NOVA is still
+  paid per attempt through `ArcadeManager.finishRound` (score + shards).
+- Level theme: `AssaultLevelSource.theme` (String id, default 'dusk') is
+  passed to `parseAssaultLevel(..., theme:)` and readable as
+  `sim.level.theme` for per-stage art. Stages 2 and 3 in the file are
+  generated PLACEHOLDERS for the designer to replace.
 
 ## World
 
@@ -79,10 +119,10 @@ spawn sits at the tile's bottom centre).
 
 ## Weapons
 
-`blaster` (start, infinite), `spread` (5-way fan), `laser` (piercing beam
+`blaster` (start, infinite), `spread` (5-way fan around the aim vector), `laser` (piercing beam
 bolts), `rockets` (slow, splash damage). A capsule swaps your weapon until
 you lose a life (you drop back to the blaster). Numbers live in
-`assault_weapons.dart`.
+`assault_weapons.dart`. `fire(world, x, y, aimX, aimY)` takes a unit aim vector.
 
 ## Scoring and payout
 

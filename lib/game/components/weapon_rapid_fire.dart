@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
+import '../data/balance.dart';
 import 'weapon.dart';
 import 'weapon_magic_bolt.dart';
 
@@ -12,12 +13,13 @@ class WeaponRapidFire extends Weapon {
   String get displayName => 'Pulse Cannon';
 
   @override
-  String get nextUpgradeDescription => 'Fire rate +20%';
+  String get nextUpgradeDescription =>
+      'Fire rate +${((Balance.upgradeRateStep(upgradeLevel + 1, evolved: evolved) - 1) * 100).round()}%';
 
   @override
   void applyUpgrade() {
     upgradeLevel++;
-    fireRate *= 1.2;
+    fireRate *= Balance.upgradeRateStep(upgradeLevel, evolved: evolved);
   }
 
   @override

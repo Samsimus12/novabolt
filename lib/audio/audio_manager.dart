@@ -31,6 +31,15 @@ class AudioManager {
     'music/starfall_arcade_a.m4a',
     'music/starfall_arcade_b.m4a',
   ];
+  // Arcade mini-games: retro 8-bit / 16-bit tracks made for them (Nov 24,
+  // 2026; see scripts/music_sources.md).
+  static const _arcadeTracks = [
+    'music/coin_slot_rush_a.m4a',
+    'music/coin_slot_rush_b.m4a',
+    'music/pixel_overdrive.m4a',
+    'music/insert_coin_a.m4a',
+    'music/insert_coin_b.m4a',
+  ];
   static const _bossTracks = [
     'music/boss_battle.m4a',
     'music/boss_battle_2.m4a',
@@ -79,11 +88,11 @@ class AudioManager {
     await _crossfadeTo(_pick(_gameTracks));
   }
 
-  /// Arcade games: a random track from the same playlist as a run (never
-  /// the one that just played), like the main game.
+  /// Arcade games: a random retro arcade track (never the one that just
+  /// played), picked the same way as a run's music.
   Future<void> playArcade() async {
     if (!_musicEnabled) return;
-    await _crossfadeTo(_pick(_gameTracks));
+    await _crossfadeTo(_pick(_arcadeTracks));
   }
 
   Future<void> playBoss() async {

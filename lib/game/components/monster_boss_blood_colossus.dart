@@ -42,9 +42,9 @@ class MonsterBossBloodColossus extends BossMonster {
   Color get deathColor => const Color(0xFFBB0000);
 
   // ── Stages ──────────────────────────────────────────────────────────────
-  // 1: four armour plates orbit it; while any plate stands it takes only
-  //    [_armouredDamage] of your damage, so shoot the plates off first.
-  // 2: the armour shatters; it stops every few seconds for a ground slam
+  // 1: four armor plates orbit it; while any plate stands it takes only
+  //    [_armoredDamage] of your damage, so shoot the plates off first.
+  // 2: the armor shatters; it stops every few seconds for a ground slam
   //    (telegraphed zone around it, then a ring of heavy shots).
   // 3 (enraged): charges at you along a telegraphed lane and slams where it
   //    stops.
@@ -54,7 +54,7 @@ class MonsterBossBloodColossus extends BossMonster {
   static const int _plateCount = 4;
   static const double _plateHp = 0.07; // of the boss's max HP, each
   static const double _plateOrbit = 96;
-  static const double _armouredDamage = 0.35;
+  static const double _armoredDamage = 0.35;
   static const double _slamEvery = 4.5, _slamWarn = 1.0, _slamRadius = 130;
   static const int _slamShots = 20;
   static const double _chargeEvery = 3.6, _chargeWarn = 0.8, _chargeSpeed = 520, _chargeOvershoot = 140;
@@ -70,10 +70,10 @@ class MonsterBossBloodColossus extends BossMonster {
   final _chargeDir = Vector2.zero();
 
   @override
-  double get damageTakenMultiplier => stage == 0 && _plates > 0 ? _armouredDamage : 1.0;
+  double get damageTakenMultiplier => stage == 0 && _plates > 0 ? _armoredDamage : 1.0;
 
   @override
-  String stageCaption(int newStage) => newStage == 1 ? 'Armour shattered' : super.stageCaption(newStage);
+  String stageCaption(int newStage) => newStage == 1 ? 'Armor shattered' : super.stageCaption(newStage);
 
   @override
   void updateMovement(double dt) {

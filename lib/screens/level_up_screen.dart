@@ -5,10 +5,13 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../audio/sfx.dart';
+import '../game/data/ability_stats.dart';
 import '../game/data/curses.dart';
+import '../game/data/ship_ability.dart';
 import '../game/data/upgrade_cards.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
+import 'ability_button.dart' show AbilityBadge;
 
 IconData iconForGlyph(CardGlyph g) => switch (g) {
       CardGlyph.laser => PhosphorIconsBold.lightning,
@@ -29,6 +32,7 @@ IconData iconForGlyph(CardGlyph g) => switch (g) {
       CardGlyph.relic => PhosphorIconsFill.diamond,
       CardGlyph.evolve => PhosphorIconsFill.sparkle,
       CardGlyph.curse => PhosphorIconsFill.skull,
+      CardGlyph.ability => PhosphorIconsBold.circleNotch, // unused: ability cards draw an AbilityBadge
     };
 
 Color rarityColor(CardRarity r) => switch (r) {
@@ -38,19 +42,23 @@ Color rarityColor(CardRarity r) => switch (r) {
       CardRarity.legendary => NbColors.gold,
     };
 
-/// How a card presents: accent colour + the short tag in its corner.
+/// How a card presents: accent color + the short tag in its corner.
 ({Color color, String tag}) _styleFor(UpgradeCard card) {
   if (card is CurseCard) return (color: NbColors.flare, tag: 'Curse');
   if (card is SupplyCard) return (color: NbColors.mint, tag: 'Supplies');
   if (card is RelicCard) return (color: NbColors.gold, tag: 'Relic');
   if (card is EvolutionCard) return (color: NbColors.gold, tag: 'Evolution');
   if (card is NewWeaponCard) return (color: NbColors.gold, tag: 'New weapon');
+  if (card is AbilityCard) {
+    return (color: NbColors.starlight, tag: card.isNew ? 'New ability' : 'Ability Lv ${card.fromLevel + 1}');
+  }
   final r = card.rarity;
   final color = switch (card.category) {
     UpgradeCategory.weapon => NbColors.plasma,
     UpgradeCategory.nova => NbColors.ion,
     UpgradeCategory.mobility => NbColors.mint,
     UpgradeCategory.relic => NbColors.gold,
+    UpgradeCategory.ability => NbColors.starlight,
   };
   if (r != CardRarity.common) return (color: color, tag: r.label);
   if (card is WeaponUpgradeCard) return (color: color, tag: 'Upgrade');
@@ -59,6 +67,7 @@ Color rarityColor(CardRarity r) => switch (r) {
     UpgradeCategory.nova => (color: color, tag: 'Nova'),
     UpgradeCategory.mobility => (color: color, tag: 'Thrust'),
     UpgradeCategory.relic => (color: color, tag: 'Relic'),
+    UpgradeCategory.ability => (color: color, tag: 'Ability'),
   };
 }
 
@@ -318,6 +327,35 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
     final lit = _down || _chosen;
 
     Widget? progress;
+    if (card is AbilityCard && !card.isNew) {
+      final lvl = card.fromLevel;
+      progress = Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          children: [
+            NbPips(filled: lvl, total: ShipAbility.maxLevel, color: NbColors.ion, highlight: lvl),
+            const SizedBox(width: 6),
+            Text('Lv $lvl to ${lvl + 1}', style: NbType.caption.copyWith(color: NbColors.haze)),
+          ],
+        ),
+      );
+    } else if (card is AbilityCard) {
+      // New ability: its numbers, and where it goes the very first time.
+      progress = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(AbilityStats.summary(card.ability), style: NbType.caption.copyWith(color: NbColors.haze)),
+          ),
+          if (widget.game.abilities.owned.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('Goes on the button above the left stick.', style: NbType.label.copyWith(color: NbColors.ion)),
+            ),
+        ],
+      );
+    }
     if (card is WeaponUpgradeCard) {
       final lvl = card.weapon.upgradeLevel;
       progress = Padding(
@@ -346,13 +384,16 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
           duration: NbMotion.tap,
           child: NbPanel(
             accent: c,
-            glow: lit || card is CurseCard || card.rarity.index >= CardRarity.epic.index,
+            glow: lit || card is CurseCard || (card is AbilityCard && card.isNew) || card.rarity.index >= CardRarity.epic.index,
             fill: lit ? Color.lerp(NbColors.glassHi, c, 0.12)! : NbColors.glassHi,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _GlyphBadge(icon: iconForGlyph(card.glyph), color: c),
+                if (card is AbilityCard)
+                  AbilityBadge(ability: card.ability, fromLevel: card.fromLevel, lit: lit)
+                else
+                  _GlyphBadge(icon: iconForGlyph(card.glyph), color: c),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -374,7 +415,9 @@ class _UpgradeCardTileState extends State<_UpgradeCardTile> {
                       if (card is CurseCard) ...[
                         Text(card.curse.boon.startsWith('+') ? card.curse.boon : '+ ${card.curse.boon}', style: NbType.body.copyWith(fontSize: 14, color: NbColors.mint)),
                         Text('− ${card.curse.cost}', style: NbType.body.copyWith(fontSize: 14, color: NbColors.flare)),
-                      ] else
+                      ] else if (card is AbilityCard && card.isNew)
+                        Text(card.ability.tagline, style: NbType.body.copyWith(fontSize: 14))
+                      else
                         Text(card.description, style: NbType.body.copyWith(fontSize: 14)),
                       ?progress,
                     ],

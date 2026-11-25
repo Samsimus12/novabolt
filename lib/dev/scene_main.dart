@@ -25,6 +25,7 @@ import '../arcade/assault/assault_screen.dart';
 import '../arcade/cockpit/cockpit_screen.dart';
 import '../arcade/invaders/invaders_screen.dart';
 import '../arcade/shmup/shmup_screen.dart';
+import '../arcade/starport/starport_screen.dart';
 import '../arcade/thread/thread_screen.dart';
 import '../ads/ad_manager.dart';
 import '../audio/audio_manager.dart';
@@ -137,7 +138,7 @@ void main() async {
   }
   // SCENE=arcade (the hub) / thread (Thread the Needle) / assault (Ground
   // Assault); PHASE = seed.
-  if (_scene == 'arcade' || _scene == 'thread' || _scene == 'assault' || _scene == 'invaders' || _scene == 'cockpit' || _scene == 'shmup') {
+  if (_scene == 'arcade' || _scene == 'thread' || _scene == 'assault' || _scene == 'invaders' || _scene == 'cockpit' || _scene == 'shmup' || _scene == 'starport') {
     runApp(MaterialApp(
       builder: materialRoot,
       debugShowCheckedModeBanner: false,
@@ -148,6 +149,7 @@ void main() async {
         'invaders' => InvadersScreen(seed: _phase),
         'cockpit' => CockpitScreen(game: ArcadeGame.cockpit, seed: _phase),
         'shmup' => ShmupScreen(seed: _phase),
+        'starport' => StarportScreen(seed: _phase),
         _ => ThreadScreen(seed: _phase),
       },
     ));

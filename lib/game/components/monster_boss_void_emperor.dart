@@ -86,7 +86,7 @@ class MonsterBossVoidEmperor extends BossMonster {
   double _portalTimer = 0;
 
   @override
-  String get armouredCaption => 'Shielded';
+  String get armoredCaption => 'Shielded';
 
   @override
   double get damageTakenMultiplier => _drones > 0 ? _shieldedTaken : 1.0;

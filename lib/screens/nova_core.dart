@@ -14,8 +14,8 @@ import '../game/novabolt_game.dart';
 import '../game/systems/supercharge_system.dart';
 import '../ui/ui.dart';
 
-/// Colour a Nova mode is shown in on controls. The laser takes the equipped
-/// beam's colour; very dark bolt colours are lifted so they read on glass.
+/// Color a Nova mode is shown in on controls. The laser takes the equipped
+/// beam's color; very dark bolt colors are lifted so they read on glass.
 Color novaDisplayColor(NovaMode m) {
   final c = m == NovaMode.laser ? beamSpecFor(CoinManager.instance.selectedNovaTheme).color : m.color;
   return c.computeLuminance() < 0.12 ? Color.lerp(c, Colors.white, 0.35)! : c;
@@ -214,7 +214,7 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
   }
 
   /// The unlocked mode [step] places away from the armed one (wrapping).
-  NovaMode _neighbour(int step) {
+  NovaMode _neighbor(int step) {
     final u = widget.game.nova.unlocked;
     final i = u.indexOf(widget.game.nova.active);
     return u[(i + step) % u.length];
@@ -258,9 +258,9 @@ class _NovaCoreState extends State<NovaCore> with TickerProviderStateMixin {
           enabled: ready,
           label: ready ? 'Fire Nova' : active ? 'Nova active' : 'Nova charging',
           value: mode.displayName,
-          // Screen readers need the neighbouring values for increase/decrease.
-          increasedValue: multi ? _neighbour(1).displayName : null,
-          decreasedValue: multi ? _neighbour(-1).displayName : null,
+          // Screen readers need the neighboring values for increase/decrease.
+          increasedValue: multi ? _neighbor(1).displayName : null,
+          decreasedValue: multi ? _neighbor(-1).displayName : null,
           hint: multi ? 'Swipe or hold to change Nova attack' : null,
           onIncrease: multi ? () => game.nova.cycle(1) : null,
           onDecrease: multi ? () => game.nova.cycle(-1) : null,
@@ -597,7 +597,7 @@ class _CorePainter extends CustomPainter {
       Glow.draw(canvas, c, 46 * breathe, modeColor.withValues(alpha: 0.55));
     }
 
-    // Core disc, lit in the armed mode's colour.
+    // Core disc, lit in the armed mode's color.
     canvas.drawCircle(
       c,
       r - 6,

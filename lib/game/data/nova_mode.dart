@@ -18,7 +18,7 @@ enum NovaMode {
   String get displayName => switch (this) {
         NovaMode.laser          => 'Laser Beam',
         NovaMode.dreadnought    => 'Orbital Strike',
-        NovaMode.voidTyrant     => 'Void Well',
+        NovaMode.voidTyrant     => 'Void Mines',
         NovaMode.leviathan      => 'Leviathan Wave',
         NovaMode.bloodColossus  => 'Blood Barrage',
         NovaMode.stormPhantom   => 'Chain Lightning',
@@ -32,7 +32,7 @@ enum NovaMode {
   String get inheritTitle => switch (this) {
         NovaMode.laser          => 'Standard Nova',
         NovaMode.dreadnought    => 'Inherit ORBITAL STRIKE',
-        NovaMode.voidTyrant     => 'Inherit VOID WELL',
+        NovaMode.voidTyrant     => 'Inherit VOID MINES',
         NovaMode.leviathan      => 'Inherit LEVIATHAN WAVE',
         NovaMode.bloodColossus  => 'Inherit BLOOD BARRAGE',
         NovaMode.stormPhantom   => 'Inherit CHAIN LIGHTNING',
@@ -46,7 +46,7 @@ enum NovaMode {
   String get inheritDescription => switch (this) {
         NovaMode.laser          => 'Forward laser beam',
         NovaMode.dreadnought    => 'Calls strikes down on enemies across the screen',
-        NovaMode.voidTyrant     => 'A well ahead of you drags enemies in and crushes them',
+        NovaMode.voidTyrant     => 'Scatters void mines around your ship that blast anything that gets close',
         NovaMode.leviathan      => 'Shockwave rings roll out, hitting and shoving everything',
         NovaMode.bloodColossus  => 'Fires waves of 24 crimson bolts in all directions',
         NovaMode.stormPhantom   => 'Lightning arcs from enemy to enemy',
@@ -54,7 +54,40 @@ enum NovaMode {
         NovaMode.shadowReaper   => 'Slows every enemy to a crawl; your hits deal +35%',
         NovaMode.solarTitan     => 'Four sun beams sweep around your ship',
         NovaMode.voidEmperor    => 'Launches a swarm of homing missiles',
-        NovaMode.singularity    => 'Screen-wide pulses damage and slow everything',
+        NovaMode.singularity    => 'A ring of collapsed space orbits you, erasing shots and shredding anything it touches',
+      };
+
+  /// Balance (see test/nova_balance_test.dart): how long this beam lasts relative
+  /// to the standard 5 s, and how fast the bar fills while it is the armed mode.
+  /// Strong beams get a shorter run and/or a slower recharge, weak ones the
+  /// opposite, so a full Nova is worth roughly the same damage tier by tier
+  /// (+4% per boss). Tuned with the benchmark; change both together.
+  double get durationScale => switch (this) {
+        NovaMode.laser          => 1.0,
+        NovaMode.dreadnought    => 0.68,
+        NovaMode.voidTyrant     => 0.5,
+        NovaMode.leviathan      => 0.5,
+        NovaMode.bloodColossus  => 1.08,
+        NovaMode.stormPhantom   => 0.77,
+        NovaMode.cosmicBehemoth => 0.5,
+        NovaMode.shadowReaper   => 1.6,
+        NovaMode.solarTitan     => 1.41,
+        NovaMode.voidEmperor    => 1.6,
+        NovaMode.singularity    => 0.79,
+      };
+
+  double get chargeScale => switch (this) {
+        NovaMode.laser          => 1.0,
+        NovaMode.dreadnought    => 1.0,
+        NovaMode.voidTyrant     => 0.74,
+        NovaMode.leviathan      => 0.58,
+        NovaMode.bloodColossus  => 1.0,
+        NovaMode.stormPhantom   => 1.0,
+        NovaMode.cosmicBehemoth => 0.36,
+        NovaMode.shadowReaper   => 1.6,
+        NovaMode.solarTitan     => 1.0,
+        NovaMode.voidEmperor    => 2.0,
+        NovaMode.singularity    => 1.0,
       };
 
   /// Radial bolts per burst. 0 for the laser.
@@ -87,7 +120,7 @@ enum NovaMode {
         NovaMode.singularity    => 8.0,
       };
 
-  /// Bolt colour. The laser's colour comes from the equipped beam cosmetic.
+  /// Bolt color. The laser's color comes from the equipped beam cosmetic.
   Color get color => switch (this) {
         NovaMode.laser          => const Color(0xFF4DE8FF),
         NovaMode.dreadnought    => const Color(0xFFFFDD00),

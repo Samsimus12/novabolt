@@ -9,33 +9,39 @@ import 'assault_art.dart';
 import 'assault_game.dart';
 import 'assault_types.dart';
 
-/// Ground Assault's control deck (the designer's file). The contract with
-/// [AssaultGame]:
+/// Ground Assault's control deck. Twin-stick; the contract with [AssaultGame]:
 ///   * [AssaultControls] is an always-on overlay. It paints ONLY inside the
 ///     deck (`game.deckRect`: the bottom strip under the game view) and
 ///     leaves the rest of the screen untouchable so touches reach the HUD.
-///   * It writes `game.sim.input` directly: the move stick sets `moveX` /
-///     `moveY` in -1..1 (up is -1, raw; the sim applies the deadzone). The
-///     stick moves (and crouches when pushed down on the ground); the gun
-///     fires continuously straight ahead, tilting 45 degrees up when the
-///     stick is held up and 45 down when held down in the air
-///     (`pilot.aimAngle`). Jump sets
-///     `jumpHeld = true` and `jumpPressed = true` on press and
-///     `jumpHeld = false` on release/cancel; a second press in the air is
-///     the double jump. Only once `game.isLoaded`.
-///   * Multi-touch: the stick and Jump each use their own pointer Listener.
+///   * It writes `game.sim.input` directly:
+///       - LEFT half, the move stick: `moveX` / `moveY` in -1..1 (up is -1,
+///         raw; the sim applies the deadzone). Left/right runs, down on the
+///         ground crouches, and pushing it firmly UP past
+///         `AssaultTuning.stickJumpThreshold` (0.6) is a jump (the sim takes
+///         the edge, holding it up keeps the jump high, a second push in the
+///         air is the double jump).
+///       - RIGHT half, the aim stick: `aimX` / `aimY` (-1..1, y down, the
+///         thumb offset over the dial's travel) and `aimActive = true` while
+///         held. The gun fires continuously along it at any angle (the sim
+///         applies `AssaultTuning.aimDeadzone`); on release `aimActive` goes
+///         false and the gun keeps its last angle (`pilot.aimAngle`).
+///       - A small Jump button (top of the right half, clear of the aim
+///         thumb) sets `jumpHeld = true` and `jumpPressed = true` on press and
+///         `jumpHeld = false` on release/cancel, for people who prefer it.
+///     Only once `game.isLoaded`.
+///   * Multi-touch: the move stick, aim stick and Jump each use their own
+///     pointer, so all three work at once.
 ///   * Listens to `game.inputReset` and drops any held state when it changes.
 ///
 /// Look: a smoked-glass console under the view with a hairline top edge and
 /// an ion bezel light. Top strip: the weapon chip (glyph, name, a mint
 /// light while the gun is firing). Left half: the move dial, an instrument
-/// ring with a left and a right chevron (the one you're running toward
-/// lights ion), an up chevron (gun tilted up) and a down chevron (crouching,
-/// or gun tilted down in the air); it rests
-/// in the middle of the left half and jumps to wherever the thumb lands.
-/// Right half: the Jump octagon (ion rim, double chevrons = jump, then jump
-/// again in the air); the whole half is its touch zone. Sizes scale with the
-/// deck so small phones fit.
+/// ring with chevrons (the way you run lights ion, the up chevron lights when
+/// the push is a jump, the down chevron while crouching); it rests in the
+/// middle of the left half and jumps to wherever the thumb lands. Right half:
+/// the aim dial (ion crosshair ring, a line from the center to the knob while
+/// aiming), likewise floating, plus the small Jump octagon in its top corner.
+/// Sizes scale with the deck so small phones fit.
 class AssaultControls extends StatelessWidget {
   final AssaultGame game;
   const AssaultControls({super.key, required this.game});
@@ -68,11 +74,14 @@ class _Deck extends StatefulWidget {
 
 class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
   int? _stickPointer;
-  Offset? _stickOrigin; // where the thumb went down (the dial's centre)
+  Offset? _stickOrigin; // where the thumb went down (the dial's center)
   Offset _stickKnob = Offset.zero; // thumb offset from origin, clamped to radius
   double _radius = 60;
   int? _jumpPointer;
-  int _jumps = 0; // presses this session: the double-jump hint shows until the second
+  int? _aimPointer;
+  Offset? _aimOrigin;
+  Offset _aimKnob = Offset.zero;
+  double _aimRadius = 60;
 
   // Auto-fire light: on while the player's shots are in the air.
   late final Ticker _ticker;
@@ -106,6 +115,44 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
       _stickOrigin = null;
       _stickKnob = Offset.zero;
       _jumpPointer = null;
+      _aimPointer = null;
+      _aimOrigin = null;
+      _aimKnob = Offset.zero;
+    });
+  }
+
+  void _aimDown(PointerDownEvent e) {
+    if (_aimPointer != null) return;
+    setState(() {
+      _aimPointer = e.pointer;
+      _aimOrigin = e.localPosition;
+      _aimKnob = Offset.zero;
+    });
+  }
+
+  void _aimMove(PointerMoveEvent e) {
+    if (e.pointer != _aimPointer || _aimOrigin == null) return;
+    final travel = _aimRadius * 0.72;
+    var d = e.localPosition - _aimOrigin!;
+    if (d.distance > travel) d = d / d.distance * travel;
+    setState(() => _aimKnob = d);
+    _input
+      ?..aimX = d.dx / travel
+      ..aimY = d.dy / travel
+      ..aimActive = true;
+  }
+
+  void _aimUp(PointerEvent e) {
+    if (e.pointer != _aimPointer) return;
+    // The gun keeps its last angle (the sim holds it).
+    _input
+      ?..aimActive = false
+      ..aimX = 0
+      ..aimY = 0;
+    setState(() {
+      _aimPointer = null;
+      _aimOrigin = null;
+      _aimKnob = Offset.zero;
     });
   }
 
@@ -153,7 +200,6 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
     SfxManager.instance.tap();
     setState(() {
       _jumpPointer = e.pointer;
-      _jumps++;
     });
   }
 
@@ -171,20 +217,26 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
         final bottomInset = MediaQuery.of(context).padding.bottom;
         final strip = math.min(54.0, h * 0.18); // weapon strip at the top
         final usable = h - strip - bottomInset * 0.6;
-        _radius = (math.min(w / 4 - 14, usable * 0.4)).clamp(34.0, 74.0);
-        final jumpR = (math.min(w / 4 - 18, usable * 0.4)).clamp(34.0, 72.0);
-        final midY = strip + usable / 2;
+        const cap = 26.0; // room under each dial for its caption
+        _radius = (math.min(w / 4 - 14, (usable - cap) * 0.4)).clamp(30.0, 74.0);
+        // The small Jump button sits in the top corner of the right half; the
+        // aim dial rests below it so the aim thumb never covers it.
+        final jumpR = (usable * 0.15).clamp(22.0, 32.0);
+        final jumpC = Offset(w - jumpR - 14, strip + jumpR + 2);
+        final aimTop = jumpC.dy + jumpR + 6;
+        final aimUsable = h - bottomInset * 0.6 - aimTop - cap;
+        _aimRadius = (math.min(w / 4 - 14, aimUsable * 0.46)).clamp(30.0, 74.0);
+        final midY = strip + (usable - cap) / 2;
         final home = Offset(w / 4, midY);
         final origin = _stickOrigin ?? home;
-        // Which way the stick is driving (matches the sim's deadzone/crouch rule).
+        final aimHome = Offset(w * 0.75, aimTop + aimUsable / 2);
+        final aimOrigin = _aimOrigin ?? aimHome;
+        // Which way the move stick is driving (matches the sim's rules).
         final kx = _stickPointer == null ? 0.0 : _stickKnob.dx / (_radius * 0.72);
         final ky = _stickPointer == null ? 0.0 : _stickKnob.dy / (_radius * 0.72);
         final crouch = ky > 0.6 && ky >= kx.abs();
         final dir = crouch || kx.abs() < AssaultTuning.stickDeadzone ? 0 : (kx > 0 ? 1 : -1);
-        // Up tilts the gun 45 degrees up; down crouches on the ground and
-        // tilts the gun 45 degrees down in the air.
-        final aimUp = ky < -AssaultTuning.aimStickThreshold;
-        final aimDown = ky > AssaultTuning.aimStickThreshold;
+        final jumpPush = ky < -AssaultTuning.stickJumpThreshold;
 
         return Stack(
           children: [
@@ -228,8 +280,8 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
                     knob: _stickKnob,
                     active: _stickPointer != null,
                     dir: dir,
-                    up: aimUp,
-                    down: aimDown || crouch,
+                    up: jumpPush,
+                    down: crouch,
                   ),
                 ),
               ),
@@ -242,11 +294,11 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
                 child: AnimatedOpacity(
                   opacity: _stickPointer == null ? 1 : 0,
                   duration: NbMotion.quick,
-                  child: const Text('Up to aim up, down to crouch', style: NbType.caption, textAlign: TextAlign.center),
+                  child: const Text('Up jumps, down crouches', style: NbType.caption, textAlign: TextAlign.center),
                 ),
               ),
             ),
-            // Right half: Jump. The whole half is the touch zone.
+            // Right half: aim. The whole half is the touch zone.
             Positioned(
               left: w / 2,
               top: 0,
@@ -254,25 +306,44 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
               bottom: 0,
               child: Listener(
                 behavior: HitTestBehavior.opaque,
-                onPointerDown: _jumpDown,
-                onPointerUp: _jumpUp,
-                onPointerCancel: _jumpUp,
-                child: Align(
-                  alignment: Alignment(0, (midY / h) * 2 - 1),
-                  child: _JumpButton(radius: jumpR, down: _jumpPointer != null),
+                onPointerDown: _aimDown,
+                onPointerMove: _aimMove,
+                onPointerUp: _aimUp,
+                onPointerCancel: _aimUp,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _AimPainter(center: aimOrigin, radius: _aimRadius, knob: _aimKnob, active: _aimPointer != null),
                 ),
               ),
             ),
             Positioned(
               left: w / 2,
-              right: 0,
-              top: midY + jumpR + 8,
+              width: w / 2,
+              top: aimOrigin.dy + _aimRadius + 8,
               child: IgnorePointer(
                 child: AnimatedOpacity(
-                  opacity: _jumps < 2 ? 1 : 0,
-                  duration: NbMotion.enter,
-                  child: const Text('Tap again in the air to jump higher', style: NbType.caption, textAlign: TextAlign.center),
+                  opacity: _aimPointer == null ? 1 : 0,
+                  duration: NbMotion.quick,
+                  child: const Text('Drag to aim', style: NbType.caption, textAlign: TextAlign.center),
                 ),
+              ),
+            ),
+            // Jump (small, on top of the aim zone so it takes its own touches).
+            Positioned(
+              left: jumpC.dx - jumpR - 6,
+              top: jumpC.dy - jumpR - 6,
+              width: jumpR * 2 + 12,
+              height: jumpR * 2 + 12,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _jumpDown,
+                onPointerUp: _jumpUp,
+                onPointerCancel: _jumpUp,
+                child: Center(child: _JumpButton(radius: jumpR, down: _jumpPointer != null)),
               ),
             ),
           ],
@@ -309,7 +380,7 @@ class _ConsolePainter extends CustomPainter {
     for (var x = 7.0; x < s.width; x += 14) {
       canvas.drawLine(Offset(x, 6), Offset(x, 10), rib);
     }
-    // A centre seam between the two thumb zones.
+    // A center seam between the two thumb zones.
     canvas.drawLine(
       Offset(s.width / 2, s.height * 0.3),
       Offset(s.width / 2, s.height * 0.8),
@@ -327,9 +398,9 @@ class _ConsolePainter extends CustomPainter {
 }
 
 /// The move dial: instrument ring, a left and a right chevron (the way
-/// you're running lights ion), an up chevron (lit while the gun tilts up), a
-/// down chevron (lit while crouching or tilting the gun down in the air),
-/// and the knob under the thumb. Firing is automatic, straight ahead.
+/// you're running lights ion), an up chevron (lit while the push is firm
+/// enough to jump), a down chevron (lit while crouching), and the knob under
+/// the thumb. Firing is automatic along the aim stick.
 class _DialPainter extends CustomPainter {
   final Offset center;
   final double radius;
@@ -418,6 +489,70 @@ class _DialPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DialPainter old) =>
       old.center != center || old.knob != knob || old.active != active || old.dir != dir || old.up != up || old.down != down || old.radius != radius;
+}
+
+/// The aim dial: a ring with a crosshair, a line from the center to the knob
+/// while aiming (the gun's direction), and the knob under the thumb.
+class _AimPainter extends CustomPainter {
+  final Offset center;
+  final double radius;
+  final Offset knob;
+  final bool active;
+  _AimPainter({required this.center, required this.radius, required this.knob, required this.active});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = center, r = radius;
+    canvas.drawCircle(c, r, Paint()..color = NbColors.glass.withValues(alpha: active ? 0.8 : 0.55));
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = (active ? NbColors.ion : NbColors.starlight).withValues(alpha: active ? 0.6 : 0.22),
+    );
+    final tick = Paint()
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = NbColors.starlight.withValues(alpha: 0.28);
+    for (var i = 0; i < 8; i++) {
+      final a = i * math.pi / 4;
+      final d = Offset(math.cos(a), math.sin(a));
+      canvas.drawLine(c + d * (r * (i.isEven ? 0.72 : 0.82)), c + d * (r * 0.94), tick);
+    }
+    canvas.drawCircle(c, 2.5, Paint()..color = NbColors.starlight.withValues(alpha: 0.4));
+    final k = c + knob;
+    if (active && knob.distance > 2) {
+      canvas.drawLine(
+        c,
+        k,
+        Paint()
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = NbColors.ion.withValues(alpha: 0.75),
+      );
+    }
+    final kr = r * 0.36;
+    canvas.drawCircle(k.translate(0, 2), kr, Paint()..color = const Color(0x66000000));
+    canvas.drawCircle(
+      k,
+      kr,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.3, -0.4),
+          colors: [Colors.white, active ? const Color(0xFFCFF8FF) : const Color(0xFFC9CFEA)],
+        ).createShader(Rect.fromCircle(center: k, radius: kr)),
+    );
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = active ? NbColors.ion : NbColors.dim;
+    canvas.drawCircle(k, kr * 0.5, ring);
+  }
+
+  @override
+  bool shouldRepaint(_AimPainter old) => old.center != center || old.knob != knob || old.active != active || old.radius != radius;
 }
 
 class _JumpButton extends StatelessWidget {

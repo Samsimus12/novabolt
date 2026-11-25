@@ -33,7 +33,7 @@ enum EnemyKind {
   /// spreads. 6 hits, 3 points.
   gunship,
 
-  /// Slow armoured carrier that drops a power-up when destroyed. 14 hits,
+  /// Slow armored carrier that drops a power-up when destroyed. 14 hits,
   /// 5 points.
   carrier,
 
@@ -203,7 +203,7 @@ class ShmupSpawn {
   });
 
   /// A line of [count] drones flying the same sine path, [spacing] units
-  /// apart. [y] is the path's centre, [amp] its swing (fractions of height).
+  /// apart. [y] is the path's center, [amp] its swing (fractions of height).
   factory ShmupSpawn.squad(
     double at,
     double y, {

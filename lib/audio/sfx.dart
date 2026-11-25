@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Every sound effect. Files live in `assets/sfx/`, imported from Sam's
-/// licensed library by `scripts/import_sfx.py` (sources and licences in
+/// licensed library by `scripts/import_sfx.py` (sources and licenses in
 /// `scripts/sfx_sources.md`). The files are loudness-matched, so [volume]
 /// here is the real mix level.
 enum Sfx {

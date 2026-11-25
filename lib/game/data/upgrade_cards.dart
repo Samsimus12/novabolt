@@ -11,11 +11,13 @@ import '../components/weapon_rapid_fire.dart';
 import '../components/weapon_spread_shot.dart';
 import '../components/weapon_sword_aura.dart';
 import '../novabolt_game.dart';
+import 'ability_stats.dart';
 import 'balance.dart';
 import 'curses.dart';
 import 'relics.dart';
+import 'ship_ability.dart';
 
-enum UpgradeCategory { weapon, nova, mobility, relic }
+enum UpgradeCategory { weapon, nova, mobility, relic, ability }
 
 /// Card rarity scales a stat card's numbers. Rolled per card; boss rewards
 /// roll better. Weapon upgrade cards above common also add bonus damage.
@@ -46,7 +48,7 @@ enum CardRarity {
 enum CardGlyph {
   laser, scatter, pulse, homing, field, rocket, emp,
   targeting, overcharge, novaCharge, novaDuration, novaDamage,
-  afterburner, hull, repair, relic, evolve, curse,
+  afterburner, hull, repair, relic, evolve, curse, ability,
 }
 
 CardGlyph glyphForWeapon(Weapon w) => switch (w) {
@@ -170,6 +172,72 @@ class RelicCard extends UpgradeCard {
   UpgradeCategory get category => UpgradeCategory.relic;
   @override
   void apply(NovaboltGame game) => game.addRelic(relic);
+}
+
+/// A ship ability: a new one (fromLevel 0) or the next level of one owned.
+/// The level-up screen tells them apart by [fromLevel].
+class AbilityCard extends UpgradeCard {
+  final ShipAbility ability;
+  final int fromLevel;
+  AbilityCard(this.ability, {this.fromLevel = 0});
+
+  bool get isNew => fromLevel == 0;
+
+  /// The level-up line ("Cooldown 18 s to 16.5 s"); empty for a new ability.
+  String get change => AbilityStats.change(ability, fromLevel);
+
+  @override
+  CardRarity get rarity => isNew ? CardRarity.rare : CardRarity.common;
+  @override
+  String get title => ability.displayName;
+  @override
+  String get description => isNew ? '${ability.tagline} ${AbilityStats.summary(ability)}' : change;
+  @override
+  CardGlyph get glyph => CardGlyph.ability;
+  @override
+  UpgradeCategory get category => UpgradeCategory.ability;
+  @override
+  void apply(NovaboltGame game) {
+    final lv = game.abilities.take(ability);
+    game.announce(isNew ? '${ability.displayName} ready' : '${ability.displayName} Lv$lv', color: const Color(0xFF4DE8FF));
+  }
+}
+
+/// Ability cards that could be offered now: every ability not yet owned (up
+/// to all five) and every owned one below the max level.
+List<AbilityCard> abilityCandidates(NovaboltGame game) {
+  final a = game.abilities;
+  return [
+    for (final x in ShipAbility.values)
+      if (a.levelOf(x) < ShipAbility.maxLevel) AbilityCard(x, fromLevel: a.levelOf(x)),
+  ];
+}
+
+/// Puts an ability card into [offer], replacing an ordinary pick (never an
+/// evolution, curse or another ability). While the ship owns nothing the first
+/// offer always carries Dash; after that a card appears with
+/// [AbilityStats.offerChance]. Boss rewards (relic chests) are left alone.
+void maybeOfferAbility(NovaboltGame game, List<UpgradeCard> offer, math.Random rng) {
+  if (game.isBossReward) return;
+  final cands = abilityCandidates(game);
+  if (cands.isEmpty || offer.any((c) => c is AbilityCard)) return;
+  AbilityCard? card;
+  if (game.abilities.owned.isEmpty && !game.abilityDashOffered) {
+    card = cands.firstWhere((c) => c.ability == ShipAbility.dash);
+    game.abilityDashOffered = true;
+  } else if (rng.nextDouble() < AbilityStats.offerChance) {
+    card = cands[rng.nextInt(cands.length)];
+  }
+  if (card == null) return;
+  final replaceable = [
+    for (var i = 0; i < offer.length; i++)
+      if (offer[i] is! EvolutionCard && offer[i] is! CurseCard) i,
+  ];
+  if (replaceable.isEmpty) {
+    offer.add(card);
+  } else {
+    offer[replaceable[rng.nextInt(replaceable.length)]] = card;
+  }
 }
 
 /// Fuses a weapon into a stronger form once its recipe is met.
@@ -499,6 +567,7 @@ List<UpgradeCard> generateUpgradeCards(NovaboltGame game) {
 
   final offer = picks.take(3).toList();
   maybeOfferCurse(game, offer, rng);
+  maybeOfferAbility(game, offer, rng);
   return offer;
 }
 

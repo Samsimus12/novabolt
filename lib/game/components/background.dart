@@ -13,7 +13,7 @@ class _PhaseLook {
   final Color skyTop;
   final Color skyBottom;
   /// Nebula blobs: (x, y) as fractions of the screen, radius as a fraction of
-  /// the width, colour, peak alpha.
+  /// the width, color, peak alpha.
   final List<(double, double, double, Color, double)> blobs;
   final List<Color> starTints;
   final double density;
@@ -311,7 +311,7 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
           c.drawCircle(Offset(x, y), r.nextDouble() * 0.9 + 0.3, p);
         }
         c.restore();
-      case 9: // Gravitational lens around an unseen centre.
+      case 9: // Gravitational lens around an unseen center.
         final lc = Offset(w / 2, h * 0.35);
         final ring = Paint()
           ..style = PaintingStyle.stroke
@@ -382,7 +382,7 @@ class StarBackground extends Component with HasGameReference<NovaboltGame> {
     final sky = _sky;
     if (sky != null) canvas.drawImage(sky, const Offset(-_overscan, -_overscan), Paint());
 
-    // Parallax: layers shift against the ship's offset from centre.
+    // Parallax: layers shift against the ship's offset from center.
     final p = game.player.isLoaded ? game.player.position : sz / 2;
     final px = p.x - sz.x / 2;
     final py = p.y - sz.y / 2;

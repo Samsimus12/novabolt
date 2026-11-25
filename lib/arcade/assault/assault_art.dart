@@ -41,9 +41,9 @@ import 'assault_weapons.dart';
 ///     skyline layers (the near one with a few warm windows), slate concrete
 ///     with moonlit edges and dark windows in thick blocks, steel girder
 ///     ledges, barbed-wire spikes.
-/// All of it is baked or cached per size and theme. Colour keeps the app's meanings: flare = what hurts you, ion =
+/// All of it is baked or cached per size and theme. Color keeps the app's meanings: flare = what hurts you, ion =
 /// you, gold = NOVA, plasma = upgrades. The pilot wears the equipped ship's
-/// colours; the exit is the equipped ship; explosions use the equipped
+/// colors; the exit is the equipped ship; explosions use the equipped
 /// explosion style. Characters are drawn in a 40-units-per-tile design space.
 class AssaultArt extends Component {
   AssaultSim sim;
@@ -131,7 +131,7 @@ class AssaultArt extends Component {
       case AssaultEventKind.jump:
         _dust(x, y, 5);
       case AssaultEventKind.doubleJump:
-        // Backpack thruster burst: a flare of the thruster colour downward,
+        // Backpack thruster burst: a flare of the thruster color downward,
         // a ring under the feet, and the flame on the pilot (see [_boost]).
         _boost = 1;
         final eng = _thruster.color ?? _palette.engine;
@@ -1027,7 +1027,7 @@ class AssaultArt extends Component {
           _paintFlyer(canvas, Offset(x, _sy(e.centerY)), t, facing, anim, state, tele, flash);
         case 'boss':
           final b = e is AssaultBoss ? e : null;
-          // Hit constantly, so a softer flash keeps its colours readable.
+          // Hit constantly, so a softer flash keeps its colors readable.
           _paintWarden(canvas, foot, t, facing, anim, state, tele, flash * 0.5, b?.phase ?? 1, e.hp / e.maxHp);
       }
     }
@@ -1288,7 +1288,7 @@ class AssaultArt extends Component {
       ..lineTo(-40, 4)
       ..close();
     _rimmed(canvas, torso, _shell, flash, 2);
-    // armour plates
+    // armor plates
     _fill.color = _lit(_shellLit, flash);
     final plates = [
       Path()
@@ -1406,7 +1406,7 @@ class AssaultArt extends Component {
     );
   }
 
-  /// The pilot in the equipped ship's colours: helmet with an ion visor,
+  /// The pilot in the equipped ship's colors: helmet with an ion visor,
   /// backpack thruster (flame while rising, a burst on the double jump), a
   /// gun arm along the aim (always forward: straight, 45 up or 45 down).
   /// The whole body faces [facing]. Shared with the hub.
@@ -1713,7 +1713,7 @@ class AssaultArt extends Component {
   static final _previewSky = <String, Image>{};
   static final _previewRidge = <String, Picture>{};
 
-  /// The stage's accent colour for cards and the stage select: the light
+  /// The stage's accent color for cards and the stage select: the light
   /// of that place (sunset sand, crystal rose, moonlight).
   static Color themeAccent(String theme) => switch (theme) {
     'caverns' => const Color(0xFFFF9AE0),

@@ -9,7 +9,7 @@ const _spawnChars = {'P', 'K', 'E', '*', 'S', 'L', 'R', 'g', 'r', 't', 'f', 'B'}
 /// Parses [rows] (exactly [AssaultTuning.levelRows], all the same length) into
 /// an [AssaultLevel]. Throws [ArgumentError] when the layout is invalid.
 /// Spawns are returned in level order (left to right, then top to bottom) and
-/// sit at the tile's bottom centre (x = col + 0.5, y = row + 1).
+/// sit at the tile's bottom center (x = col + 0.5, y = row + 1).
 AssaultLevel parseAssaultLevel(String name, List<String> rows, {String theme = 'dusk'}) {
   if (rows.length != AssaultTuning.levelRows) {
     throw ArgumentError('Level "$name" must have exactly ${AssaultTuning.levelRows} rows, got ${rows.length}');

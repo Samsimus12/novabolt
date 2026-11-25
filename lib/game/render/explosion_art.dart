@@ -5,7 +5,7 @@ import 'dart:ui';
 import '../../cosmetics/catalog.dart';
 import '../fx/glow.dart';
 
-/// One explosion's randomised particles plus how to draw them at time t.
+/// One explosion's randomized particles plus how to draw them at time t.
 /// Used by the in-game DeathParticles component and the shop preview.
 ///
 /// Everything is additive and batched: sparks are one `drawRawPoints` call,

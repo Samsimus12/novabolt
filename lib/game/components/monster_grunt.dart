@@ -62,7 +62,7 @@ class MonsterGrunt extends Monster {
     renderFlash(canvas);
   }
 
-  // Phases 0, 3-9 — same jagged shape with per-phase colour scheme.
+  // Phases 0, 3-9 — same jagged shape with per-phase color scheme.
   static const _themeBody = [
     Color(0xFF7A6652), Color(0xFF546E7A), Color(0xFF0D0020), // 0-2 (2 unused here)
     Color(0xFF3D0000), Color(0xFF1A0033), Color(0xFF001A33), // 3-5

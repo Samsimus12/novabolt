@@ -6,7 +6,7 @@ import 'dart:math' as math;
 ///
 /// COORDINATES: the field is [width] = 100 units wide (the screen width) and
 /// [height] units tall (the screen's aspect: 100 * h / w, so a 390x844 phone
-/// is 100 x 216). y grows downward. Everything is a centre point plus half
+/// is 100 x 216). y grows downward. Everything is a center point plus half
 /// sizes. The game scales units to pixels with one factor (screen width/100).
 ///
 /// FLOW: [phase] is ready (waiting for the first touch), playing, over. The
@@ -158,7 +158,7 @@ enum InvadersEventKind {
   /// Game over (x, y = ship; value = 1 if the swarm landed, else 0).
   gameOver,
 
-  /// An armoured alien took a hit and survived (x, y, `alien`).
+  /// An armored alien took a hit and survived (x, y, `alien`).
   alienHit,
 
   /// A shot was absorbed by a shield-bearer's cover (x, y = the alien hit).
@@ -207,7 +207,7 @@ class Alien {
   final int row, col;
   final AlienKind kind;
   bool alive = true;
-  double x = 0, y = 0; // centre, kept in sync by the sim
+  double x = 0, y = 0; // center, kept in sync by the sim
 
   /// Walk-cycle frame (0/1), flips on every march step.
   int frame = 0;
@@ -339,7 +339,7 @@ class Bunker {
         // Rounded top corners.
         if (r == 0 && (c < 2 || c >= cols - 2)) on = false;
         if (r == 1 && (c < 1 || c >= cols - 1)) on = false;
-        // Arch: 4 wide, 3 tall, bottom centre.
+        // Arch: 4 wide, 3 tall, bottom center.
         if (r >= rows - 3 && c >= 4 && c < 8 && !(r == rows - 3 && (c == 4 || c == 7))) on = false;
         cells[r * cols + c] = on;
       }
@@ -1275,7 +1275,7 @@ class InvadersSim {
   }
 
   /// Chips [b] if the box overlaps a live cell. The cell nearest the shot's
-  /// leading edge goes, plus a few neighbours so the damage reads.
+  /// leading edge goes, plus a few neighbors so the damage reads.
   bool _chipBunker(Bunker b, double cx, double cy, double hw, double hh, {required bool fromBelow}) {
     if (cx + hw < b.left || cx - hw > b.left + b.width) return false;
     if (cy + hh < b.top || cy - hh > b.top + b.height) return false;

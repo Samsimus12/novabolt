@@ -69,7 +69,7 @@ class CoinManager {
     return true;
   }
 
-  /// Equip an owned item. [item] must come from the catalogue.
+  /// Equip an owned item. [item] must come from the catalog.
   Future<void> select(Cosmetic item) async {
     if (!_owned.contains(item.ownId)) return;
     _selected[item.kind] = item.id;

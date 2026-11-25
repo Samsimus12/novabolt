@@ -72,7 +72,7 @@ enum ShmupEventKind {
   /// The boss changed phase (value = new phase 2 or 3).
   bossPhase,
 
-  /// A bullet bounced off the boss's armour.
+  /// A bullet bounced off the boss's armor.
   deflect,
 
   /// The mid-boss is down.
@@ -220,8 +220,9 @@ class BossPart {
   bool get alive => hp > 0;
 }
 
-/// The stage boss: an armoured hull ([shellR], bullets bounce off) carrying
-/// two cannons; with both gone the core is exposed. Phases: 1 cannons, 2 core,
+/// The stage boss: an armored hull ([shellR], bullets bounce off) carrying
+/// two cannons; with both gone the hull opens and the core is exposed (shots
+/// then pass the shell and hit it). Phases: 1 cannons, 2 core,
 /// 3 core under 35% (enraged). Parts are at ([x] + dx, [y] + dy).
 class ShmupBoss {
   double x, y;
@@ -328,7 +329,7 @@ class ShmupSim {
   double scrollX = 0;
 
   /// Total distance scrolled over the whole run (never resets: parallax).
-  double travelled = 0;
+  double traveled = 0;
 
   /// Seconds the round has been running (not while paused or ready).
   double time = 0;
@@ -405,7 +406,7 @@ class ShmupSim {
     kills = 0;
     stage = 1;
     time = 0;
-    travelled = 0;
+    traveled = 0;
     overFor = 0;
     cashedOut = false;
     _nextId = 1;
@@ -504,7 +505,7 @@ class ShmupSim {
   void _scroll(double dt) {
     final v = scrollSpeed * dt;
     scrollX += v;
-    travelled += v;
+    traveled += v;
   }
 
   // ── Spawning ───────────────────────────────────────────────────────────
@@ -1133,7 +1134,10 @@ class ShmupSim {
         return;
       }
     }
-    if (_overlap(b.x, b.y, b.r, bs.x, bs.y, bs.shellR)) {
+    // The hull deflects shots only while it still covers the core. The core sits
+    // wholly inside the shell, so once both cannons are gone the hull is open:
+    // shots fly in and reach it (before this, the core could never be hit).
+    if (!bs.exposed(bs.core) && _overlap(b.x, b.y, b.r, bs.x, bs.y, bs.shellR)) {
       b.dead = true;
       _emit(ShmupEventKind.deflect, b.x, b.y);
     }

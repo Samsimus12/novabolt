@@ -5,7 +5,7 @@
 /// quick "everything is 10% too tanky" fix is one edit here.
 ///
 /// Targets these numbers were set against (see CLAUDE.md "Balance"):
-///   • a new player usually dies around boss 1–2; a practised one reaches 4–5
+///   • a new player usually dies around boss 1–2; a practiced one reaches 4–5
 ///   • a boss fight lasts ~45–90s
 ///   • a player with no Hangar upgrades can still win boss 1
 ///   • no single card, relic or Nova should feel mandatory
@@ -71,7 +71,7 @@ abstract final class Balance {
   static const double empDuration = 5;
   /// Speed multiplier on enemies while the EMP lasts (caster fire too).
   static const double empSlow = 0.35;
-  /// Bosses and their armour shrug off some of it.
+  /// Bosses and their armor shrug off some of it.
   static const double empBossSlow = 0.65;
 
   // ── Wingman (a pickup: a helper ship for a while) ────────────────────────
@@ -133,7 +133,7 @@ abstract final class Balance {
   static const int maxWeaponLevel = 10;
   /// Each upgrade multiplies a weapon's damage by this, up to level
   /// [upgradeLateFrom]-1; from that level on the (smaller) late step applies,
-  /// so a fully levelled weapon is ~5.8x its base, not ~10.6x.
+  /// so a fully leveled weapon is ~5.8x its base, not ~10.6x.
   static const double upgradeStepEarly = 1.30, upgradeStepLate = 1.15;
   static const int upgradeLateFrom = 6;
   /// An evolved weapon starts a fresh track: Lv1, base damage x

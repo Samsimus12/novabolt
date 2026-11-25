@@ -31,7 +31,7 @@ import 'shmup_sim.dart';
 ///     `kills`, `cashedOut`); explains the payout and offers `game.restart()`
 ///     or [onExit].
 ///
-/// Look: the app's HUD placement (hull and lives top left, score top centre,
+/// Look: the app's HUD placement (hull and lives top left, score top center,
 /// shards and pause top right). Under it, the run line: one full-width
 /// element that shows the way to the boss (ion, with the mid-boss notch and
 /// the boss crest) and becomes the health bar (flare, with phase notches)
@@ -159,7 +159,7 @@ class _ShmupHudState extends State<ShmupHud> with SingleTickerProviderStateMixin
                     top: NbSpace.xs + 2,
                     child: IgnorePointer(child: _Hull(hull: game.hull.value, lives: game.lives.value)),
                   ),
-                  // Score (top centre).
+                  // Score (top center).
                   Positioned(
                     left: 0,
                     right: 0,

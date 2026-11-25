@@ -11,6 +11,7 @@ import '../coins/coin_manager.dart';
 import '../game/data/daily_challenge.dart';
 import 'daily_briefing.dart';
 import 'endgame_picker.dart';
+import '../notifications/notification_manager.dart';
 import '../stats/mission_manager.dart';
 import '../stats/run_log.dart';
 import '../stats/run_save.dart';
@@ -169,7 +170,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   Widget build(BuildContext context) {
     final coins = CoinManager.instance.totalCoins;
     final stats = StatsManager.instance;
-    final hasRun = stats.bestKills > 0;
+    final hasRun = stats.totalKills > 0 || stats.bestKills > 0;
 
     return Scaffold(
       body: Stack(
@@ -211,7 +212,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   const _Wordmark(),
                   const SizedBox(height: NbSpace.sm),
                   Text(
-                    'Ten bosses. One ship.',
+                    'Survive. Upgrade. Conquer.',
                     style: NbType.body.copyWith(fontSize: 16),
                   ).animate().fadeIn(delay: 450.ms, duration: 500.ms),
                   const Spacer(flex: 2),
@@ -249,8 +250,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         ),
                         NbStatChip(
                           icon: PhosphorIconsBold.crosshair,
-                          value: formatThousands(stats.bestKills),
-                          label: 'best kills',
+                          value: formatThousands(stats.totalKills),
+                          label: 'total kills',
                         ),
                       ],
                     ).animate().fadeIn(delay: 650.ms, duration: 400.ms),
@@ -258,6 +259,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   if (widget.onPlayDaily != null)
                     _DailyCard(
                       onTap: () async {
+                        await NotificationManager.instance.maybeAskPermission();
+                        if (!context.mounted) return;
                         if (await showDailyBriefing(context) && mounted) await _startNew(widget.onPlayDaily!);
                       },
                     )
@@ -577,6 +580,15 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     onChanged: (v) async {
                       await SfxManager.instance.setSfxEnabled(v);
                       if (v) SfxManager.instance.play(Sfx.click);
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  _toggleRow(
+                    icon: PhosphorIconsBold.bell,
+                    label: 'Reminders',
+                    value: NotificationManager.instance.enabled,
+                    onChanged: (v) async {
+                      await NotificationManager.instance.setEnabled(v);
                       if (mounted) setState(() {});
                     },
                   ),

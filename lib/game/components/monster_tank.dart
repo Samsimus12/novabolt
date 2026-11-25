@@ -47,7 +47,7 @@ class MonsterTank extends Monster {
     renderFlash(canvas);
   }
 
-  // Hull colour table for phases 0, 3-9 (reuses phase-0 shape).
+  // Hull color table for phases 0, 3-9 (reuses phase-0 shape).
   static const _hullColor = [
     Color(0xFF8B0000), Color(0xFF546E7A), Color(0xFF1A0033), // 0-2
     Color(0xFF550000), Color(0xFF1A0033), Color(0xFF002244), // 3-5

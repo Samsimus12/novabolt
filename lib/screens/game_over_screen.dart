@@ -107,7 +107,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
               child: ColoredBox(color: NbColors.scrim.withValues(alpha: 0.85)),
             ),
           ).animate().fadeIn(duration: 400.ms),
-          // A low red wash: the one place the whole screen takes on threat colour.
+          // A low red wash: the one place the whole screen takes on threat color.
           Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -322,7 +322,7 @@ class _NewBestBadge extends StatelessWidget {
   }
 }
 
-/// Itemised NOVA payout: where this run's coins came from.
+/// Itemized NOVA payout: where this run's coins came from.
 class _RewardPanel extends StatelessWidget {
   final RunReward reward;
   const _RewardPanel({required this.reward});

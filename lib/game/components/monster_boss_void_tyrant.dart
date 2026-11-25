@@ -228,7 +228,7 @@ class MonsterBossVoidTyrant extends BossMonster {
       ..close();
     canvas.drawPath(hull, Paint()..color = const Color(0xFF660000));
 
-    // Armour panels
+    // Armor panels
     final armorPaint = Paint()..color = const Color(0xFF880000);
     final leftPanel = Path()
       ..moveTo(cx - 18, cy - 26)

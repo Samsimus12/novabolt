@@ -115,7 +115,7 @@ class MonsterBossSingularity extends BossMonster {
   bool get _coreIsOpen => _open > 0;
 
   @override
-  String get armouredCaption => 'Shielded';
+  String get armoredCaption => 'Shielded';
 
   @override
   double get damageTakenMultiplier => _coreIsOpen ? _openTaken : _closedTaken;
@@ -218,7 +218,7 @@ class MonsterBossSingularity extends BossMonster {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// The armoured shell: six plates that part when the core opens, and the
+  /// The armored shell: six plates that part when the core opens, and the
   /// gold core inside them.
   void _renderShell(Canvas canvas, double cx, double cy) {
     final c = Offset(cx, cy);

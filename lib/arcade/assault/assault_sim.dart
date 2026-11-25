@@ -10,7 +10,7 @@ import 'assault_enemies.dart' show AssaultCombatEnemy;
 import 'assault_types.dart';
 import 'assault_weapons.dart' show AssaultRocket;
 
-/// A checkpoint beacon. [x] is its centre, [y] the ground (feet) level.
+/// A checkpoint beacon. [x] is its center, [y] the ground (feet) level.
 class AssaultCheckpoint {
   final double x, y;
   bool reached = false;
@@ -111,6 +111,8 @@ class AssaultSim implements AssaultWorld {
   bool _airJumpUsed = false; // the mid-air jump has been spent this airtime
   bool _jumping = false; // rising from a jump (eligible for the variable-height cut)
   double _fireCd = 0;
+  bool _stickUp = false; // move stick is pushed up (a jump press edge was taken)
+  bool _aimUsed = false; // the aim stick has been used since spawn: it, not movement, sets facing
   double _furthestX = 0;
   bool _finalDeath = false;
 
@@ -149,6 +151,8 @@ class AssaultSim implements AssaultWorld {
     _jumping = false;
     _airJumpUsed = false;
     _fireCd = 0;
+    _stickUp = false;
+    _aimUsed = false;
     _furthestX = _start.x;
     _events.clear();
     _pendingEnemies.clear();
@@ -209,6 +213,14 @@ class AssaultSim implements AssaultWorld {
     if (input.jumpPressed) {
       _jumpBuf = AssaultTuning.jumpBuffer;
       input.jumpPressed = false;
+    }
+    // Pushing the move stick firmly up is a jump press (edge).
+    final up = -input.moveY;
+    if (!_stickUp && up > AssaultTuning.stickJumpThreshold) {
+      _stickUp = true;
+      _jumpBuf = AssaultTuning.jumpBuffer;
+    } else if (_stickUp && up < AssaultTuning.stickJumpRelease) {
+      _stickUp = false;
     }
     final n = (dt / _maxSubstep).ceil();
     final h = dt / n;
@@ -296,9 +308,10 @@ class AssaultSim implements AssaultWorld {
     final p = pilot;
     if (p.invulnerable > 0) p.invulnerable = math.max(0, p.invulnerable - h);
 
-    // Crouch / facing (the stick moves; up/down only tilt the gun).
+    // Crouch / facing (the move stick moves; once the aim stick has been used
+    // it, not the run direction, decides which way the pilot faces).
     final wantCrouch = p.onGround && input.moveY > 0.6 && input.moveY >= input.moveX.abs();
-    if (input.moveX.abs() >= AssaultTuning.stickDeadzone) p.facing = input.moveX > 0 ? 1 : -1;
+    if (!_aimUsed && input.moveX.abs() >= AssaultTuning.stickDeadzone) p.facing = input.moveX > 0 ? 1 : -1;
     if (wantCrouch) {
       p.crouching = true;
     } else if (p.crouching && !_solidInRect(p.left, p.y - AssaultTuning.pilotHeight, p.right, p.y)) {
@@ -327,7 +340,7 @@ class AssaultSim implements AssaultWorld {
       _jumping = true;
       emit(AssaultEvent(AssaultEventKind.doubleJump, p.x, p.y));
     }
-    if (_jumping && !input.jumpHeld && p.vy < 0) {
+    if (_jumping && !input.jumpHeld && !_stickUp && p.vy < 0) {
       p.vy *= AssaultTuning.jumpCutFactor;
       _jumping = false;
     }
@@ -482,6 +495,7 @@ class AssaultSim implements AssaultWorld {
       x = cp.x;
       y = cp.y;
     }
+    _aimUsed = false;
     p
       ..x = x
       ..y = y
@@ -728,18 +742,22 @@ class AssaultSim implements AssaultWorld {
 
   // ── Aim and continuous fire ─────────────────────────────────────────────
 
-  /// The gun points along the facing direction; stick up angles it 45 degrees
-  /// up-forward, stick down while airborne 45 degrees down-forward.
+  /// The gun points where the aim stick points, at any angle (full 360
+  /// degrees), and keeps its last angle on release. Facing follows the aim's
+  /// horizontal sign. Until the aim stick is first used, the gun simply points
+  /// the way the pilot runs.
   void _updateAim() {
     final p = pilot;
     if (!p.alive) return;
-    final forward = p.facing > 0 ? 0.0 : math.pi;
-    final tilt = input.moveY < -AssaultTuning.aimStickThreshold
-        ? -AssaultTuning.aimDiagonal
-        : (!p.onGround && !p.crouching && input.moveY > AssaultTuning.aimStickThreshold ? AssaultTuning.aimDiagonal : 0.0);
-    // Facing left mirrors the tilt: up-left is atan2(-1, -1) = -3pi/4.
-    p.aimAngle = p.facing > 0 ? forward + tilt : forward - tilt;
-    if (p.aimAngle > math.pi) p.aimAngle -= 2 * math.pi;
+    final ax = input.aimX, ay = input.aimY;
+    if (input.aimActive && ax * ax + ay * ay >= AssaultTuning.aimDeadzone * AssaultTuning.aimDeadzone) {
+      _aimUsed = true;
+      p.aimAngle = math.atan2(ay, ax);
+      final c = math.cos(p.aimAngle);
+      if (c.abs() > 0.05) p.facing = c > 0 ? 1 : -1;
+    } else if (!_aimUsed) {
+      p.aimAngle = p.facing > 0 ? 0.0 : math.pi;
+    }
   }
 
   /// The gun never stops: it fires every [AssaultWeapon.cooldown] seconds

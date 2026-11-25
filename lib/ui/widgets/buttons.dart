@@ -8,7 +8,7 @@ import '../theme/type.dart';
 enum NbButtonKind { primary, secondary, ghost }
 
 /// The one button. Primary is a solid lit slab, secondary is glass with a
-/// coloured hairline, ghost is text only. All share the chamfer and a short
+/// colored hairline, ghost is text only. All share the chamfer and a short
 /// press-in response.
 class NbButton extends StatefulWidget {
   final String label;
@@ -84,7 +84,7 @@ class _NbButtonState extends State<NbButton> {
           shape: const ChamferBorder(cut: NbCut.control),
           // Always a gradient (flat when disabled): AnimatedContainer lerps
           // between the two states, and a ShapeDecoration lerped from a
-          // colour to a gradient briefly has both, which asserts.
+          // color to a gradient briefly has both, which asserts.
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,

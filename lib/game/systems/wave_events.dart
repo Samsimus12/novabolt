@@ -216,8 +216,8 @@ class WaveEvents extends Component with HasGameReference<NovaboltGame> {
   }
 
   // ── Blackout ──────────────────────────────────────────────────────────────
-  // One full-screen rect per frame with a radial gradient centred on the ship.
-  // The gradient is built once per darkness step (centred at the origin) and
+  // One full-screen rect per frame with a radial gradient centerd on the ship.
+  // The gradient is built once per darkness step (centerd at the origin) and
   // positioned by translating the canvas, so nothing is allocated per frame.
   static const _steps = 12;
   static final List<Shader?> _shaders = List.filled(_steps + 1, null);

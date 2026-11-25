@@ -19,7 +19,7 @@ import 'player.dart';
 import 'shield_pickup.dart';
 import 'weapon_magic_bolt.dart';
 
-/// Wingman colour: plasma, the "upgrade" colour, lifted a little so its
+/// Wingman color: plasma, the "upgrade" color, lifted a little so its
 /// shots read apart from the ship's own.
 const wingmanColor = Color(0xFFA07CFF);
 const _wingmanShot = Color(0xFFC9B5FF);
@@ -243,7 +243,7 @@ class Wingman extends PositionComponent
     if (other is Monster && !other.isDead && !other.isRemoving) {
       takeHit(other.stats.contactDamagePerSecond * Balance.wingmanRamCost);
       // Like a dash: ordinary enemies are rammed apart; bosses and their
-      // armour just hurt it.
+      // armor just hurt it.
       if (other is! BossMonster && other is! BossPart) {
         other.takeDamage(other.currentHp, silent: true);
       }

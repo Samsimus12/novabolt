@@ -38,7 +38,7 @@ abstract class BossMonster extends Monster {
   // Projectiles in the special radial burst.
   int get specialBurstCount;
 
-  // Colour of the special burst projectiles.
+  // Color of the special burst projectiles.
   Color get specialColor;
 
   double get fireInterval;
@@ -56,7 +56,7 @@ abstract class BossMonster extends Monster {
   String get label => displayName.split(' ').map((w) => w.isEmpty ? w : w[0] + w.substring(1).toLowerCase()).join(' ');
 
   /// HP fractions (descending) at which the boss moves to its next stage.
-  /// Empty = a single-stage boss (the original behaviour).
+  /// Empty = a single-stage boss (the original behavior).
   List<double> get stageThresholds => const [];
 
   /// 0-based current stage.
@@ -73,21 +73,21 @@ abstract class BossMonster extends Monster {
   /// Caption shown when entering [newStage] (1-based for players).
   String stageCaption(int newStage) => newStage == stageCount - 1 ? '$displayName enraged' : 'Stage ${newStage + 1}';
 
-  /// Hook for subclasses: set up the new stage's behaviour.
+  /// Hook for subclasses: set up the new stage's behavior.
   void onStageChange(int newStage) {}
 
-  /// Hook for subclasses: per-frame stage behaviour (not called while
+  /// Hook for subclasses: per-frame stage behavior (not called while
   /// staggered).
   void updateStage(double dt) {}
 
   // ── Weak points ───────────────────────────────────────────────────────────
-  /// Multiplies all damage the boss takes. Below 1 = armoured / shielded
-  /// (shows "Armoured"), above 1 = a weak point is open (shows "Weak
+  /// Multiplies all damage the boss takes. Below 1 = armored / shielded
+  /// (shows "Armored"), above 1 = a weak point is open (shows "Weak
   /// point!"). Bosses override it per stage.
   double get damageTakenMultiplier => 1.0;
 
-  /// Caption for the reduced-damage state ("Armoured", "Shielded").
-  String get armouredCaption => 'Armoured';
+  /// Caption for the reduced-damage state ("Armored", "Shielded").
+  String get armoredCaption => 'Armored';
 
   double _hintTimer = 0;
 
@@ -102,7 +102,7 @@ abstract class BossMonster extends Monster {
         final weak = k > 1;
         final t = DamageText.label(
           position + Vector2(0, -size.y * 0.45),
-          weak ? 'Weak point!' : armouredCaption,
+          weak ? 'Weak point!' : armoredCaption,
           color: weak ? const Color(0xFFFFC23D) : const Color(0xFF9AA6C8),
           fontSize: weak ? 16 : 14,
           force: true,
@@ -153,7 +153,7 @@ abstract class BossMonster extends Monster {
     }
   }
 
-  /// One shot from [from] towards [angle].
+  /// One shot from [from] toward [angle].
   void fireShot(double angle, {required double speed, double? damage, double size = 14, Color? color, Vector2? from}) {
     game.world.add(BossProjectile(
       position: (from ?? position).clone(),
@@ -323,7 +323,7 @@ abstract class BossMonster extends Monster {
   }
 }
 
-/// Drawn beneath a boss: a coloured under-glow plus a slowly turning flare
+/// Drawn beneath a boss: a colored under-glow plus a slowly turning flare
 /// reticle — the HUD "locking on" to the threat.
 class _BossAura extends Component {
   final BossMonster boss;

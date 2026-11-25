@@ -175,7 +175,7 @@ class MonsterBossDreadnought extends BossMonster {
       ..close();
     canvas.drawPath(hull, Paint()..color = const Color(0xFF440088));
 
-    // Armour panels
+    // Armor panels
     final armorPaint = Paint()..color = const Color(0xFF550099);
     final leftPanel = Path()
       ..moveTo(cx - 14, cy - 22)

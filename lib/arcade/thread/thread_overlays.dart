@@ -26,7 +26,7 @@ const _game = ArcadeGame.threadTheNeedle;
 
 // ── HUD ────────────────────────────────────────────────────────────────────
 
-/// Score at the top centre (pops on every gap), your best on the left (turns
+/// Score at the top center (pops on every gap), your best on the left (turns
 /// into a gold "New best" the moment you pass it), shards collected under the
 /// score, pause on the right. Before the first tap: how to play.
 class ThreadHud extends StatefulWidget {
@@ -116,7 +116,7 @@ class _ThreadHudState extends State<ThreadHud> with SingleTickerProviderStateMix
                     onPressed: game.pauseRound,
                   ),
                 ),
-              // Score + shards (top centre).
+              // Score + shards (top center).
               Positioned(
                 left: 0,
                 right: 0,

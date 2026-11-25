@@ -367,56 +367,115 @@ void main() {
       expect(l.vy.abs(), lessThan(1e-9));
     });
 
-    test('stick up angles the shot 45 degrees up-forward, on the ground too', () {
-      final sim = makeSim(makeLevel());
-      sim.input.moveY = -1;
-      run(sim, 0.3);
-      expect(sim.pilot.onGround, isTrue);
-      expect(sim.pilot.aimAngle, closeTo(-math.pi / 4, 1e-9));
-      final b = sim.bullets.firstWhere((b) => b.fromPlayer);
-      expect(b.vx, greaterThan(0));
-      expect(b.vy, lessThan(0));
-      expect(b.vx, closeTo(-b.vy, 1e-6));
-      // Facing left: up-left.
-      sim.input.moveX = -1;
-      run(sim, 0.3);
-      expect(sim.pilot.aimX, closeTo(-math.sqrt1_2, 1e-9));
-      expect(sim.pilot.aimY, closeTo(-math.sqrt1_2, 1e-9));
-      // Released: straight again.
-      sim.input.moveY = 0;
-      run(sim, 0.1);
-      expect(sim.pilot.aimY.abs(), lessThan(1e-9));
+    void aim(AssaultSim sim, double x, double y) {
+      sim.input
+        ..aimX = x
+        ..aimY = y
+        ..aimActive = true;
+    }
+
+    test('the aim stick points the gun at any angle, 360 degrees, and bullets follow', () {
+      final sim = makeSim(makeLevel(edit: (g) {
+        g[10][2] = ' ';
+        g[10][12] = 'P';
+      }));
+      run(sim, 0.2);
+      for (final deg in [0, 30, 90, 135, 180, -90, -135, -20]) {
+        final rad = deg * math.pi / 180;
+        aim(sim, math.cos(rad), math.sin(rad));
+        run(sim, 0.05);
+        expect(sim.pilot.aimX, closeTo(math.cos(rad), 1e-9), reason: '$deg');
+        expect(sim.pilot.aimY, closeTo(math.sin(rad), 1e-9), reason: '$deg');
+        if (math.sin(rad) > 0.3) continue; // bullets fired into the floor vanish at once
+        sim.bullets.clear();
+        run(sim, 0.25);
+        final b = sim.bullets.firstWhere((b) => b.fromPlayer);
+        expect(b.vx, closeTo(math.cos(rad) * 20, 1e-6), reason: '$deg');
+        expect(b.vy, closeTo(math.sin(rad) * 20, 1e-6), reason: '$deg');
+      }
     });
 
-    test('stick down angles the shot down only while airborne; on the ground it crouches', () {
+    test('facing follows the aim horizontal sign; straight up or down keeps it', () {
+      final sim = makeSim(makeLevel());
+      aim(sim, -1, -0.2);
+      run(sim, 0.1);
+      expect(sim.pilot.facing, -1);
+      aim(sim, 0, 1); // straight down
+      run(sim, 0.1);
+      expect(sim.pilot.facing, -1);
+      expect(sim.pilot.aimAngle, closeTo(math.pi / 2, 1e-9));
+      aim(sim, 0.9, 0.1);
+      run(sim, 0.1);
+      expect(sim.pilot.facing, 1);
+      // Running the other way does not turn a pilot who is aiming.
+      sim.input.moveX = -1;
+      run(sim, 0.2);
+      expect(sim.pilot.facing, 1);
+    });
+
+    test('release keeps the last angle; a push under the deadzone does not count', () {
+      final sim = makeSim(makeLevel());
+      aim(sim, 0, -1);
+      run(sim, 0.1);
+      expect(sim.pilot.aimAngle, closeTo(-math.pi / 2, 1e-9));
+      sim.input.aimActive = false;
+      sim.input.aimX = 0;
+      sim.input.aimY = 0;
+      run(sim, 0.3);
+      expect(sim.pilot.aimAngle, closeTo(-math.pi / 2, 1e-9));
+      aim(sim, 0.1, 0.1);
+      run(sim, 0.1);
+      expect(sim.pilot.aimAngle, closeTo(-math.pi / 2, 1e-9));
+    });
+
+    test('the move stick no longer tilts the gun; down still crouches', () {
       final sim = makeSim(makeLevel());
       sim.input.moveY = 1;
       run(sim, 0.3);
       expect(sim.pilot.crouching, isTrue);
-      expect(sim.pilot.aimY.abs(), lessThan(1e-9), reason: 'crouching: gun stays level');
-      sim.input.moveY = 0;
-      run(sim, 0.2);
-      sim.input.jumpPressed = true;
-      sim.input.jumpHeld = true;
-      sim.step(1 / 60);
-      run(sim, 0.1);
-      expect(sim.pilot.onGround, isFalse);
-      sim.input.moveY = 0.8;
-      run(sim, 0.05);
-      expect(sim.pilot.aimAngle, closeTo(math.pi / 4, 1e-9));
-      expect(sim.pilot.aimX, closeTo(math.sqrt1_2, 1e-9));
-      expect(sim.pilot.aimY, closeTo(math.sqrt1_2, 1e-9));
-      sim.bullets.clear();
-      run(sim, 0.25);
-      final b = sim.bullets.firstWhere((b) => b.fromPlayer);
-      expect(b.vy, greaterThan(0));
+      expect(sim.pilot.aimAngle, closeTo(0, 1e-9));
     });
 
-    test('a light stick touch under the threshold does not tilt the gun', () {
+    test('pushing the move stick up past 0.6 jumps, holding it keeps it high, a second push is the double jump', () {
       final sim = makeSim(makeLevel());
-      sim.input.moveY = -0.3;
       run(sim, 0.3);
-      expect(sim.pilot.aimAngle, closeTo(0, 1e-9));
+      expect(sim.pilot.onGround, isTrue);
+      sim.input.moveY = -0.5; // under the threshold: nothing
+      run(sim, 0.2);
+      expect(sim.pilot.onGround, isTrue);
+      sim.input.moveY = -1;
+      run(sim, 0.1);
+      expect(sim.pilot.onGround, isFalse);
+      var peak = sim.pilot.y;
+      for (var i = 0; i < 40; i++) {
+        sim.step(1 / 60);
+        if (sim.pilot.y < peak) peak = sim.pilot.y;
+      }
+      // Compare against a tapped jump: held reaches higher.
+      final tap = makeSim(makeLevel());
+      run(tap, 0.3);
+      final ground = tap.pilot.y;
+      tap.input.moveY = -1;
+      run(tap, 0.05);
+      tap.input.moveY = 0;
+      var tapPeak = tap.pilot.y;
+      for (var i = 0; i < 60; i++) {
+        tap.step(1 / 60);
+        if (tap.pilot.y < tapPeak) tapPeak = tap.pilot.y;
+      }
+      expect(ground - peak, greaterThan(ground - tapPeak + 0.3));
+      // Release, push again mid-air: the double jump.
+      final dj = makeSim(makeLevel());
+      run(dj, 0.3);
+      dj.input.moveY = -1;
+      run(dj, 0.1);
+      dj.input.moveY = 0;
+      run(dj, 0.1);
+      final events = <AssaultEventKind>[];
+      dj.input.moveY = -1;
+      run(dj, 0.05);
+      events.addAll(dj.drainEvents().map((e) => e.kind));
+      expect(events, contains(AssaultEventKind.doubleJump));
     });
 
     test('no shooting while dead, and it resumes after respawning', () {

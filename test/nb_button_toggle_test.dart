@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novabolt/ui/ui.dart';
 
 /// The primary button animates between enabled and disabled. Its decoration
-/// must stay lerpable (gradient to gradient): a colour-to-gradient lerp
+/// must stay lerpable (gradient to gradient): a color-to-gradient lerp
 /// produced a ShapeDecoration with both and threw (seen in the Shop when
 /// switching tabs flipped "Equipped" to "Buy").
 void main() {

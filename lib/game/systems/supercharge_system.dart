@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../data/nova_mode.dart';
+
 enum SuperchargeState { charging, ready, active }
 
 class SuperchargeSystem {
@@ -17,9 +19,19 @@ class SuperchargeSystem {
   /// Multiplier from outside the card system (the daily "Nova rush" = 2).
   double chargeBase = 1.0;
 
-  double get chargeMultiplier => chargeBase * (1 + chargeBonus);
-  /// Drain slows so the Nova lasts exactly (1 + durationBonus) as long.
-  double get depleteMultiplier => 1 / (1 + durationBonus);
+  /// The armed Nova mode (the game points this at its loadout). Each mode has
+  /// its own charge speed and duration ([NovaMode.chargeScale] /
+  /// [NovaMode.durationScale]) so every beam is worth about the same.
+  NovaMode Function() modeSource = _laser;
+  static NovaMode _laser() => NovaMode.laser;
+
+  /// The mode of the Nova that is running (fixed at [activate]).
+  NovaMode _runMode = NovaMode.laser;
+
+  double get chargeMultiplier => chargeBase * (1 + chargeBonus) * modeSource().chargeScale;
+  /// Drain slows so the Nova lasts exactly (1 + durationBonus) as long, times
+  /// the mode's own [NovaMode.durationScale].
+  double get depleteMultiplier => 1 / ((1 + durationBonus) * _runMode.durationScale);
   double get damageMultiplier => 1 + damageBonus;
 
   double get charge => _charge;
@@ -42,6 +54,7 @@ class SuperchargeSystem {
   bool activate() {
     if (!isReady) return false;
     _isActive = true;
+    _runMode = modeSource();
     stateNotifier.value = SuperchargeState.active;
     return true;
   }

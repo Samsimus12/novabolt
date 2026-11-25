@@ -6,7 +6,8 @@ import 'dart:ui';
 /// Every number is a multiplier on the ship's base value (1 = unchanged).
 /// Hull, speed, damage taken, Nova charge and the starting Force Field are
 /// applied once at run start (and so end up in a run save); fire rate, gun
-/// damage and dash cooldown are read live from the class, so a resumed run
+/// damage and dash cooldown are read live from the class (the dash cooldown
+/// applies once the Dash ability is owned: `AbilityLoadout.cooldownMax`), so a resumed run
 /// re-applies them from the saved class id.
 enum ShipClass {
   vanguard(
@@ -30,7 +31,7 @@ enum ShipClass {
   ),
   bulwark(
     title: 'Bulwark',
-    tagline: 'Slow, armoured tank',
+    tagline: 'Slow, armored tank',
     perks: ['Max hull +50%', 'Damage taken −10%', 'Starts with a Force Field'],
     drawbacks: ['Move speed −15%', 'Fire rate −15%'],
     cost: 2500,

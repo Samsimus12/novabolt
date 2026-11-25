@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'assault_types.dart';
 
-/// Ground Assault weapons (combat engineer). One behaviour per [WeaponKind];
+/// Ground Assault weapons (combat engineer). One behavior per [WeaponKind];
 /// the sim calls `assaultWeapon(pilot.weapon)`, respects `cooldown`, and calls
 /// `fire(world, muzzleX, muzzleY, aimX, aimY)` (aim = unit vector).
 ///
@@ -115,5 +115,5 @@ final Map<WeaponKind, AssaultWeapon> _weapons = {
   WeaponKind.rockets: _Rockets(),
 };
 
-/// The (cached) behaviour for [kind].
+/// The (cached) behavior for [kind].
 AssaultWeapon assaultWeapon(WeaponKind kind) => _weapons[kind]!;

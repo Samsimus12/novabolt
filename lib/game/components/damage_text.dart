@@ -49,7 +49,7 @@ class DamageText extends PositionComponent {
   // Labels repeat ("Elite!", "+2"), so their layouts are shared.
   static final _labels = <String, TextPainter>{};
 
-  /// A short coloured caption that floats up like a damage number ("Elite!",
+  /// A short colored caption that floats up like a damage number ("Elite!",
   /// "+2" coins). With [force] it ignores the on-screen cap.
   static DamageText? label(Vector2 at, String text,
       {Color color = NbColors.gold, double fontSize = 15, bool force = false}) {

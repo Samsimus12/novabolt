@@ -135,11 +135,20 @@ abstract class Monster extends PositionComponent
   double _aggroT = 0;
 
   /// Whether a [Wingman] can pull this enemy onto itself. Bosses and their
-  /// armour keep their eyes on you.
+  /// armor keep their eyes on you.
   bool get tauntable => true;
 
   /// Where this enemy heads and aims. Use this, not `game.player.position`.
   Vector2 get target {
+    // A Decoy draws every ordinary enemy; a Cloak sends them to where the ship
+    // was. Bosses and their armor keep their eyes on you (not [tauntable]).
+    if (tauntable) {
+      final a = game.abilities;
+      final decoy = a.decoyPosition;
+      if (decoy != null) return decoy;
+      final spot = a.cloakSpot;
+      if (spot != null) return spot;
+    }
     final w = game.wingman;
     return _onWingman && w != null && w.taunting ? w.position : game.player.position;
   }
@@ -330,7 +339,7 @@ abstract class Monster extends PositionComponent
     ..blendMode = BlendMode.plus;
 
   /// Elite aura: a glow, a pulsing ring and three orbiting arcs in the
-  /// modifier's colour. A volatile elite pulses faster as it gets low.
+  /// modifier's color. A volatile elite pulses faster as it gets low.
   void _renderElite(Canvas canvas, Offset c, EliteMod mod) {
     final r = size.x / 2;
     final rate = mod == EliteMod.volatile ? 6 + 12 * (1 - hpFraction) : 4.0;

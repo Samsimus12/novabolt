@@ -55,7 +55,7 @@ void main() {
       for (var seed = 0; seed < 150; seed++) {
         final s = solved(seed, round);
         final cost = s.tasks.fold<double>(0, (a, t) => a + CockpitTuning.taskSecs(t.parts));
-        expect(s.modelledSecs, closeTo(cost, 1e-9));
+        expect(s.modeledSecs, closeTo(cost, 1e-9));
         expect(s.timeTotal, greaterThanOrEqualTo(cost * CockpitTuning.floorSlack), reason: 'round $round seed $seed');
         expect(s.timeTotal, greaterThanOrEqualTo(CockpitTuning.minTotalSecs));
         // Seconds per task stays "do it now" early on.

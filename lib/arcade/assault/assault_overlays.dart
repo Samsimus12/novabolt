@@ -91,7 +91,7 @@ class AssaultHud extends StatelessWidget {
             child: _Hearts(hearts: game.hearts.value, lives: game.lives.value),
           ),
         ),
-        // Score (top centre).
+        // Score (top center).
         Positioned(
           left: 0,
           right: 0,

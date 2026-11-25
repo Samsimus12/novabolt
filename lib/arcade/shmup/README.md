@@ -79,7 +79,7 @@ things (turrets, mines, pick-ups) it is where they sit in the world. Constructor
 | `.darters(at, [ys], stagger:9)` | kamikazes: approach, lock on (0.4 s wind-up with an aim line), dash at where you were |
 | `.mineField(at, [ys], cols:4, colSpacing:16, shift:.07)` | drifting mines; the blast chains and hurts a nearby ship |
 | `.gunship(at, y)` | tracks the ship, fires 3-way spreads, leaves after 9 s |
-| `.carrier(at, y, PickupKind)` | slow armoured; drops the pick-up |
+| `.carrier(at, y, PickupKind)` | slow armored; drops the pick-up |
 | `.midBoss(at, drop:)` | the mid-boss (warning banner 30 units before). Leave about 450 units quiet after it: the world keeps scrolling while you fight it |
 | `.pickup(at, y, PickupKind)` | floating pick-up (spread, laser, homing, option, shield, repair, shard) |
 | `.shards(at, y, count:3, spacing:9)` | an arc of NOVA shards |
@@ -89,7 +89,7 @@ Mines and pick-ups are fixed in the world, so keep them in open passage
 
 ## The boss
 
-An armoured hull (bullets bounce) carrying an upper and a lower cannon and a
+An armored hull (bullets bounce) carrying an upper and a lower cannon and a
 core. Phase 1: the cannons fire 3-way aimed bursts; the core is covered. Phase
 2 (both cannons gone): the core fires a 10-bullet rotating ring and aimed
 pairs. Phase 3 (core under 35%): 14-bullet rings, aimed triples, faster

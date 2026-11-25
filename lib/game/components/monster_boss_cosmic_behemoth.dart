@@ -68,7 +68,7 @@ class MonsterBossCosmicBehemoth extends BossMonster {
   List<double> get stageThresholds => const [0.66, 0.33];
 
   static const int _moonlets = 3;
-  static const double _moonletOrbit = 120; // px from its centre
+  static const double _moonletOrbit = 120; // px from its center
   static const double _moonletSpin = 0.45; // rad/s
   static const double _moonletHpShare = 0.05; // of its max HP, each
   static const double _moonletSize = 36;

@@ -21,7 +21,7 @@ class ShipPreview extends StatefulWidget {
   final BeamSpec? beam;
   final ThrusterSpec? thruster;
   final ExplosionStyle? explosion;
-  /// Engine colour when no [thruster] is being previewed (the equipped one).
+  /// Engine color when no [thruster] is being previewed (the equipped one).
   final Color? engine;
   final bool pad;
 

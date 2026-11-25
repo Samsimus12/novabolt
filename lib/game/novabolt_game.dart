@@ -43,6 +43,8 @@ import '../stats/run_save.dart';
 import 'components/weapon.dart';
 import 'components/weapon_sword_aura.dart';
 import 'data/weapon_registry.dart';
+import 'data/ship_ability.dart';
+import 'systems/ability_loadout.dart';
 import 'systems/balance_tracker.dart';
 import 'systems/supercharge_system.dart';
 import 'systems/wave_events.dart';
@@ -58,7 +60,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   /// Normal, Ascension N or boss rush. Restored from the save on resume.
   RunMode mode;
 
-  NovaboltGame({this.daily, this.resume, this.mode = RunMode.normal}) : _pendingResume = resume;
+  NovaboltGame({this.daily, this.resume, this.mode = RunMode.normal}) : _pendingResume = resume {
+    superchargeSystem.modeSource = () => nova.active;
+  }
 
   /// The live game (read by test-build diagnostics).
   static NovaboltGame? current;
@@ -366,7 +370,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 
   // ── Announcements ─────────────────────────────────────────────────────────
-  /// Short centre-screen caption drawn by the HUD ("Stage 2", relic names…).
+  /// Short center-screen caption drawn by the HUD ("Stage 2", relic names…).
   String? announcement;
   Color announcementColor = const Color(0xFFE9EDFF);
   double announcementAge = 99;
@@ -381,8 +385,30 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   int bossesBeaten = 0;
   int flawlessBosses = 0;
 
-  /// Dash (double-tap the move stick, or the Dash button).
-  bool tryDash() => player.isMounted && !paused && player.tryDash();
+  /// Ship abilities (Dash, Cloak, Decoy, Aegis, Overclock) taken this run.
+  late final AbilityLoadout abilities = AbilityLoadout(this);
+
+  /// True while the ability selector fan is open; the game runs at 0.25x
+  /// (same as [novaSelectorOpen]). Cleared on restart and death.
+  bool abilitySelectorOpen = false;
+
+  /// The system's reduced-motion setting (the ability art draws calm stills,
+  /// with no flicker, spin or glitch). Tests can force it with
+  /// [reducedMotionOverride].
+  bool? reducedMotionOverride;
+  bool get reducedMotion =>
+      reducedMotionOverride ?? PlatformDispatcher.instance.accessibilityFeatures.disableAnimations;
+
+  /// The guaranteed first Dash card has been put on offer this run.
+  bool abilityDashOffered = false;
+
+  /// Uses the armed ability (the ability button). False = on cooldown,
+  /// already running, none owned, or not allowed right now.
+  bool tryUseAbility() => abilities.useArmed();
+
+  /// Dash by double-tapping the move stick: only if Dash is owned.
+  bool tryDash() =>
+      abilities.owns(ShipAbility.dash) && abilities.use(ShipAbility.dash);
 
   /// Enemies rammed apart while dashing this run (missions hook in here).
   int dashKills = 0;
@@ -478,7 +504,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// NOVA coins this run pays out, itemised for the game-over screen.
+  /// NOVA coins this run pays out, itemized for the game-over screen.
   RunReward get runReward => RunReward(
         level: xpSystem.currentLevel * Balance.coinsPerLevel,
         bosses: Balance.coinsPerBossStep * bossesBeaten * (bossesBeaten + 1) ~/ 2,
@@ -634,10 +660,11 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     } else if (_slowMo > 0) {
       _slowMo -= dt;
       scaled = dt * 0.3;
-    } else if (novaSelectorOpen) {
+    } else if (novaSelectorOpen || abilitySelectorOpen) {
       scaled = dt * 0.25;
     }
     super.update(scaled);
+    if (!isGameOver) abilities.update(scaled);
     if (!isGameOver) {
       _playTimeSeconds += dt;
       MissionManager.instance.onSurvived(_playTimeSeconds);
@@ -892,6 +919,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
         'unl': [for (final m in unlockedNovaModes) m.name],
       },
       'cls': shipClass.name,
+      'abil': abilities.snapshot(),
       'asc': mode.ascension,
       'rush': mode.bossRush,
       'mods': {
@@ -962,6 +990,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
       }
     }
 
+    abilities.restore(s['abil'] as Map?);
     final nova = (s['nova'] as Map?) ?? const {};
     superchargeSystem.chargeBonus = d(nova, 'cb', 0);
     superchargeSystem.chargeBase = d(nova, 'cbase', 1);
@@ -1066,7 +1095,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     final Component attack = switch (activeNovaMode) {
       NovaMode.laser => SuperchargeLaser(),
       NovaMode.dreadnought => OrbitalStrikeNova(),
-      NovaMode.voidTyrant => GravityWellNova(),
+      NovaMode.voidTyrant => VoidMinesNova(),
       NovaMode.leviathan => ShockwaveNova(),
       NovaMode.bloodColossus => PlayerNovaBurst(shotCount: 24, color: const Color(0xFFCC1100), damage: Balance.bloodBarrageBoltDamage),
       NovaMode.stormPhantom => ChainLightningNova(),
@@ -1100,6 +1129,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
 
   void _endRun() {
     isGameOver = true;
+    abilitySelectorOpen = false;
     _waveSystem.events.clear();
     // Level-up can fire in the same collision frame as death — game over wins.
     if (overlays.isActive('LevelUp')) {
@@ -1214,6 +1244,9 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
     _hitStop = 0;
     _slowMo = 0;
     novaSelectorOpen = false;
+    abilitySelectorOpen = false;
+    abilities.reset();
+    abilityDashOffered = false;
     killCount = 0;
     bossPhase = 0;
     _playTimeSeconds = 0;
@@ -1303,7 +1336,7 @@ class NovaboltGame extends FlameGame with HasCollisionDetection {
   }
 }
 
-/// Itemised NOVA payout for a finished run.
+/// Itemized NOVA payout for a finished run.
 class RunReward {
   final int level;
   final int bosses;

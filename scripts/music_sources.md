@@ -19,3 +19,20 @@ tool for vocals. Downloaded as WAV, then trimmed, loudness-matched to the origin
 The two "Hangar Lights" menu tracks (suno.com/song/283da349-87e9-4f18-ab26-dd7573d20456 and
 suno.com/song/d8a44124-3d8c-49d0-89e5-0ffdd5d108c2) were removed from the game on Nov 22, 2026 as
 too mellow; the menu plays the original menu song only. They remain in Sam's Suno library.
+
+## Arcade tracks (Nov 24, 2026)
+
+Made for the arcade mini-games (`AudioManager.playArcade()` picks one at random). Same plan and
+process: all instrumental, each checked with Suno's listening tool for vocals (three other takes
+were rejected for chants/shouts: two "High Score Highway" and one "Pixel Overdrive"), downloaded
+as WAV, trimmed at the end, loudness-matched to the gameplay tracks (-16.5 dB RMS target; output
+~-16.3), 1.5 s fade-out, AAC 192 kbps. Not used in the main game.
+
+| File | Suno song | Style | Edits |
+|---|---|---|---|
+| coin_slot_rush_a.m4a | suno.com/song/6f1c3a22-af6f-49f4-909c-95f63a9fab01 | 8-bit NES-style, 150 bpm | ends at 117 s (tail) |
+| coin_slot_rush_b.m4a | suno.com/song/73b39723-14e1-4268-a805-fb59ace93a0a | 8-bit NES-style, 150 bpm | ends at 119.6 s |
+| pixel_overdrive.m4a | suno.com/song/f1e8200f-15eb-48a7-a399-dcc4f552c658 | chiptune + drums, 161 bpm | ends at 117 s (tail) |
+| insert_coin_a.m4a | suno.com/song/47e53729-4e16-4a51-8dbf-9d98ea6895d1 | 16-bit Genesis-style, 148 bpm | ends at 116.2 s |
+| insert_coin_b.m4a | suno.com/song/0505483d-49c7-4994-a74d-518f4bb14cdd | 16-bit Genesis-style, 150 bpm | ends at 118.4 s |
+

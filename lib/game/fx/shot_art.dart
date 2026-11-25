@@ -5,12 +5,12 @@ import 'glow.dart';
 
 /// Projectile looks. Player fire is drawn as directional *streaks*; hostile
 /// fire as ringed *orbs* — so you can tell what will hurt you by shape alone,
-/// whatever the colour.
+/// whatever the color.
 abstract final class ShotArt {
   static final _core = Paint()..strokeCap = StrokeCap.round;
   static final _ring = Paint()..style = PaintingStyle.stroke;
 
-  /// Streak centred on [c] travelling at [angle], [len] long, [width] thick.
+  /// Streak centerd on [c] traveling at [angle], [len] long, [width] thick.
   static void streak(Canvas canvas, Offset c, double angle, double len, double width, Color color) {
     canvas.save();
     canvas.translate(c.dx, c.dy);
@@ -27,7 +27,7 @@ abstract final class ShotArt {
     canvas.restore();
   }
 
-  /// Hostile orb: coloured halo, a darker rim ring and a white-hot core.
+  /// Hostile orb: colored halo, a darker rim ring and a white-hot core.
   static void orb(Canvas canvas, Offset c, double r, Color color, {double time = 0}) {
     final pulse = 1 + 0.08 * math.sin(time * 18);
     Glow.draw(canvas, c, r * 2.6 * pulse, color.withValues(alpha: 0.75));

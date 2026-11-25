@@ -640,7 +640,7 @@ class ThreadArt extends Component {
 
 // ── Rocks ──────────────────────────────────────────────────────────────────
 
-/// Three stones, so neighbouring columns read as different rocks.
+/// Three stones, so neighboring columns read as different rocks.
 const _stones = [
   (Color(0xFF3B4479), Color(0xFF232A55), Color(0xFF12163A)), // slate blue
   (Color(0xFF4A3B78), Color(0xFF2A2152), Color(0xFF140F31)), // violet basalt

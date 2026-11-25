@@ -1,19 +1,17 @@
-import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../audio/sfx.dart';
-import '../game/fx/glow.dart';
 import '../game/data/curses.dart';
 import '../game/data/endgame.dart';
 import '../game/data/nova_mode.dart';
 import '../game/novabolt_game.dart';
 import '../ui/ui.dart';
 import 'daily_briefing.dart';
+import 'ability_button.dart';
 import 'nova_core.dart';
 
 class GameControlsOverlay extends StatefulWidget {
@@ -85,7 +83,7 @@ class _GameControlsOverlayState extends State<GameControlsOverlay> {
           ),
         ),
 
-        // Nova core — centre, above the sticks.
+        // Nova core — center, above the sticks.
         Align(
           alignment: Alignment.bottomCenter,
           child: SafeArea(
@@ -96,13 +94,20 @@ class _GameControlsOverlayState extends State<GameControlsOverlay> {
           ),
         ),
 
-        // Dash — above the move stick (double-tapping the stick works too).
+        // Ability button — above the move stick, in the old Dash slot (the
+        // disc center is 58 px in, 234 px up). Builds nothing until the
+        // first ability is taken.
         Align(
           alignment: Alignment.bottomLeft,
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.only(left: 30, bottom: 206),
-              child: _DashButton(game: game),
+              padding: const EdgeInsets.only(left: 26, bottom: 184),
+              child: AbilityButton(
+                status: game.abilities,
+                onUse: game.tryUseAbility,
+                onSelectorOpen: (open) => game.abilitySelectorOpen = open,
+                shipPosition: () => game.player.isMounted ? Offset(game.player.position.x, game.player.position.y) : null,
+              ),
             ),
           ),
         ),
@@ -208,6 +213,21 @@ class _PausePanelState extends State<_PausePanel> {
                                 mode: mode,
                                 selected: mode == game.activeNovaMode,
                                 onTap: () => setState(() => game.activeNovaMode = mode),
+                              ),
+                            ),
+                        ],
+                        if (game.abilities.owned.length > 1) ...[
+                          const SizedBox(height: NbSpace.lg),
+                          Text('Abilities', style: NbType.label.copyWith(color: NbColors.starlight)),
+                          const SizedBox(height: NbSpace.xs),
+                          for (final a in game.abilities.owned)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: AbilityOption(
+                                ability: a,
+                                level: game.abilities.levelOf(a),
+                                selected: a == game.abilities.armed,
+                                onTap: () => setState(() => game.abilities.arm(a)),
                               ),
                             ),
                         ],
@@ -361,116 +381,4 @@ class _ModeGlyph extends CustomPainter {
 
   @override
   bool shouldRepaint(_ModeGlyph old) => old.mode != mode || old.color != color;
-}
-
-/// Round Dash button whose ring refills over the cooldown.
-class _DashButton extends StatefulWidget {
-  final NovaboltGame game;
-  const _DashButton({required this.game});
-
-  @override
-  State<_DashButton> createState() => _DashButtonState();
-}
-
-class _DashButtonState extends State<_DashButton> with SingleTickerProviderStateMixin {
-  late final Ticker _ticker;
-  final _cool = ValueNotifier<double>(0);
-  bool _down = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker((_) {
-      final p = widget.game.player;
-      _cool.value = p.isMounted ? p.dashCooldownFraction : 0;
-    })
-      ..start();
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    _cool.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Dash',
-      excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) {
-          setState(() => _down = true);
-          widget.game.tryDash();
-        },
-        onTapCancel: () => setState(() => _down = false),
-        onTapUp: (_) => setState(() => _down = false),
-        child: AnimatedScale(
-          scale: _down ? 0.9 : 1,
-          duration: NbMotion.tap,
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: CustomPaint(painter: _DashPainter(_cool)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DashPainter extends CustomPainter {
-  final ValueNotifier<double> cool;
-  _DashPainter(this.cool) : super(repaint: cool);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2 - 3;
-    final ready = cool.value <= 0;
-    final col = ready ? NbColors.ion : NbColors.dim;
-    canvas.drawCircle(c, r, Paint()..color = NbColors.abyss.withValues(alpha: 0.55));
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = col.withValues(alpha: 0.35),
-    );
-    // Cooldown ring fills clockwise as it recharges.
-    final fill = 1 - cool.value;
-    canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r),
-      -math.pi / 2,
-      math.pi * 2 * fill,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..color = col.withValues(alpha: ready ? 0.95 : 0.6),
-    );
-    if (ready) Glow.draw(canvas, c, r * 1.1, NbColors.ion.withValues(alpha: 0.22));
-    // Chevrons: ">>" pointing right, the universal dash glyph.
-    final p = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = (ready ? NbColors.starlight : NbColors.haze).withValues(alpha: ready ? 1 : 0.6);
-    for (final dx in const [-5.0, 4.0]) {
-      final path = Path()
-        ..moveTo(c.dx + dx - 4, c.dy - 7)
-        ..lineTo(c.dx + dx + 3, c.dy)
-        ..lineTo(c.dx + dx - 4, c.dy + 7);
-      canvas.drawPath(path, p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashPainter old) => false;
 }

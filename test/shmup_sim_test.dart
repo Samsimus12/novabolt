@@ -121,7 +121,7 @@ void main() {
       expect(s.progress, closeTo(0.25, 0.01));
       run(s, 5);
       expect(s.progress, closeTo(0.5, 0.01));
-      expect(s.travelled, closeTo(s.scrollX, 1e-6));
+      expect(s.traveled, closeTo(s.scrollX, 1e-6));
     });
 
     test('nothing happens before the first touch', () {
@@ -659,6 +659,33 @@ void main() {
       run(s, 0.1);
       expect(b.phase, 2);
       expect(b.exposed(b.core), isTrue);
+    });
+
+    test('bullets flown in from the left kill the boss: cannons, then the core, then the stage clears', () {
+      final s = bossSim();
+      final b = s.boss!;
+      s.ship.invuln = 999;
+      // Fire a real bullet from the left at the part's height, as the ship would.
+      void shoot(BossPart p, {int max = 400}) {
+        for (var i = 0; i < max && p.alive; i++) {
+          s.playerBullets.add(ShmupBullet(b.x - 40, b.y + p.dy, 160, 0, dmg: 8));
+          run(s, 0.3);
+        }
+      }
+
+      shoot(b.upper);
+      shoot(b.lower);
+      expect(b.upper.alive || b.lower.alive, isFalse);
+      run(s, 0.1);
+      expect(b.phase, 2);
+      expect(b.exposed(b.core), isTrue);
+      // The core is wholly inside the hull: a bullet from outside must reach it.
+      shoot(b.core);
+      expect(b.core.alive, isFalse);
+      expect(b.dying, isTrue);
+      expect(s.phase, ShmupPhase.stageClear);
+      runUntil(s, () => s.phase == ShmupPhase.playing, max: 8);
+      expect(s.stage, 2);
     });
 
     test('phase 1 shoots from the cannons, phase 2 and 3 fire rings from the core', () {

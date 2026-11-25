@@ -1,4 +1,4 @@
-// The cosmetic catalogue: every purchasable look, its price, rarity and the
+// The cosmetic catalog: every purchasable look, its price, rarity and the
 // visual spec the renderers read. Pure data — no drawing happens here.
 //
 // Ownership ids (what CoinManager.owns / purchase take):
@@ -40,7 +40,7 @@ class Cosmetic<S> {
 
 /// Decoration layered over the base paint job.
 enum Livery {
-  /// Centre stripe down the spine in [ShipPalette.accent].
+  /// Center stripe down the spine in [ShipPalette.accent].
   stripe,
   /// V-chevrons across both wings.
   chevrons,
@@ -217,7 +217,7 @@ enum BeamStyle {
   helix,
   /// Solid beam with rings pulsing down its length.
   pulse,
-  /// Colour cycles along the beam.
+  /// Color cycles along the beam.
   prism,
   /// Bright corona around a dark core.
   eclipse,
@@ -261,7 +261,7 @@ enum TrailStyle {
 }
 
 class ThrusterSpec {
-  /// Null = use the ship skin's own engine colour.
+  /// Null = use the ship skin's own engine color.
   final Color? color;
   final TrailStyle trail;
   /// Trail length multiplier.
@@ -286,7 +286,7 @@ const thrusters = <ThrusterSkin>[
 // ── Explosions (your kills) ──────────────────────────────────────────────────
 
 enum ExplosionStyle {
-  /// Uses each enemy's own colour.
+  /// Uses each enemy's own color.
   standard,
   /// Gold sparks and glints.
   gold,

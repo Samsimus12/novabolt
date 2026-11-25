@@ -5,7 +5,7 @@
 // hairline phosphor edges, and light that is only ever *emitted* by energy
 // (bars, shots, active states) — panels themselves never glow.
 //
-// Colour has meaning and stays consistent between menus and the game:
+// Color has meaning and stays consistent between menus and the game:
 //   ion     — your ship's energy: Nova, shields, aim, primary interaction
 //   gold    — the NOVA currency, level, and the brand wordmark
 //   flare   — threat: damage, bosses, game over

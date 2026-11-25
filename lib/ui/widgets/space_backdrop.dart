@@ -63,7 +63,7 @@ class _SpaceBackdropState extends State<SpaceBackdrop>
 }
 
 class _Layer {
-  final Float32List base; // normalised x,y pairs
+  final Float32List base; // normalized x,y pairs
   final double speed;
   final double size;
   final Color color;

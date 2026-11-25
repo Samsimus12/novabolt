@@ -343,11 +343,11 @@ class Hud extends PositionComponent with HasGameReference<NovaboltGame> {
     color: NbColors.starlight,
   );
 
-  /// Short centre caption from game.announce(): rises in, holds, fades.
+  /// Short center caption from game.announce(): rises in, holds, fades.
   void _renderAnnouncement(Canvas canvas, double w, double h) {
     final t = game.announcementAge;
     final a = t < 0.2 ? t / 0.2 : (t > 1.3 ? (1 - (t - 1.3) / 0.5) : 1.0);
-    // Quantised so the text cache sees ~10 variants, not one per frame.
+    // Quantized so the text cache sees ~10 variants, not one per frame.
     final alpha = (a.clamp(0.0, 1.0) * 10).round() / 10;
     if (alpha <= 0.01) return;
     final tp = _tp(game.announcement!, _announceStyle.copyWith(color: game.announcementColor.withValues(alpha: alpha)));

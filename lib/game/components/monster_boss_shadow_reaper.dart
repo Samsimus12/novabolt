@@ -124,7 +124,7 @@ class MonsterBossShadowReaper extends BossMonster {
   double get damageTakenMultiplier => _faded ? _fadedArmor : 1.0;
 
   @override
-  String get armouredCaption => 'Phased';
+  String get armoredCaption => 'Phased';
 
   @override
   void fireAtPlayer() {

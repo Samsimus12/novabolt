@@ -9,7 +9,7 @@ import '../fx/glow.dart';
 import 'monster.dart';
 import 'monster_boss.dart';
 
-/// A breakable piece that orbits its boss: armour plates, shield drones,
+/// A breakable piece that orbits its boss: armor plates, shield drones,
 /// moonlets. It is a minion (no XP, cleared with the boss), soaks your shots
 /// like any enemy, and hurts on contact. Bosses usually make themselves
 /// tougher while any of their parts are alive (see
@@ -94,7 +94,7 @@ class BossPart extends Monster {
     final path = Path();
     switch (look) {
       case BossPartLook.plate:
-        // A curved armour slab.
+        // A curved armor slab.
         path
           ..moveTo(-r, -r * 0.35)
           ..quadraticBezierTo(0, -r * 0.9, r, -r * 0.35)

@@ -29,12 +29,25 @@ from things off screen. Three hearts per life, three lives, checkpoints.
 
 ## Controls -> `AssaultInput`
 
-Written each frame by the control deck (and by the keyboard in test builds):
-- `moveX` -1..1: run left/right (deadzone 0.2).
-- `moveY` -1..1 (up is -1): down on the ground (past 0.6 and at least as much
-  as |moveX|) crouches (smaller hit box, can't run); up / down-in-the-air tilt
-  the gun 45 degrees (see below).
-- `jumpHeld`, `jumpPressed` (one-frame edge, the sim clears it).
+Twin-stick. Written each frame by the control deck (and by the keyboard in
+test builds):
+- **Left stick: move.** `moveX` -1..1 runs left/right (deadzone 0.2).
+  `moveY` -1..1 (up is -1): down on the ground (past 0.6 and at least as much
+  as |moveX|) crouches (smaller hit box, can't run). Pushing it firmly **up**
+  (past `AssaultTuning.stickJumpThreshold`, 0.6) is a jump press (an edge the
+  sim takes itself); holding it up keeps the jump high (it counts as held until
+  it falls under `stickJumpRelease`, 0.4); pushing again mid-air is the double
+  jump.
+- **Right stick: aim, 360 degrees.** `aimX`/`aimY` -1..1 (y down) and
+  `aimActive` (true while the thumb is down). Its direction is the gun angle at
+  full resolution, with a deadzone (`AssaultTuning.aimDeadzone`, 0.3 of the
+  stick's length). **On release the gun keeps its last angle.** Facing follows
+  the aim's horizontal sign (straight up or down keeps the current facing), and
+  once the aim stick has been used the run direction no longer turns the pilot
+  (until a respawn). Before the aim stick is ever used the gun just points the
+  way the pilot runs (`pilot.aimAngle` is 0 or pi).
+- `jumpHeld`, `jumpPressed` (one-frame edge, the sim clears it): the small Jump
+  button (top of the right half, above the aim stick), for people who prefer it.
 - **Jump:** variable height (release cuts it), coyote time and a jump buffer.
   **One extra jump in mid-air** (press Jump again while airborne): about 85%
   of the ground jump's speed (`doubleJumpFactor`), resets on landing, emits
@@ -43,17 +56,12 @@ Written each frame by the control deck (and by the keyboard in test builds):
   the mid-air jump.
 - **Continuous fire, no auto-aim:** the gun fires all the time, every
   `weapon.cooldown` seconds while the pilot is alive and the stage is in play,
-  straight ahead along the facing direction (the last horizontal stick
-  direction). Only two aim helps: holding the stick **up** (`-moveY` past
-  `AssaultTuning.aimStickThreshold`, 0.4, moving or standing) angles the shot
-  45 degrees up-forward; holding **down** while airborne (`moveY` past 0.4)
-  angles it 45 degrees down-forward (on the ground down crouches and the gun
-  stays level). No targeting, no line of sight, no turn rate: the angle
-  changes instantly. `pilot.aimAngle` (radians, y down; also `aimX`/`aimY`) is
-  always the real firing direction, so the art can draw it. `pilot.target`
-  and the targeting tuning no longer exist.
-- Keyboard (test builds): A/D (or arrows) move, S/Down crouch (aim down in
-  the air), **I aim up**, Space/W/Up/K jump.
+  along `pilot.aimAngle` (radians, y down; also `aimX`/`aimY`), which is always
+  the real firing direction so the art can draw it (the art mirrors the body by
+  `facing` and draws the arm at the real angle, including straight down). No
+  targeting, no line of sight, no turn rate.
+- Keyboard (test builds): A/D (or arrows) move, S/Down crouch, Space/W/Up
+  jump; **I/J/K/L aim** up/left/down/right (two together = a diagonal).
 
 ## Stages, progress and saving
 
@@ -115,7 +123,7 @@ bottom). One character per tile:
 | `B` | mini-boss spawn (the view locks into an arena until it's down) |
 
 Everything except `#`, `=` and `^` is an empty tile with a spawn on it (the
-spawn sits at the tile's bottom centre).
+spawn sits at the tile's bottom center).
 
 ## Weapons
 
@@ -138,7 +146,7 @@ you lose a life (you drop back to the blaster). Numbers live in
 |---|---|---|
 | `README.md`, `assault_types.dart` | lead | spec, shared types, tuning |
 | `assault_level.dart`, `assault_sim.dart` | core engineer | parsing, pilot physics, tiles, camera, bullets, pickups, collisions, lives, checkpoints, score, phases, events |
-| `assault_enemies.dart`, `assault_weapons.dart` | combat engineer | enemy kinds + mini-boss + factory, weapon behaviours |
+| `assault_enemies.dart`, `assault_weapons.dart` | combat engineer | enemy kinds + mini-boss + factory, weapon behaviors |
 | `assault_game.dart`, `assault_screen.dart` | shell engineer | Flame game, layout, input plumbing, keyboard for tests, pause/lifecycle, results, arcade hookup, harness |
 | `assault_levels.dart`, `assault_art.dart`, `assault_overlays.dart`, `assault_controls.dart` | designer | level layouts, all drawing, HUD/pause/results/intro UI, the control deck |
 

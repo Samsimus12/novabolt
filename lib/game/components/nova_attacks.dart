@@ -7,8 +7,13 @@ import '../../audio/sfx.dart';
 import '../data/balance.dart';
 import '../fx/glow.dart';
 import '../novabolt_game.dart';
+import 'graze.dart';
 import 'monster.dart';
 import 'weapon_homing_bolt.dart';
+
+/// Tests set this to make every Nova attack's randomness repeatable.
+int? novaTestSeed;
+math.Random newNovaRandom() => novaTestSeed == null ? math.Random() : math.Random(novaTestSeed);
 
 /// Base for the Nova attacks inherited from bosses. Drains the Nova bar like
 /// the laser does and removes itself when it's empty; subclasses implement
@@ -74,7 +79,7 @@ class OrbitalStrikeNova extends NovaAttack {
   static const _amber = Color(0xFFFF9A1F);
   static const _hot = Color(0xFFFFF6C8);
 
-  final _rng = math.Random();
+  final _rng = newNovaRandom();
   double _next = 0;
   final _strikes = <_Strike>[];
 
@@ -181,7 +186,7 @@ class OrbitalStrikeNova extends NovaAttack {
     }
     canvas.restore();
 
-    // Centre pip blinks faster as it locks.
+    // Center pip blinks faster as it locks.
     if (math.sin(p * p * 60) > -0.3) {
       Glow.draw(canvas, c, 10, _hot.withValues(alpha: 0.9 * a), hot: true);
     }
@@ -347,6 +352,159 @@ class GravityWellNova extends NovaAttack {
   }
 }
 
+// ── Void Tyrant: Void Mines (area denial) ───────────────────────────────────
+/// Scatters [count] void mines in a ring around the ship. Each one pops out,
+/// arms after a short moment, drifts slightly, and blasts (area damage) the
+/// moment an enemy comes close. Whatever is left when the Nova runs out pops
+/// by itself. No pulling: it is about where the enemies are NOT allowed to be.
+class VoidMinesNova extends NovaAttack {
+  static const count = 8;
+  static const ringRadius = 120.0;
+  static const scatterTime = 0.35; // seconds to fly out to the ring
+  static const armTime = 0.45; // after landing
+  static const triggerRadius = 52.0; // an enemy this close (edge to mine) sets it off
+  static const blastRadius = 88.0;
+  static const blastDamage = 70.0;
+  static const driftSpeed = 8.0;
+  static const color = Color(0xFFFF00CC);
+
+  final _rng = newNovaRandom();
+  final _mines = <_Mine>[];
+  Vector2? _origin;
+
+  void _spawn() {
+    final o = _origin = game.player.position.clone();
+    final base = _rng.nextDouble() * math.pi * 2;
+    for (var i = 0; i < count; i++) {
+      final a = base + i * math.pi * 2 / count + (_rng.nextDouble() - 0.5) * 0.35;
+      final r = ringRadius * (0.85 + _rng.nextDouble() * 0.3);
+      final target = o + Vector2(math.cos(a), math.sin(a)) * r;
+      target.x = target.x.clamp(24.0, math.max(24.0, game.size.x - 24));
+      target.y = target.y.clamp(24.0, math.max(24.0, game.size.y - 24));
+      final da = _rng.nextDouble() * math.pi * 2;
+      _mines.add(_Mine(target, Vector2(math.cos(da), math.sin(da)) * driftSpeed, _rng.nextDouble() * 6.28));
+    }
+    SfxManager.instance.play(Sfx.zap, volume: 0.5);
+  }
+
+  void _detonate(_Mine m) {
+    if (m.done) return;
+    m.done = true;
+    damageInRadius(m.pos, blastRadius, blastDamage * novaMult);
+    game.world.add(_MineBlastFx(m.pos.clone()));
+    game.shake(0.1);
+    SfxManager.instance.play(Sfx.explode, volume: 0.45);
+  }
+
+  @override
+  void tick(double dt) {
+    if (_origin == null) _spawn();
+    final live = liveMonsters.toList();
+    for (final m in _mines) {
+      m.age += dt;
+      if (m.age < scatterTime) {
+        m.pos = _origin! + (m.landing - _origin!) * _easeOut(m.age / scatterTime);
+      } else {
+        m.landing += m.vel * dt;
+        m.landing.x = m.landing.x.clamp(24.0, math.max(24.0, game.size.x - 24));
+        m.landing.y = m.landing.y.clamp(24.0, math.max(24.0, game.size.y - 24));
+        m.pos = m.landing;
+      }
+      if (!m.armed) continue;
+      for (final e in live) {
+        if (e.isDead) continue;
+        if (e.position.distanceTo(m.pos) < triggerRadius + e.size.x / 2) {
+          _detonate(m);
+          break;
+        }
+      }
+    }
+    _mines.removeWhere((m) => m.done);
+  }
+
+  @override
+  void onEnd() {
+    for (final m in _mines.toList()) {
+      _detonate(m);
+    }
+    _mines.clear();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    for (final m in _mines) {
+      final c = Offset(m.pos.x, m.pos.y);
+      final grow = _easeOut(m.age / scatterTime);
+      final armed = m.armed;
+      final pulse = armed ? 0.5 + 0.5 * math.sin(t * 9 + m.phase) : 0.25;
+      Glow.draw(canvas, c, 26 * grow, color.withValues(alpha: 0.25 + 0.3 * pulse));
+      canvas.drawCircle(c, 9 * grow, Paint()..color = const Color(0xFF14041F));
+      canvas.drawCircle(
+        c,
+        9 * grow,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = color.withValues(alpha: armed ? 0.95 : 0.5),
+      );
+      canvas.drawCircle(c, 3 * grow, Paint()..color = Color.lerp(const Color(0xFF5A1070), const Color(0xFFFFFFFF), pulse)!);
+      if (armed) {
+        canvas.drawCircle(
+          c,
+          triggerRadius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = color.withValues(alpha: 0.10 + 0.08 * pulse),
+        );
+      }
+    }
+  }
+}
+
+class _Mine {
+  Vector2 pos;
+  Vector2 landing; // where it settles (and then drifts from)
+  final Vector2 vel;
+  final double phase;
+  double age = 0;
+  bool done = false;
+  _Mine(Vector2 target, this.vel, this.phase)
+      : landing = target,
+        pos = target.clone();
+  bool get armed => age >= VoidMinesNova.scatterTime + VoidMinesNova.armTime;
+}
+
+/// The blast flash of one mine: a hot core and an expanding ring, 0.4 s.
+class _MineBlastFx extends Component {
+  final Vector2 at;
+  double t = 0;
+  _MineBlastFx(this.at) : super(priority: 4);
+
+  @override
+  void update(double dt) {
+    t += dt;
+    if (t > 0.4) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final p = (t / 0.4).clamp(0.0, 1.0);
+    final c = Offset(at.x, at.y);
+    final r = VoidMinesNova.blastRadius * _easeOut(p);
+    Glow.draw(canvas, c, r * 1.2, VoidMinesNova.color.withValues(alpha: 0.5 * (1 - p)), hot: true);
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8 * (1 - p) + 1.5
+        ..blendMode = BlendMode.plus
+        ..color = VoidMinesNova.color.withValues(alpha: 0.8 * (1 - p)),
+    );
+  }
+}
+
 // ── Leviathan: Leviathan Wave (shockwaves) ──────────────────────────────────
 /// Rings of force roll out from the ship, hitting and shoving everything.
 class ShockwaveNova extends NovaAttack {
@@ -412,7 +570,7 @@ double _easeOut(double x) => 1 - math.pow(1 - x.clamp(0.0, 1.0), 3).toDouble();
 class ChainLightningNova extends NovaAttack {
   double _next = 0;
   final _arcs = <_Arc>[];
-  final _rng = math.Random();
+  final _rng = newNovaRandom();
 
   @override
   void tick(double dt) {
@@ -582,41 +740,114 @@ class MissileSwarmNova extends NovaAttack {
   }
 }
 
-// ── Singularity: Event Horizon (screen pulses) ──────────────────────────────
+// ── Singularity: Event Horizon (orbiting barrier) ───────────────────────────
+/// A ring of collapsed space orbits the ship for the whole Nova. Enemy
+/// projectiles that touch it are erased; enemies that touch it take heavy
+/// damage and are thrown back (big ones and bosses take the damage but
+/// can't be shoved, and a little less often).
 class EventHorizonNova extends NovaAttack {
-  double _next = 0;
-  double _flash = 0;
+  static const ringRadius = 96.0;
+  static const band = 12.0; // half the ring's thickness for touching
+  static const hitDamage = 52.0, hitGap = 0.35, knockback = 70.0;
+  static const bigDamage = 32.0, bigGap = 0.8; // size >= 70: bosses, same dps as the old pulses
+  static const growTime = 0.25;
+
+  final _next = <Monster, double>{}; // when each enemy may be hit again
+  final _sparks = <_RingSpark>[];
+  double _sfxGap = 0;
+
+  double get _radius => ringRadius * _easeOut(t / growTime);
 
   @override
   void tick(double dt) {
-    _flash = math.max(0, _flash - dt * 3);
-    _next -= dt;
-    if (_next <= 0) {
-      _next = Balance.eventHorizonInterval;
-      _flash = 1;
-      for (final m in liveMonsters.where(onScreen).toList()) {
-        m.takeDamage(Balance.eventHorizonDamage * novaMult);
-        m.applySlow(0.5, 0.6);
+    final p = game.player.position;
+    final r = _radius;
+    _sfxGap -= dt;
+    _sparks.removeWhere((s) => (s.age += dt) > 0.25);
+
+    // Erase enemy shots that touch (or sit inside) the ring.
+    for (final shot in game.world.children.whereType<Grazeable>().toList()) {
+      final d = shot.position.distanceTo(p);
+      if (d < r + band + 6) {
+        shot.removeFromParent();
+        _sparks.add(_RingSpark(math.atan2(shot.position.y - p.y, shot.position.x - p.x)));
+        _ping();
       }
-      game.shake(0.25);
-      SfxManager.instance.play(Sfx.explode, volume: 0.6);
+    }
+
+    // Shred and shove enemies that touch it.
+    _next.removeWhere((m, _) => m.isDead || m.isRemoving);
+    for (final m in liveMonsters.toList()) {
+      final d = m.position.distanceTo(p);
+      if ((d - r).abs() >= band + m.size.x * 0.4) continue;
+      if (t < (_next[m] ?? 0)) continue;
+      final big = m.stats.size >= 70;
+      _next[m] = t + (big ? bigGap : hitGap);
+      m.takeDamage((big ? bigDamage : hitDamage) * novaMult);
+      _sparks.add(_RingSpark(math.atan2(m.position.y - p.y, m.position.x - p.x)));
+      if (!big && d > 1) m.position += (m.position - p) / d * knockback;
+      game.rumble(0.1);
+      _ping();
     }
   }
 
+  void _ping() {
+    if (_sfxGap > 0) return;
+    _sfxGap = 0.12;
+    SfxManager.instance.play(Sfx.zap, volume: 0.35);
+  }
+
+  static final _stroke = Paint()..style = PaintingStyle.stroke;
+
   @override
   void render(Canvas canvas) {
-    if (_flash <= 0) return;
-    final s = game.size;
-    final c = Offset(game.player.position.x, game.player.position.y);
-    final r = s.length * (1.1 - _flash);
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 10 * _flash + 2
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.7 * _flash),
-    );
-    canvas.drawRect(Rect.fromLTWH(0, 0, s.x, s.y), Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.07 * _flash));
+    final p = game.player.position;
+    final c = Offset(p.x, p.y);
+    final r = _radius;
+    if (r < 2) return;
+    Glow.draw(canvas, c, r * 1.5, const Color(0xFFB9A6FF).withValues(alpha: 0.18));
+    // The collapsed-space band: dark, with a white edge on each side.
+    _stroke
+      ..blendMode = BlendMode.srcOver
+      ..strokeWidth = band * 2
+      ..color = const Color(0xFF06061A).withValues(alpha: 0.55);
+    canvas.drawCircle(c, r, _stroke);
+    _stroke
+      ..blendMode = BlendMode.plus
+      ..strokeWidth = 2
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.85);
+    canvas.drawCircle(c, r, _stroke);
+    _stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFB9A6FF).withValues(alpha: 0.45);
+    canvas.drawCircle(c, r - band, _stroke);
+    canvas.drawCircle(c, r + band, _stroke);
+    // Three bright arcs orbit around the band.
+    final spin = t * 1.8;
+    _stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.9);
+    for (var k = 0; k < 3; k++) {
+      canvas.drawArc(Rect.fromCircle(center: c, radius: r), spin + k * math.pi * 2 / 3, 0.7, false, _stroke);
+    }
+    _stroke.strokeCap = StrokeCap.butt;
+    // Where something just hit.
+    for (final s in _sparks) {
+      final f = 1 - s.age / 0.25;
+      final d = Offset(math.cos(s.angle), math.sin(s.angle));
+      _stroke
+        ..strokeWidth = 3
+        ..color = const Color(0xFFFFFFFF).withValues(alpha: f);
+      canvas.drawLine(c + d * (r - band), c + d * (r + band + 10 * (1 - f)), _stroke);
+      Glow.draw(canvas, c + d * r, 18, const Color(0xFFB9A6FF).withValues(alpha: 0.6 * f));
+    }
+    _stroke.blendMode = BlendMode.srcOver;
   }
+}
+
+class _RingSpark {
+  final double angle;
+  double age = 0;
+  _RingSpark(this.angle);
 }

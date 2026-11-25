@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Personal bests and lifetime records, persisted locally.
@@ -13,6 +15,8 @@ class StatsManager {
   int _totalBossKills = 0;
   int _flawlessBossKills = 0;
   final Set<int> _bossesDefeated = {};
+  bool _runBeatBest = false;
+  Timer? _saveTimer;
 
   int get bestLevel => _bestLevel;
   int get bestKills => _bestKills;
@@ -42,12 +46,46 @@ class StatsManager {
 
   /// A run started (counted once, not again on revive).
   void startRun() {
+    _runBeatBest = false;
     _totalRuns++;
     _persist();
   }
 
-  /// Kills are tallied in memory and saved with the next run/boss event.
-  void addKill() => _totalKills++;
+  /// Kills are tallied in memory and saved a few seconds later (and on
+  /// [flush], run end and boss kills), so a killed app loses almost nothing.
+  void addKill() {
+    _totalKills++;
+    _saveTimer ??= Timer(const Duration(seconds: 3), flush);
+  }
+
+  /// Saves everything now (app going to the background, leaving a run).
+  Future<void> flush() {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    return _persist();
+  }
+
+  /// A run is being left unfinished (Save and exit, app backgrounded): raise
+  /// the personal bests to what this run has reached so far, so the menu is
+  /// right. The run's final [submitRun] still reports a new best for it.
+  void checkpointRun({required int level, required int kills, int combo = 0}) {
+    if (_raiseBests(level, kills, combo)) _runBeatBest = true;
+    flush();
+  }
+
+  bool _raiseBests(int level, int kills, int combo) {
+    bool raised = false;
+    if (level > _bestLevel) {
+      _bestLevel = level;
+      raised = true;
+    }
+    if (kills > _bestKills) {
+      _bestKills = kills;
+      raised = true;
+    }
+    if (combo > _bestCombo) _bestCombo = combo;
+    return raised;
+  }
 
   void recordBossKill(int index, {required bool flawless}) {
     _totalBossKills++;
@@ -59,17 +97,9 @@ class StatsManager {
   // Updates in-memory immediately, persists in background.
   // Returns true if any record was beaten.
   bool submitRun({required int level, required int kills, int combo = 0}) {
-    bool newBest = false;
-    if (level > _bestLevel) {
-      _bestLevel = level;
-      newBest = true;
-    }
-    if (kills > _bestKills) {
-      _bestKills = kills;
-      newBest = true;
-    }
-    if (combo > _bestCombo) _bestCombo = combo;
-    _persist();
+    final newBest = _raiseBests(level, kills, combo) || _runBeatBest;
+    _runBeatBest = false;
+    flush();
     return newBest;
   }
 

@@ -11,7 +11,7 @@ import '../novabolt_game.dart';
 import 'player.dart';
 import 'shield_pickup.dart';
 
-/// EMP colour: an electric blue, whiter than the shield's ion cyan.
+/// EMP color: an electric blue, whiter than the shield's ion cyan.
 const empColor = Color(0xFF8EB4FF);
 
 /// The rarest drop. Touch it and an EMP goes off from the ship: every enemy

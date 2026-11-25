@@ -45,53 +45,39 @@ abstract final class AssaultTuning {
   // ── Combat ──────────────────────────────────────────────────────────────
   static const double stickDeadzone = 0.2;
 
-  /// The gun fires continuously, straight ahead along the facing direction.
-  /// Holding the stick up (past this, -moveY) angles it 45 degrees up-forward;
-  /// holding it down while airborne angles it 45 degrees down-forward.
-  /// (On the ground, down crouches instead.)
-  static const double aimStickThreshold = 0.4;
-  static const double aimDiagonal = math.pi / 4;
+  /// The gun fires continuously along the aim stick's direction (full 360
+  /// degrees). The aim stick counts once its pushed length passes this
+  /// (0..1); on release the gun keeps its last angle.
+  static const double aimDeadzone = 0.3;
+
+  /// Pushing the move stick up past this (-moveY) is a jump press (an edge);
+  /// the stick stays "up" (jump held, so the jump stays high) until it falls
+  /// back under [stickJumpRelease]. A second push in mid-air is the double jump.
+  static const double stickJumpThreshold = 0.6;
+  static const double stickJumpRelease = 0.4;
 
   // ── Scoring ─────────────────────────────────────────────────────────────
   static const int clearBonus = 10;
   static const int noDeathBonus = 5;
 }
 
-/// Eight compass directions (y down). Not used by the sim (the aim is
-/// [AssaultPilot.aimAngle]: forward, 45 up or 45 down); kept for UI dials.
-enum AimDir {
-  right(1, 0),
-  upRight(math.sqrt1_2, -math.sqrt1_2),
-  up(0, -1),
-  upLeft(-math.sqrt1_2, -math.sqrt1_2),
-  left(-1, 0),
-  downLeft(-math.sqrt1_2, math.sqrt1_2),
-  down(0, 1),
-  downRight(math.sqrt1_2, math.sqrt1_2);
-
-  final double dx, dy;
-  const AimDir(this.dx, this.dy);
-
-  /// Nearest of the 8 directions to (x, y). Null inside [deadzone].
-  static AimDir? fromStick(double x, double y, {double deadzone = AssaultTuning.stickDeadzone}) {
-    if (x * x + y * y < deadzone * deadzone) return null;
-    final a = math.atan2(-y, x); // up is positive angle
-    final i = ((a / (math.pi / 4)).round() % 8 + 8) % 8;
-    return AimDir.values[i];
-  }
-}
-
 /// What the player is doing this frame. The control deck (or keyboard)
 /// writes it; the sim reads it and clears [jumpPressed].
 class AssaultInput {
   double moveX = 0; // -1..1
-  double moveY = 0; // -1..1, up is -1; only "down" matters (crouch on the ground)
+  double moveY = 0; // -1..1, up is -1: past the jump threshold = jump, down on the ground = crouch
+  double aimX = 0; // aim stick, -1..1 (y down); sim ignores it under AssaultTuning.aimDeadzone
+  double aimY = 0;
+  bool aimActive = false; // the aim stick is being held
   bool jumpHeld = false;
   bool jumpPressed = false; // edge: set on press, cleared by the sim
 
   void clear() {
     moveX = 0;
     moveY = 0;
+    aimX = 0;
+    aimY = 0;
+    aimActive = false;
     jumpHeld = false;
     jumpPressed = false;
   }
@@ -100,7 +86,7 @@ class AssaultInput {
 enum AssaultTile { empty, solid, platform, spikes }
 
 /// Something placed in a level: an enemy, pickup, checkpoint, start or exit.
-/// [x] is the tile's centre, [y] the tile's bottom edge (where feet go).
+/// [x] is the tile's center, [y] the tile's bottom edge (where feet go).
 class AssaultSpawn {
   final String char; // the level character, e.g. 'g', '*', 'K'
   final double x, y;
@@ -171,13 +157,13 @@ enum PickupKind { shard, weapon }
 class AssaultPickup {
   final PickupKind kind;
   final WeaponKind? weapon; // for PickupKind.weapon
-  double x, y; // centre
+  double x, y; // center
   bool taken = false;
   AssaultPickup(this.kind, this.x, this.y, {this.weapon});
 }
 
 class AssaultPilot {
-  double x = 0, y = 0; // x = centre, y = feet (bottom edge)
+  double x = 0, y = 0; // x = center, y = feet (bottom edge)
   double vx = 0, vy = 0;
   bool onGround = false;
   bool crouching = false;
@@ -211,7 +197,7 @@ class AssaultPilot {
 /// An enemy. The combat engineer implements the kinds; the sim owns the list,
 /// wakes them, steps them, and applies bullet hits through [onHit].
 abstract class AssaultEnemy {
-  double x, y; // x = centre, y = bottom edge
+  double x, y; // x = center, y = bottom edge
   double width, height;
   double hp;
   final double maxHp;
@@ -251,7 +237,7 @@ abstract class AssaultEnemy {
   }
 }
 
-/// A weapon's firing behaviour (combat engineer implements one per kind).
+/// A weapon's firing behavior (combat engineer implements one per kind).
 abstract class AssaultWeapon {
   WeaponKind get kind;
 

@@ -29,7 +29,8 @@ abstract class Weapon extends Component with HasGameReference<NovaboltGame> {
       fireRate *
       (1 + game.fireRateBonus) *
       game.shipClass.fireRate *
-      (game.overdriveActive ? 1 + Balance.overdriveFireRate : 1);
+      (game.overdriveActive ? 1 + Balance.overdriveFireRate : 1) *
+      game.abilities.fireRateMultiplier;
   double get fireInterval => 1.0 / effectiveFireRate;
 
   /// Damage per shot including the run-wide Targeting Array bonus. Weapons

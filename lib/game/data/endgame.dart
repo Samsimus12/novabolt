@@ -37,7 +37,7 @@ abstract final class EndgameBalance {
   /// Index of the Singularity, the 10th and final boss.
   static const int finalBossIndex = 9;
 
-  /// Boss rush: no waves or levelling, so the build comes from these picks.
+  /// Boss rush: no waves or leveling, so the build comes from these picks.
   static const int rushStartPicks = 8;
   static const int rushPicksPerBoss = 5;
 

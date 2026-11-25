@@ -9,10 +9,13 @@ import '../../audio/sfx.dart';
 import '../../coins/coin_manager.dart';
 import '../fx/glow.dart';
 import '../data/balance.dart';
+import '../data/ship_ability.dart';
 import '../novabolt_game.dart';
 import '../../cosmetics/catalog.dart';
 import '../render/ship_art.dart';
 import '../render/trail_art.dart';
+import '../data/ability_stats.dart';
+import '../render/ability_art.dart';
 import 'dash_trail.dart';
 import 'monster.dart';
 import 'boss_parts.dart';
@@ -103,7 +106,7 @@ class Player extends PositionComponent
 
   /// 0 = ready, 1 = just used (for the Dash button's ring).
   /// Full dash cooldown for this ship (the Interceptor's is shorter).
-  double get dashCooldownMax => Balance.dashCooldown * game.shipClass.dashCooldown;
+  double get dashCooldownMax => game.abilities.cooldownMax(ShipAbility.dash);
   double get dashCooldownFraction => (dashCooldown / dashCooldownMax).clamp(0.0, 1.0);
 
   /// Dash in the move-stick direction (or where the ship faces when idle).
@@ -173,7 +176,7 @@ class Player extends PositionComponent
     super.onCollisionStart(intersectionPoints, other);
     if (other is Monster && !other.isDead && !other.isRemoving) {
       takeDamage(other.stats.contactDamagePerSecond, source: '${other.label} collision');
-      // Boss armour (plates, drones, moonlets) has to be shot off, not rammed.
+      // Boss armor (plates, drones, moonlets) has to be shot off, not rammed.
       if (other is! BossMonster && other is! BossPart) {
         // Dashing through an enemy rams it apart without hurting you.
         if (isDashing) game.onDashKill();
@@ -302,19 +305,35 @@ class Player extends PositionComponent
       if ((grace * rate).floor().isOdd) return;
     }
 
+    // Cloak: the glass ship with a refraction edge replaces the normal art
+    // (AbilityArt.paintCloakedShip: fold-in, scan band, end flicker).
+    final ab = game.abilities;
+    final cloakLeft = ab.activeLeft(ShipAbility.cloak);
+    final palette = shipPaletteFor(CoinManager.instance.selectedSkin);
+    final engine = thrusterSpecFor(CoinManager.instance.selectedThruster).color;
     canvas.save();
     canvas.translate(cx, cy);
     canvas.rotate(_facingAngle);
-    ShipArt.paint(
-      canvas,
-      shipPaletteFor(CoinManager.instance.selectedSkin),
-      time: _damageTime,
-      thrust: 0.35 + 0.65 * thrust,
-      engine: thrusterSpecFor(CoinManager.instance.selectedThruster).color,
-    );
-    final hpFraction = (currentHp / maxHp).clamp(0.0, 1.0);
-    if (hpFraction < 0.75) _renderDamage(canvas, 0, 0, hpFraction);
+    if (cloakLeft > 0) {
+      AbilityArt.paintCloakedShip(canvas, palette,
+          t: ab.cloakAge, duration: ab.cloakAge + cloakLeft, time: _damageTime, engine: engine, calm: game.reducedMotion);
+    } else {
+      ShipArt.paint(canvas, palette, time: _damageTime, thrust: 0.35 + 0.65 * thrust, engine: engine);
+      final hpFraction = (currentHp / maxHp).clamp(0.0, 1.0);
+      if (hpFraction < 0.75) _renderDamage(canvas, 0, 0, hpFraction);
+    }
     canvas.restore();
+
+    // Overclock: a turbine ring spinning round the ship, hot guns at the nose
+    // (spins up over 0.2 s, winds down through the last 0.6 s).
+    final ocLeft = ab.activeLeft(ShipAbility.overclock);
+    if (ocLeft > 0) {
+      final ocDur = AbilityStats.duration(ShipAbility.overclock, ab.levelOf(ShipAbility.overclock));
+      canvas.save();
+      canvas.translate(cx, cy);
+      AbilityArt.paintOverclock(canvas, t: ocDur - ocLeft, duration: ocDur, facing: _facingAngle, calm: game.reducedMotion);
+      canvas.restore();
+    }
 
     if (shieldHp > 0) {
       canvas.save();

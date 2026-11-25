@@ -26,7 +26,7 @@ enum Relic {
   String get description => switch (this) {
         Relic.ricochet => 'Your shots bounce once to another nearby enemy',
         Relic.cryoShatter =>
-          'Slowed enemies take +${_pct(Balance.cryoShatterBonus)} damage and chill their neighbours when they die',
+          'Slowed enemies take +${_pct(Balance.cryoShatterBonus)} damage and chill their neighbors when they die',
         Relic.overkill => 'Damage past a kill carries over to the nearest enemy',
         Relic.bloodlust =>
           '+${_pct(Balance.bloodlustPer100Kills, isMultiplier: false)} damage for every 100 kills this run (up to +${_pct(Balance.bloodlustCap, isMultiplier: false)})',

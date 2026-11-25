@@ -12,6 +12,8 @@ import 'package:novabolt/game/components/weapon_spread_shot.dart';
 import 'package:novabolt/game/components/weapon_sword_aura.dart';
 import 'package:novabolt/game/data/balance.dart';
 import 'package:novabolt/game/data/relics.dart';
+import 'package:novabolt/game/data/ship_ability.dart';
+import 'package:novabolt/game/systems/ability_loadout.dart';
 import 'package:novabolt/game/data/upgrade_cards.dart';
 import 'package:novabolt/game/novabolt_game.dart';
 import 'package:novabolt/game/systems/supercharge_system.dart';
@@ -49,6 +51,10 @@ class _FakeGame extends Fake implements NovaboltGame {
   @override
   final Set<String> takenBuffs = {};
   @override
+  late final AbilityLoadout abilities = AbilityLoadout(this);
+  @override
+  bool abilityDashOffered = false;
+  @override
   bool relicAllowed(Relic r) => true;
   @override
   void announce(String text, {Color color = const Color(0xFFE9EDFF)}) {}
@@ -79,6 +85,11 @@ _FakeGame _maxedOut({bool evolved = false}) {
     ..chargeBonus = Balance.maxNovaChargeBonus / 100
     ..durationBonus = Balance.maxNovaDurationBonus / 100
     ..damageBonus = Balance.maxNovaDamageBonus / 100;
+  for (final a in ShipAbility.values) {
+    for (var i = 0; i < ShipAbility.maxLevel; i++) {
+      g.abilities.take(a);
+    }
+  }
   return g;
 }
 

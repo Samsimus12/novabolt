@@ -39,14 +39,14 @@ abstract final class CockpitTuning {
   /// Seconds lost moving from one control to the next, per order.
   static const double moveSecs = 0.2;
 
-  /// Slack on the modelled time: 1.4 in round 1 down to 1.12 from round 7.
+  /// Slack on the modeled time: 1.4 in round 1 down to 1.12 from round 7.
   static double slackFor(int r) => math.max(1.12, 1.4 - 0.05 * (r - 1));
 
-  /// A round is never given less than this multiple of its modelled cost
+  /// A round is never given less than this multiple of its modeled cost
   /// (the "never impossible" floor; the slack already exceeds it).
   static const double floorSlack = 1.1;
 
-  /// Modelled seconds of doing one requirement (no reading): a switch flip
+  /// Modeled seconds of doing one requirement (no reading): a switch flip
   /// 0.6, a dial or slider 1.0, a wire drag 1.2, a fuse 0.6, PRIME x N 0.25
   /// per press plus 0.4, a hold is its seconds plus 0.5, a keypad code 0.4 per
   /// digit plus ENTER and finding the pad (0.9), a switch row 0.5 per flip.
@@ -74,7 +74,7 @@ abstract final class CockpitTuning {
     }
   }
 
-  /// Modelled seconds for a whole order: reading + each part + moving on.
+  /// Modeled seconds for a whole order: reading + each part + moving on.
   static double taskSecs(List<Condition> parts) {
     final complex = parts.length > 1 ||
         parts.any((c) => c.kind == CondKind.switchGroup || c.kind == CondKind.switchExcept);
@@ -332,8 +332,8 @@ class CockpitSim {
   double timeLeft = 0;
   double timeTotal = 0;
 
-  /// What a quick human is modelled to need for this round's orders (s).
-  double modelledSecs = 0;
+  /// What a quick human is modeled to need for this round's orders (s).
+  double modeledSecs = 0;
   double overFor = 0;
   List<CockpitTask> tasks = [];
   final List<CockpitEvent> _events = [];
@@ -549,7 +549,7 @@ class CockpitSim {
     }
   }
 
-  /// Finger up (or dragged away / cancelled).
+  /// Finger up (or dragged away / canceled).
   void holdEnd(String id) {
     if (_held.remove(id)) _holdProgress[id] = 0;
   }
@@ -808,8 +808,8 @@ class CockpitSim {
       tasks = _buildTasks();
       if (tasks.length >= want) break;
     }
-    modelledSecs = tasks.fold<double>(0, (sum, t) => sum + CockpitTuning.taskSecs(t.parts));
-    final clock = CockpitTuning.baseSecs + modelledSecs * CockpitTuning.slackFor(_round);
+    modeledSecs = tasks.fold<double>(0, (sum, t) => sum + CockpitTuning.taskSecs(t.parts));
+    final clock = CockpitTuning.baseSecs + modeledSecs * CockpitTuning.slackFor(_round);
     timeTotal = math.max(CockpitTuning.minTotalSecs, clock.ceilToDouble());
     timeLeft = timeTotal;
     _refresh(); // none are done at the start
@@ -837,7 +837,7 @@ class CockpitSim {
     for (final w in CockpitPanelSpec.wires) {
       _wire[w.id] = _rng.nextBool() && free.isNotEmpty ? free.removeLast() : null;
     }
-    // Decoy blown fuses (a task may add or normalise these).
+    // Decoy blown fuses (a task may add or normalize these).
     for (final f in CockpitPanelSpec.fuses) {
       _blown[f] = false;
     }

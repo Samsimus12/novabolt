@@ -40,7 +40,7 @@ import 'cockpit_sim.dart';
 /// LOOK ("master caution"): matte graphite modules with bezels and screws;
 /// controls backlit ion when on; faults flare; a module with an open order
 /// gets an ion edge, and a mint pulse + LED when an order on it ticks off
-/// (mint = repaired, everywhere in the app). Cap and wire colours are only
+/// (mint = repaired, everywhere in the app). Cap and wire colors are only
 /// identifiers the orders name (red / blue / green).
 class CockpitPanel extends StatefulWidget {
   final CockpitController c;
@@ -50,7 +50,7 @@ class CockpitPanel extends StatefulWidget {
   State<CockpitPanel> createState() => _CockpitPanelState();
 }
 
-// Identifier colours (what the orders call red / blue / green / yellow).
+// Identifier colors (what the orders call red / blue / green / yellow).
 Color _idColor(PanelColor c) => switch (c) {
   PanelColor.red => const Color(0xFFFF4D5E),
   PanelColor.blue => const Color(0xFF4D8BFF),
@@ -315,7 +315,7 @@ class _Switches extends StatelessWidget {
   }
 }
 
-/// A bat toggle: LED on top (ion when on), a slot, the lever with a coloured
+/// A bat toggle: LED on top (ion when on), a slot, the lever with a colored
 /// cap (up = on). Tap flips it; dragging up/down sets it.
 class _Toggle extends StatelessWidget {
   final String label;

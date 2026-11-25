@@ -5,7 +5,7 @@ import '../theme/tokens.dart';
 
 /// Smoked-glass panel with a hairline edge.
 ///
-/// When [accent] is set the edge takes that colour and a short "bezel light"
+/// When [accent] is set the edge takes that color and a short "bezel light"
 /// runs along the top-left cut — the system's signature detail. [glow] adds a
 /// soft outer emission for selected / active states only.
 class NbPanel extends StatelessWidget {

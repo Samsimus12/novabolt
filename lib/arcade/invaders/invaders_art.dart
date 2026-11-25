@@ -24,7 +24,7 @@ import 'invaders_sim.dart';
 /// aurora bands and the moon's icy horizon; the swarm in obsidian chitin
 /// with flare rims and eyes that pulse on every march step, each kind its
 /// own creature (all flip between two poses per step):
-///   * elite = armoured crab, guard = mantis, grunt = beetle;
+///   * elite = armored crab, guard = mantis, grunt = beetle;
 ///   * armored = a plated isopod: three steel plates; once `cracked` the
 ///     middle plate is gone and its flare core shows, the rest are crazed;
 ///     `hurt` flashes the plates (not the screen);
@@ -35,7 +35,7 @@ import 'invaders_sim.dart';
 ///   * splitter = a twin-lobed pod with a glowing seam (it will split
 ///     there); its minis are single lobes with one eye;
 ///   * shielder = a warden with a frost crest and two emitter arms; frost
-///     tethers run to the neighbours it covers, each wrapped in a hex ward
+///     tethers run to the neighbors it covers, each wrapped in a hex ward
 ///     that flares when it absorbs a shot.
 /// The brood carrier (boss waves): a segmented hive hull sliding along the
 /// top, gun pods that charge visibly before each shell, a launch maw that
@@ -604,7 +604,7 @@ class InvadersArt extends Component {
 
   void _paintAliens(Canvas canvas) {
     final pulse = _pulse;
-    // Shield-bearers' frost tethers to the neighbours they cover.
+    // Shield-bearers' frost tethers to the neighbors they cover.
     for (final w in sim.aliens) {
       if (!w.alive || w.kind != AlienKind.shielder) continue;
       for (final a in sim.aliens) {
@@ -698,7 +698,7 @@ class InvadersArt extends Component {
     return p..close();
   }();
 
-  /// The hex ward a shield-bearer throws round its neighbour; [flash] 1 → 0
+  /// The hex ward a shield-bearer throws round its neighbor; [flash] 1 → 0
   /// when it has just absorbed a shot.
   void _paintWard(Canvas canvas, double flash) {
     _fill.color = _frost.withValues(alpha: 0.07 + 0.18 * flash);
@@ -913,7 +913,7 @@ class InvadersArt extends Component {
     _eye(canvas, const Offset(0, -3), 2.3, _flare, pulse);
   }
 
-  /// Elite (3 pts): an armoured crab; pincers open per step; three eyes.
+  /// Elite (3 pts): an armored crab; pincers open per step; three eyes.
   static void paintCrab(Canvas canvas, int frame, double pulse) {
     final o = frame == 1 ? 2.0 : 0.0;
     _fill.color = _chitinLit;

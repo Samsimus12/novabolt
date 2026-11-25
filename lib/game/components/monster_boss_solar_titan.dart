@@ -76,7 +76,7 @@ class MonsterBossSolarTitan extends BossMonster {
   // 2: solar flares — three beams 120° apart, telegraphed, then sweeping.
   // 3 (enraged): vents. It overheats for a few seconds (holds fire, core
   //    glows white-hot, takes double damage), then the vent ends in a
-  //    supernova ring with two gaps. Between vents it is armoured (0.75x).
+  //    supernova ring with two gaps. Between vents it is armored (0.75x).
   @override
   List<double> get stageThresholds => const [0.66, 0.33];
 
@@ -96,7 +96,7 @@ class MonsterBossSolarTitan extends BossMonster {
   static const double _ventEvery = 7.0; // s between vents (stage 3)
   static const double _ventLength = 2.5; // s the core is exposed
   static const double _ventTaken = 2.0; // damage taken while venting
-  static const double _armourTaken = 0.75; // damage taken between vents (stage 3)
+  static const double _armorTaken = 0.75; // damage taken between vents (stage 3)
   static const int _novaShots = 40;
   static const double _novaSpeed = 260;
   static const double _novaGap = 0.6; // rad, two gaps on opposite sides
@@ -115,7 +115,7 @@ class MonsterBossSolarTitan extends BossMonster {
   bool get _venting => _vent > 0;
 
   @override
-  double get damageTakenMultiplier => stage < 2 ? 1.0 : (_venting ? _ventTaken : _armourTaken);
+  double get damageTakenMultiplier => stage < 2 ? 1.0 : (_venting ? _ventTaken : _armorTaken);
 
   @override
   void fireAtPlayer() {

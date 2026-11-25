@@ -95,20 +95,31 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('the stick and Jump work at the same time', (t) async {
+  testWidgets('the move stick, aim stick and Jump work at the same time', (t) async {
     await t.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => t.binding.setSurfaceSize(null));
     final game = await mountGame(t);
     final deck = game.deckRect;
     final stick = await t.startGesture(Offset(80, deck.center.dy));
     await stick.moveBy(const Offset(60, 0));
-    final jump = await t.startGesture(Offset(deck.width * 0.75, deck.center.dy));
+    // The aim stick: right half, away from the Jump button in the top corner.
+    final aim = await t.startGesture(Offset(deck.width * 0.75, deck.bottom - 90));
+    await aim.moveBy(const Offset(-40, -40));
+    final strip = (deck.height * 0.18) < 54.0 ? deck.height * 0.18 : 54.0;
+    final jumpR = ((deck.height - strip) * 0.15).clamp(22.0, 32.0);
+    final jump = await t.startGesture(Offset(deck.width - jumpR - 14, deck.top + strip + jumpR + 2));
     final i = game.sim.input;
     expect(i.moveX, closeTo(1, 0.01));
+    expect(i.aimActive, isTrue);
+    expect(i.aimX, lessThan(-0.5));
+    expect(i.aimY, lessThan(-0.5), reason: 'dragged up-left: a 360-degree aim, not 8 directions');
     expect(i.jumpHeld, isTrue);
     await jump.up();
     expect(i.jumpHeld, isFalse);
     expect(i.moveX, closeTo(1, 0.01), reason: 'releasing Jump must not drop the stick');
+    expect(i.aimActive, isTrue, reason: 'releasing Jump must not drop the aim');
+    await aim.up();
+    expect(i.aimActive, isFalse);
     await stick.up();
     expect(i.moveX, 0);
   });

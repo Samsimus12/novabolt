@@ -7,7 +7,7 @@ import 'dart:ui' as ui;
 /// `MaskFilter.blur` on dozens of objects per frame is the single most
 /// expensive thing a Canvas game can do on a phone. Instead every glow, bloom
 /// halo and spark in the game is one pre-rendered white radial falloff image,
-/// tinted with a colour filter and composited additively (`BlendMode.plus`),
+/// tinted with a color filter and composited additively (`BlendMode.plus`),
 /// so overlapping light gets brighter the way real light does.
 abstract final class Glow {
   static const _res = 128.0;
@@ -23,7 +23,7 @@ abstract final class Glow {
         Color(0x00FFFFFF),
       ], const [0, 0.18, 0.42, 0.7, 1]);
 
-  /// Tight hot centre with a short falloff: projectile cores, sparks.
+  /// Tight hot center with a short falloff: projectile cores, sparks.
   static ui.Image get core => _core ??= _make(const [
         Color(0xFFFFFFFF),
         Color(0xFFFFFFFF),
@@ -48,7 +48,7 @@ abstract final class Glow {
     ..blendMode = BlendMode.plus
     ..filterQuality = FilterQuality.low;
 
-  /// Additive glow of [radius] centred on [center].
+  /// Additive glow of [radius] centerd on [center].
   static void draw(Canvas canvas, Offset center, double radius, Color color,
       {bool hot = false}) {
     if (radius <= 0 || color.a <= 0) return;

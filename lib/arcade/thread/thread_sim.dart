@@ -24,7 +24,7 @@ class ThreadColumn {
   double x;
   final double width;
 
-  /// Centre of the gap at rest, and its half height.
+  /// Center of the gap at rest, and its half height.
   final double gapRest;
   final double gapHalf;
 
@@ -56,7 +56,7 @@ class ThreadColumn {
 
   double _t = 0;
 
-  /// Current centre of the gap.
+  /// Current center of the gap.
   double get gapCenter => gapRest + swing * math.sin(_t * swingSpeed + swingPhase);
   double get gapTop => gapCenter - gapHalf;
   double get gapBottom => gapCenter + gapHalf;

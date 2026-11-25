@@ -30,7 +30,7 @@ void main() {
       for (final p in [Profile.typical, Profile.strong]) {
         // The diminishing late upgrade steps only touch levels 6+, so early
         // damage stays within a whisker of before (a strong build that has
-        // already levelled weapons past 5 and evolved loses more: that is the point).
+        // already leveled weapons past 5 and evolved loses more: that is the point).
         final floor = p == Profile.typical ? 0.85 : 0.40;
         expect(buildAt(p, after, n).dps, greaterThan(buildAt(p, Rules.legacy, n).dps * floor), reason: '${p.name} boss $n');
       }

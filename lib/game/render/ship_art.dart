@@ -7,7 +7,7 @@ import '../fx/glow.dart';
 export '../../cosmetics/catalog.dart'
     show BeamSpec, BeamStyle, Livery, ShieldSpec, ShieldStyle, ShipPalette, ThrusterSpec, TrailStyle, shipPaletteFor;
 
-/// The player's interceptor, drawn centred on the origin, nose pointing up
+/// The player's interceptor, drawn centerd on the origin, nose pointing up
 /// (−y), spanning roughly 44 × 42 units. Liveries from the skin's palette are
 /// layered over the base paint job.
 abstract final class ShipArt {
@@ -108,7 +108,15 @@ abstract final class ShipArt {
     ..addPath(_canardR, Offset.zero)
     ..addPath(_hull, Offset.zero);
 
-  /// [engine] overrides the plume colour (thruster cosmetics).
+  /// The ship's shape (wings, canards and hull, nose up, centerd), for effects
+  /// that draw the ship as an outline: the cloak's refraction edge and the
+  /// decoy hologram (`ability_art.dart`). Don't modify it.
+  static Path get silhouette => _body;
+
+  /// The canopy shape, same space as [silhouette].
+  static Path get canopyShape => _canopy;
+
+  /// [engine] overrides the plume color (thruster cosmetics).
   static void paint(Canvas canvas, ShipPalette p,
       {double time = 0, double thrust = 0.6, bool engines = true, Color? engine}) {
     final (wingShader, hullShader, canopyShader) = _shaders(p);
@@ -242,7 +250,7 @@ abstract final class ShipArt {
     final flicker = 0.85 + 0.15 * math.sin(time * 38) * math.sin(time * 23);
     final len = (10 + 16 * thrust) * flicker;
     for (final x in const [-4.2, 4.2]) {
-      // Plume: wide soft colour, then a tight white-hot core.
+      // Plume: wide soft color, then a tight white-hot core.
       Glow.drawOval(
         canvas,
         Rect.fromLTRB(x - 5.5, 11, x + 5.5, 14 + len),

@@ -24,6 +24,7 @@ import 'screens/main_menu_screen.dart';
 import 'stats/mission_manager.dart';
 import 'stats/run_log.dart';
 import 'stats/run_save.dart';
+import 'notifications/notification_manager.dart';
 import 'stats/stats_manager.dart';
 import 'ui/theme/app_theme.dart';
 
@@ -65,11 +66,16 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
       MissionManager.instance.flush();
+      StatsManager.instance.flush();
+      NotificationManager.instance.reschedule(backgrounding: true);
       final g = _game;
       if (_inGame && g != null) {
+        _checkpointStats(g);
         g.saveRun();
         g.requestPause();
       }
+    } else if (state == AppLifecycleState.resumed && _loaded) {
+      NotificationManager.instance.reschedule();
     }
   }
 
@@ -92,6 +98,8 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
     await ArcadeManager.instance.init();
     await RunLog.instance.init();
     await RunSaveManager.instance.init();
+    await NotificationManager.instance.init();
+    NotificationManager.instance.reschedule(); // not awaited: don't delay launch
     AudioManager.instance.playMenu();
     if (mounted) setState(() => _loaded = true);
   }
@@ -120,12 +128,27 @@ class _NovaboltAppState extends State<NovaboltApp> with WidgetsBindingObserver {
     setState(() => _inGame = true);
   }
 
+  /// An unfinished run still counts toward the menu's bests and totals.
+  void _checkpointStats(NovaboltGame g) {
+    if (g.isGameOver || g.mode.bossRush) {
+      StatsManager.instance.flush();
+      return;
+    }
+    StatsManager.instance.checkpointRun(
+        level: g.xpSystem.currentLevel, kills: g.killCount, combo: g.bestCombo);
+  }
+
   void _returnToMenu() {
+    final g = _game;
+    final finished = g?.isGameOver ?? false;
+    if (g != null) _checkpointStats(g);
     _game?.saveRun();
     AdManager.instance.showInterstitialAd(onDismissed: () {
       _game = null;
       setState(() => _inGame = false);
       AudioManager.instance.playMenu();
+      // After the first finished run is a friendly moment to ask (once).
+      if (finished) NotificationManager.instance.maybeAskPermission();
     });
   }
 

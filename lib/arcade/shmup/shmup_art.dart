@@ -31,12 +31,12 @@ import 'shmup_sim.dart';
 /// a sand-lit edge), 1 "Crystal Vein" (darker, malachite bands and a copper
 /// edge); other numbers reuse these in turn. The sky is baked once per size
 /// and theme; far asteroids and dust streaks are cached pictures scrolled
-/// with `sim.travelled`; the rock bands are two paths a frame with a lit
+/// with `sim.traveled`; the rock bands are two paths a frame with a lit
 /// edge facing the channel. Enemies share one material (dark hull, flare rim
 /// and eye) with a silhouette per kind; hostile shots are ringed flare orbs,
-/// yours are streaks in the gun's colour. The boss (`bossStyle` 0 "The
+/// yours are streaks in the gun's color. The boss (`bossStyle` 0 "The
 /// Breaker", 1 "The Prism") is a plated shell with two cannon pods and an
-/// iris core that opens once both cannons are gone. Colour keeps the app's
+/// iris core that opens once both cannons are gone. Color keeps the app's
 /// meanings: flare = danger, ion = you, gold = NOVA, plasma = upgrades,
 /// mint = repairs. No per-frame blur or layers: glows are [Glow] sprites.
 class ShmupArt extends Component {
@@ -300,8 +300,8 @@ class ShmupArt extends Component {
     final look = _look;
     final full = Offset.zero & Size(_size.x, _size.y);
     canvas.drawImageRect(_sky!, Offset.zero & _bakedSize, full, _img);
-    _scrollPicture(canvas, _far!, sim.travelled * _k * 0.18);
-    if (!_reduce) _scrollPicture(canvas, _streaks!, sim.travelled * _k * 0.75);
+    _scrollPicture(canvas, _far!, sim.traveled * _k * 0.18);
+    if (!_reduce) _scrollPicture(canvas, _streaks!, sim.traveled * _k * 0.75);
 
     canvas.save();
     if (_shake > 0 && !_reduce) {
@@ -536,7 +536,7 @@ class ShmupArt extends Component {
         PickupKind.shard => const Color(0xFFFFC23D),
       };
 
-  /// Each gun's shot colour (matches the main game's weapons).
+  /// Each gun's shot color (matches the main game's weapons).
   static Color weaponColor(WeaponKind w) => switch (w) {
         WeaponKind.pulse => const Color(0xFF4DE8FF),
         WeaponKind.spread => const Color(0xFFF4A800),
@@ -745,7 +745,7 @@ class ShmupArt extends Component {
       ..lineTo(c.dx - w * 0.5, c.dy + h * 0.2)
       ..close();
     _rimmed(canvas, hullP, hit, math.max(1, s * 0.07));
-    // armour plates
+    // armor plates
     _stroke
       ..strokeWidth = math.max(1, s * 0.05)
       ..color = const Color(0xFF4A2A34);
@@ -789,7 +789,7 @@ class ShmupArt extends Component {
     canvas.drawCircle(c, s * 0.18, _fill);
   }
 
-  /// A plated round shell: [n] armour plates with seams (flare for the
+  /// A plated round shell: [n] armor plates with seams (flare for the
   /// Breaker, copper for the Prism) and a lit rim.
   static void _paintShell(Canvas canvas, Offset c, double r, int n, _Look look, double hit, double seam, double rot) {
     _fill.color = Color.lerp(look.shellDeep, const Color(0xFFFFFFFF), hit * 0.5)!;

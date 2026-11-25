@@ -249,9 +249,13 @@ class AssaultGame extends FlameGame with KeyboardEvents {
   static final _left = {LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.keyA};
   static final _right = {LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.keyD};
   static final _down = {LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.keyS};
-  // Aim up (45 degrees): I. Aim down is S/Down while airborne. Arrow-up/W stay jump.
-  static final _up = {LogicalKeyboardKey.keyI};
-  static final _jump = {LogicalKeyboardKey.space, LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyW, LogicalKeyboardKey.keyK};
+  static final _jump = {LogicalKeyboardKey.space, LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyW};
+  // Aim (twin-stick on a keyboard): I up, K down, J left, L right; two keys
+  // together aim diagonally.
+  static final _aimUp = {LogicalKeyboardKey.keyI};
+  static final _aimDown = {LogicalKeyboardKey.keyK};
+  static final _aimLeft = {LogicalKeyboardKey.keyJ};
+  static final _aimRight = {LogicalKeyboardKey.keyL};
 
   bool _anyHeld(Set<LogicalKeyboardKey> group) => group.any(_keys.contains);
 
@@ -259,7 +263,14 @@ class AssaultGame extends FlameGame with KeyboardEvents {
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     if (!isLoaded || paused || _resultsShown) return KeyEventResult.ignored;
     final key = event.logicalKey;
-    final relevant = _left.contains(key) || _right.contains(key) || _down.contains(key) || _up.contains(key) || _jump.contains(key);
+    final relevant = _left.contains(key) ||
+        _right.contains(key) ||
+        _down.contains(key) ||
+        _jump.contains(key) ||
+        _aimUp.contains(key) ||
+        _aimDown.contains(key) ||
+        _aimLeft.contains(key) ||
+        _aimRight.contains(key);
     if (!relevant) return KeyEventResult.ignored;
     if (event is KeyUpEvent) {
       _keys.remove(key);
@@ -269,8 +280,17 @@ class AssaultGame extends FlameGame with KeyboardEvents {
     }
     final i = sim.input;
     i.moveX = (_anyHeld(_right) ? 1.0 : 0.0) - (_anyHeld(_left) ? 1.0 : 0.0);
-    i.moveY = (_anyHeld(_down) ? 1.0 : 0.0) - (_anyHeld(_up) ? 1.0 : 0.0);
+    i.moveY = _anyHeld(_down) ? 1.0 : 0.0;
     i.jumpHeld = _anyHeld(_jump);
+    var ax = (_anyHeld(_aimRight) ? 1.0 : 0.0) - (_anyHeld(_aimLeft) ? 1.0 : 0.0);
+    var ay = (_anyHeld(_aimDown) ? 1.0 : 0.0) - (_anyHeld(_aimUp) ? 1.0 : 0.0);
+    i.aimActive = ax != 0 || ay != 0;
+    if (ax != 0 && ay != 0) {
+      ax *= 0.7071;
+      ay *= 0.7071;
+    }
+    i.aimX = ax;
+    i.aimY = ay;
     return KeyEventResult.handled;
   }
 

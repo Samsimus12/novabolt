@@ -162,7 +162,7 @@ class _InvadersHudState extends State<InvadersHud> with SingleTickerProviderStat
                   ),
                 ),
               ),
-              // Score, best (top centre) and power-up timers.
+              // Score, best (top center) and power-up timers.
               Positioned(
                 left: 0,
                 right: 0,
@@ -246,7 +246,7 @@ class _InvadersHudState extends State<InvadersHud> with SingleTickerProviderStat
   }
 }
 
-/// Lives as small ships in your skin's colours (lost ones dim), and the wave.
+/// Lives as small ships in your skin's colors (lost ones dim), and the wave.
 class _Lives extends StatelessWidget {
   final int lives;
   final int wave;

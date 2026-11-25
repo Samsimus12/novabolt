@@ -65,7 +65,7 @@ class MonsterBossStormPhantom extends BossMonster {
   //    and then), still firing normally.
   // 2: lightning chains run from it to you, and up to two afterimage decoys
   //    drift around shooting slow aimed shots.
-  // 3 (enraged): every few seconds it parks in the centre and spins an X of
+  // 3 (enraged): every few seconds it parks in the center and spins an X of
   //    four beams; otherwise it circles faster.
   @override
   List<double> get stageThresholds => const [0.66, 0.33];
@@ -86,7 +86,7 @@ class MonsterBossStormPhantom extends BossMonster {
   static const double _xInterval = 7.0; // s between X spins (stage 3)
   static const double _xWarn = 0.9, _xActive = 2.5, _xSweep = 0.55; // rad/s
   static const double _xWidth = 14;
-  static const double _xTravel = 360; // px/s moving to the centre
+  static const double _xTravel = 360; // px/s moving to the center
 
   final _rng = math.Random();
   bool _orbitInit = false;

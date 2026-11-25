@@ -8,7 +8,7 @@ import 'coin_manager.dart';
 /// Each level is applied at the start of every run by [HangarManager.applyTo].
 enum HangarUpgrade {
   hull('Reinforced hull', '+10 max hull per level', maxLevel: 5, baseCost: 150),
-  armor('Ablative armour', '−3% damage taken per level', maxLevel: 5, baseCost: 200),
+  armor('Ablative armor', '−3% damage taken per level', maxLevel: 5, baseCost: 200),
   firepower('Firepower', '+4% damage per level', maxLevel: 5, baseCost: 250),
   critical('Targeting computer', '+1.5% critical hit chance per level', maxLevel: 5, baseCost: 220),
   novaStart('Nova capacitor', 'Start each run with +15% Nova charge per level', maxLevel: 4, baseCost: 150),

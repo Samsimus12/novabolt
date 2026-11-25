@@ -341,7 +341,8 @@ Gameplay is canvas-only. The PixelLab sprite experiment (`scripts/generate_sprit
 - **iOS**: v1.0.0 (build 3) — approved and live as of 2026-05-12
 - **iOS**: v1.1.0 (build 4) — submitted for review Nov 24, 2026 (everything through the Rift Runner four-stage update)
 - **Android**: AAB 1.0.0+3 in internal testing as of 2026-05-12; target production ~2026-05-18
-- To submit new build: bump `version` in `pubspec.yaml`, `flutter build ipa --release`, upload via Transporter
+- To submit new build: bump `version` in `pubspec.yaml`, `flutter build ipa --release`, then upload with `xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive -exportOptionsPlist <plist: method app-store-connect, destination upload, teamID M3692NZZR2, signingStyle automatic> -exportPath <dir> -allowProvisioningUpdates` (needs the Apple ID signed in to Xcode > Settings > Accounts; Transporter also works). Then in App Store Connect: attach the build, Add for Review, Submit for Review.
+- 1.1.0 upload warnings to fix before **April 2027**: raise the iOS deployment target from 13.0 to 15.0, and build with Xcode 27 / the iOS 27 SDK. App Review contact info and the newer age-rating questions (social media, shared location, dating: all No) are filled in on App Store Connect.
 - **Bundle IDs**: iOS + Android both `com.sammorrison.novabolt`
 
 ### ATT Reset for Testing

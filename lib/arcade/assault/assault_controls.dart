@@ -16,18 +16,19 @@ import 'assault_types.dart';
 ///   * It writes `game.sim.input` directly:
 ///       - LEFT half, the move stick: `moveX` / `moveY` in -1..1 (up is -1,
 ///         raw; the sim applies the deadzone). Left/right runs, down on the
-///         ground crouches, and pushing it firmly UP past
-///         `AssaultTuning.stickJumpThreshold` (0.6) is a jump (the sim takes
-///         the edge, holding it up keeps the jump high, a second push in the
-///         air is the double jump).
+///         ground crouches. Pushing it up does nothing: the stick never
+///         jumps (Sam's call, Nov 24, 2026).
 ///       - RIGHT half, the aim stick: `aimX` / `aimY` (-1..1, y down, the
 ///         thumb offset over the dial's travel) and `aimActive = true` while
 ///         held. The gun fires continuously along it at any angle (the sim
 ///         applies `AssaultTuning.aimDeadzone`); on release `aimActive` goes
 ///         false and the gun keeps its last angle (`pilot.aimAngle`).
-///       - A small Jump button (top of the right half, clear of the aim
-///         thumb) sets `jumpHeld = true` and `jumpPressed = true` on press and
-///         `jumpHeld = false` on release/cancel, for people who prefer it.
+///       - The Jump button (top corner of the right half, clear of the aim
+///         thumb; the only way to jump) sets `jumpHeld = true` and
+///         `jumpPressed = true` on press and `jumpHeld = false` on
+///         release/cancel. Holding it keeps the jump high; a second press in
+///         the air is the double jump. Lifting the aim thumb to press it is
+///         fine: the gun keeps its last angle.
 ///     Only once `game.isLoaded`.
 ///   * Multi-touch: the move stick, aim stick and Jump each use their own
 ///     pointer, so all three work at once.
@@ -36,11 +37,11 @@ import 'assault_types.dart';
 /// Look: a smoked-glass console under the view with a hairline top edge and
 /// an ion bezel light. Top strip: the weapon chip (glyph, name, a mint
 /// light while the gun is firing). Left half: the move dial, an instrument
-/// ring with chevrons (the way you run lights ion, the up chevron lights when
-/// the push is a jump, the down chevron while crouching); it rests in the
+/// ring with chevrons (the way you run lights ion, the down chevron while
+/// crouching; there is no up chevron, the stick doesn't jump); it rests in the
 /// middle of the left half and jumps to wherever the thumb lands. Right half:
 /// the aim dial (ion crosshair ring, a line from the center to the knob while
-/// aiming), likewise floating, plus the small Jump octagon in its top corner.
+/// aiming), likewise floating, plus the Jump octagon in its top corner.
 /// Sizes scale with the deck so small phones fit.
 class AssaultControls extends StatelessWidget {
   final AssaultGame game;
@@ -219,9 +220,9 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
         final usable = h - strip - bottomInset * 0.6;
         const cap = 26.0; // room under each dial for its caption
         _radius = (math.min(w / 4 - 14, (usable - cap) * 0.4)).clamp(30.0, 74.0);
-        // The small Jump button sits in the top corner of the right half; the
-        // aim dial rests below it so the aim thumb never covers it.
-        final jumpR = (usable * 0.15).clamp(22.0, 32.0);
+        // The Jump button (the only jump) sits in the top corner of the right
+        // half; the aim dial rests below it so the aim thumb never covers it.
+        final jumpR = (usable * 0.19).clamp(26.0, 38.0);
         final jumpC = Offset(w - jumpR - 14, strip + jumpR + 2);
         final aimTop = jumpC.dy + jumpR + 6;
         final aimUsable = h - bottomInset * 0.6 - aimTop - cap;
@@ -236,7 +237,6 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
         final ky = _stickPointer == null ? 0.0 : _stickKnob.dy / (_radius * 0.72);
         final crouch = ky > 0.6 && ky >= kx.abs();
         final dir = crouch || kx.abs() < AssaultTuning.stickDeadzone ? 0 : (kx > 0 ? 1 : -1);
-        final jumpPush = ky < -AssaultTuning.stickJumpThreshold;
 
         return Stack(
           children: [
@@ -280,7 +280,6 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
                     knob: _stickKnob,
                     active: _stickPointer != null,
                     dir: dir,
-                    up: jumpPush,
                     down: crouch,
                   ),
                 ),
@@ -294,7 +293,7 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
                 child: AnimatedOpacity(
                   opacity: _stickPointer == null ? 1 : 0,
                   duration: NbMotion.quick,
-                  child: const Text('Up jumps, down crouches', style: NbType.caption, textAlign: TextAlign.center),
+                  child: const Text('Drag to run, down crouches', style: NbType.caption, textAlign: TextAlign.center),
                 ),
               ),
             ),
@@ -332,7 +331,7 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
                 ),
               ),
             ),
-            // Jump (small, on top of the aim zone so it takes its own touches).
+            // Jump (on top of the aim zone so it takes its own touches).
             Positioned(
               left: jumpC.dx - jumpR - 6,
               top: jumpC.dy - jumpR - 6,
@@ -398,17 +397,16 @@ class _ConsolePainter extends CustomPainter {
 }
 
 /// The move dial: instrument ring, a left and a right chevron (the way
-/// you're running lights ion), an up chevron (lit while the push is firm
-/// enough to jump), a down chevron (lit while crouching), and the knob under
-/// the thumb. Firing is automatic along the aim stick.
+/// you're running lights ion), a down chevron (lit while crouching), and the
+/// knob under the thumb. No up chevron: the stick doesn't jump. Firing is automatic along the aim stick.
 class _DialPainter extends CustomPainter {
   final Offset center;
   final double radius;
   final Offset knob;
   final bool active;
   final int dir; // -1 left, 0 none, 1 right
-  final bool up, down;
-  _DialPainter({required this.center, required this.radius, required this.knob, required this.active, required this.dir, required this.up, required this.down});
+  final bool down;
+  _DialPainter({required this.center, required this.radius, required this.knob, required this.active, required this.dir, required this.down});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -462,7 +460,6 @@ class _DialPainter extends CustomPainter {
 
     chevron(c.translate(-r * 0.8, 0), const Offset(-1, 0), active && dir < 0);
     chevron(c.translate(r * 0.8, 0), const Offset(1, 0), active && dir > 0);
-    chevron(c.translate(0, -r * 0.8), const Offset(0, -1), active && up);
     chevron(c.translate(0, r * 0.8), const Offset(0, 1), active && down);
     // Knob.
     final k = c + knob;
@@ -488,7 +485,7 @@ class _DialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DialPainter old) =>
-      old.center != center || old.knob != knob || old.active != active || old.dir != dir || old.up != up || old.down != down || old.radius != radius;
+      old.center != center || old.knob != knob || old.active != active || old.dir != dir || old.down != down || old.radius != radius;
 }
 
 /// The aim dial: a ring with a crosshair, a line from the center to the knob

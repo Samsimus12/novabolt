@@ -42,8 +42,13 @@ import 'shmup_sim.dart';
 const _shadow = [Shadow(color: Color(0xE6050817), blurRadius: 12)];
 
 /// The light of each stage (`level.theme`): sand for the belt, copper for
-/// the vein.
-Color shmupThemeAccent(int theme) => theme % 2 == 1 ? const Color(0xFFE08A55) : const Color(0xFFE9B98A);
+/// the vein, cold steel for the wreck field, bone for the reef.
+Color shmupThemeAccent(int theme) => switch (theme % 4) {
+      1 => const Color(0xFFE08A55),
+      2 => const Color(0xFFA9C2D4),
+      3 => const Color(0xFFE6D7C2),
+      _ => const Color(0xFFE9B98A),
+    };
 
 String shmupWeaponName(WeaponKind w) => switch (w) {
       WeaponKind.pulse => 'Pulse',
@@ -52,11 +57,27 @@ String shmupWeaponName(WeaponKind w) => switch (w) {
       WeaponKind.homing => 'Homing',
     };
 
-String shmupBossName(int style) => style % 2 == 1 ? 'The Prism' : 'The Breaker';
+String shmupBossName(int style) => switch (ShmupBossKind.values[style % ShmupBossKind.values.length]) {
+      ShmupBossKind.breaker => 'The Breaker',
+      ShmupBossKind.prism => 'The Prism',
+      ShmupBossKind.hauler => 'The Hauler',
+      ShmupBossKind.maw => 'The Maw',
+    };
 
-String _tagline(int theme) => theme % 2 == 1
-    ? 'Deeper in. The vein twists; watch the walls.'
-    : 'Reach the end of the rift and break its guardian.';
+/// The mid-boss of each stage (`level.theme`).
+String shmupMidBossName(int theme) => switch (theme % 4) {
+      1 => 'Geode',
+      2 => 'Salvager',
+      3 => 'Nautilid',
+      _ => 'Outrider',
+    };
+
+String _tagline(int theme) => switch (theme % 4) {
+      1 => 'Deeper in. The vein twists; watch the walls.',
+      2 => 'Dead fleets drift here, and something is stripping them.',
+      3 => 'Inside the bones of something huge. It is not empty.',
+      _ => 'Reach the end of the rift and break its guardian.',
+    };
 
 // ── HUD ────────────────────────────────────────────────────────────────────
 
@@ -107,9 +128,14 @@ class _ShmupHudState extends State<ShmupHud> with SingleTickerProviderStateMixin
   String? _tip(ShmupSim s) {
     final b = s.boss;
     if (b == null || b.dying) return null;
-    if (b.phase == 1 && b.entered && b.age < 9) return 'Break both cannons to open the core';
-    if (b.phase >= 2 && _phase2At >= 0 && s.time - _phase2At < 3.5) return 'Core open: hit it while it glows';
-    return null;
+    final early = b.phase == 1 && b.entered && b.age < 9;
+    final opened = b.phase >= 2 && _phase2At >= 0 && s.time - _phase2At < 3.5;
+    return switch (b.kind) {
+      ShmupBossKind.breaker => early ? 'Break both cannons to open the core' : (opened ? 'Core open: hit it while it glows' : null),
+      ShmupBossKind.prism => early ? 'Shatter the three crystals to reach the heart' : (opened ? 'Heart open: slip between the beams' : null),
+      ShmupBossKind.hauler => early ? 'Break both claws. A lit lane shows where one strikes' : (opened ? 'The reactor pulls you in: fly against it' : null),
+      ShmupBossKind.maw => early ? 'Pop both eyes, then shoot its throat' : (opened ? 'Shoot the throat while the jaw is open' : null),
+    };
   }
 
   @override
@@ -345,7 +371,7 @@ class _RunLine extends StatelessWidget {
     final fighting = f != null;
     final title = !fighting
         ? 'Stage ${sim.stage}'
-        : (boss != null ? shmupBossName(boss.style) : 'Outrider');
+        : (boss != null ? shmupBossName(boss.style) : shmupMidBossName(sim.level.theme));
     final right = !fighting
         ? '${(sim.progress * 100).floor()}%'
         : (boss != null ? 'Phase ${boss.phase} of 3' : 'Phase ${mid?.phase ?? 1} of 2');

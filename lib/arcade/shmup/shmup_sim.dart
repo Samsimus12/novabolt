@@ -150,7 +150,8 @@ class ShmupBullet {
   final bool pierce;
   final bool homing;
 
-  /// Player bullets: index of [WeaponKind]; enemy bullets: 0 slow, 1 fast, 2 ring.
+  /// Player bullets: index of [WeaponKind]; enemy bullets: 0 slow, 1 fast,
+  /// 2 ring, 3 scrap (the Hauler's big slow chunks).
   final int style;
   double life;
   final Set<int> hit = {};
@@ -209,21 +210,57 @@ class ShmupEnemy {
   double get hpFraction => (hp / maxHp).clamp(0.0, 1.0);
 }
 
-/// A destructible part of the stage boss (a cannon or the core).
+/// Which guardian ends a stage: `level.bossStyle % 4`. Each has its own
+/// parts, movement and attacks (see [ShmupBoss]).
+enum ShmupBossKind {
+  /// Stage 1: two cannon pods, then an iris core (rings and aimed pairs).
+  breaker,
+
+  /// Stage 2: three crystal facets orbit the heart; then spinning beam arms.
+  prism,
+
+  /// Stage 3: two claws that strike along a lit lane; then a reactor that
+  /// pulls the ship in, scrap rings, and (enraged) mines.
+  hauler,
+
+  /// Stage 4: two eyes on stalks; then a jaw that opens and shuts (the throat
+  /// can only be hit while it is open), a bite ring and (enraged) spores.
+  maw,
+}
+
+/// A destructible part of the stage boss (a cannon, facet, claw, eye or the
+/// core). Its offset ([dx], [dy]) from the boss's center can move (facets
+/// orbit, claws strike, eyes sway); [homeDx] / [homeDy] is where it rests.
 class BossPart {
   final String id;
-  final double dx, dy, r;
+  double dx, dy;
+  final double homeDx, homeDy;
+  final double r;
   double hp;
   final double maxHp;
   double flash = 0;
-  BossPart(this.id, this.dx, this.dy, this.r, this.hp) : maxHp = hp;
+
+  /// Claws (the Hauler): 0 resting, 1 lane lit (the tell), 2 striking,
+  /// 3 pulling back. [stateT] = seconds in the state.
+  int state = 0;
+  double stateT = 0;
+
+  /// Claws: the field y the lit lane / the strike follows.
+  double laneY = 0;
+  BossPart(this.id, this.dx, this.dy, this.r, this.hp)
+      : maxHp = hp,
+        homeDx = dx,
+        homeDy = dy;
   bool get alive => hp > 0;
 }
 
 /// The stage boss: an armored hull ([shellR], bullets bounce off) carrying
-/// two cannons; with both gone the hull opens and the core is exposed (shots
-/// then pass the shell and hit it). Phases: 1 cannons, 2 core,
-/// 3 core under 35% (enraged). Parts are at ([x] + dx, [y] + dy).
+/// guard parts ([guards]: cannons, facets, claws or eyes); with every guard
+/// gone the core is exposed (the Maw's only while its jaw is open, [mouth]).
+/// Phases: 1 guards, 2 core, 3 core under 35% (enraged). Parts are at
+/// ([x] + dx, [y] + dy). Per-kind state the art reads: [spin] (Prism facet
+/// orbit), [armTurn] / [streaming] (Prism beam arms), [pull] (Hauler
+/// tractor, 0..1), [mouth] (Maw jaw, 0 shut .. 1 open).
 class ShmupBoss {
   double x, y;
   double age = 0;
@@ -232,11 +269,34 @@ class ShmupBoss {
   double dyingFor = 0;
   final double shellR;
   final int style;
+  final ShmupBossKind kind;
   final List<BossPart> parts;
   double fireCd = 1.5;
   double ringCd = 2.0;
   double ringTurn = 0;
   double enterTargetX;
+
+  // Prism.
+  double spin = 0;
+  double armTurn = 0;
+  int armDir = 1;
+  double streamLeft = 0; // seconds left of the current beam-arm burst
+  double streamCd = 0; // next bullet on the arms
+  int nextGuard = 0; // round robin over the guards that fire
+
+  // Hauler.
+  double clawCd = 1.6;
+  double pull = 0;
+  double pullT = 0;
+  double mineCd = 3.5;
+
+  // Maw.
+  double mouth = 0;
+  int mouthState = 0; // 0 shut, 1 opening, 2 open, 3 closing
+  double mouthT = 0;
+  int burstLeft = 0; // shots left in an eye's stream
+  double burstCd = 0;
+  BossPart? burstFrom;
 
   ShmupBoss({
     required this.x,
@@ -245,14 +305,23 @@ class ShmupBoss {
     required this.shellR,
     required this.style,
     required this.enterTargetX,
-  });
+  }) : kind = ShmupBossKind.values[style % ShmupBossKind.values.length];
 
   BossPart get core => parts.last;
+
+  /// Every part but the core.
+  List<BossPart> get guards => parts.sublist(0, parts.length - 1);
   BossPart get upper => parts[0];
   BossPart get lower => parts[1];
-  bool get entered => x <= enterTargetX + 0.01;
+  /// Has reached its spot (latched: the Prism and the Maw sway about it).
+  bool get entered => _arrived || (_arrived = x <= enterTargetX + 0.01);
+  bool _arrived = false;
+  bool get guardsDown => guards.every((g) => !g.alive);
 
-  /// Core and cannons' remaining health over their total (the HUD bar).
+  /// The Prism is spraying its beam arms.
+  bool get streaming => streamLeft > 0;
+
+  /// Core and guards' remaining health over their total (the HUD bar).
   double get fraction {
     var hp = 0.0, max = 0.0;
     for (final p in parts) {
@@ -262,7 +331,14 @@ class ShmupBoss {
     return max == 0 ? 0 : (hp / max).clamp(0.0, 1.0);
   }
 
-  bool exposed(BossPart p) => p.alive && (identical(p, core) ? !upper.alive && !lower.alive : true);
+  /// Can shots hurt [p] right now? Guards: while alive. The core: once every
+  /// guard is gone (and, for the Maw, while the jaw is open).
+  bool exposed(BossPart p) {
+    if (!p.alive) return false;
+    if (!identical(p, core)) return true;
+    if (!guardsDown) return false;
+    return kind != ShmupBossKind.maw || mouth >= 0.6;
+  }
 }
 
 class ShmupPickup {
@@ -928,21 +1004,45 @@ class ShmupSim {
     if (scrollX >= level.bossAt) {
       _bossSpawned = true;
       final m = 1 + ShmupTuning.bossHpPerStage * difficulty;
+      double hp(double v) => (v * m).ceilToDouble();
+      final kind = ShmupBossKind.values[level.bossStyle % ShmupBossKind.values.length];
+      final parts = switch (kind) {
+        ShmupBossKind.breaker => [
+            BossPart('upper', -4, -21, 7, hp(34)),
+            BossPart('lower', -4, 21, 7, hp(34)),
+            BossPart('core', 4, 0, 9, hp(60)),
+          ],
+        ShmupBossKind.prism => [
+            for (var i = 0; i < 3; i++)
+              BossPart('facet$i', math.cos(math.pi + i * 2 * math.pi / 3) * _facetOrbit,
+                  math.sin(math.pi + i * 2 * math.pi / 3) * _facetOrbit, 6, hp(24)),
+            BossPart('core', 0, 0, 9, hp(60)),
+          ],
+        ShmupBossKind.hauler => [
+            BossPart('upper', -12, -25, 7.5, hp(40)),
+            BossPart('lower', -12, 25, 7.5, hp(40)),
+            BossPart('core', 6, 0, 9, hp(64)),
+          ],
+        ShmupBossKind.maw => [
+            BossPart('upper', -3, -27, 6.5, hp(30)),
+            BossPart('lower', -3, 27, 6.5, hp(30)),
+            BossPart('core', -8, 0, 8.5, hp(64)),
+          ],
+      };
       boss = ShmupBoss(
         x: width + 40,
         y: height * 0.5,
         shellR: 24,
         style: level.bossStyle,
-        enterTargetX: width * 0.74,
-        parts: [
-          BossPart('upper', -4, -21, 7, (34 * m).ceilToDouble()),
-          BossPart('lower', -4, 21, 7, (34 * m).ceilToDouble()),
-          BossPart('core', 4, 0, 9, (60 * m).ceilToDouble()),
-        ],
+        enterTargetX: width * (kind == ShmupBossKind.hauler ? 0.77 : 0.74),
+        parts: parts,
       );
       _emit(ShmupEventKind.bossAppear, boss!.x, boss!.y);
     }
   }
+
+  /// The Prism's facets circle the heart at this radius (just outside the shell).
+  static const double _facetOrbit = 31;
 
   void _updateBoss(double dt) {
     final b = boss;
@@ -953,21 +1053,25 @@ class ShmupSim {
     }
     if (b.dying) {
       b.dyingFor += dt;
+      b.pull = math.max(0, b.pull - dt * 3);
       return;
     }
-    final fast = b.phase == 3 ? 1.5 : (b.phase == 2 ? 1.2 : 1.0);
-    b.y = height * 0.5 + math.sin(b.age * 0.75 * fast) * height * 0.2;
+    _moveBoss(b, dt);
     if (!b.entered) {
       b.x = math.max(b.enterTargetX, b.x - 24 * dt);
       return;
     }
-    final fm = _fireMul;
 
     // Phase changes.
-    if (b.phase == 1 && !b.upper.alive && !b.lower.alive) {
+    if (b.phase == 1 && b.guardsDown) {
       b.phase = 2;
       b.ringCd = 1.2;
       b.fireCd = 1.0;
+      b.streamCd = 0;
+      b.streamLeft = 0;
+      b.pullT = 0;
+      b.mouthState = 0;
+      b.mouthT = 0;
       _emit(ShmupEventKind.bossPhase, b.x, b.y, value: 2);
     }
     if (b.phase == 2 && b.core.hp <= b.core.maxHp * 0.35) {
@@ -978,6 +1082,52 @@ class ShmupSim {
 
     b.fireCd -= dt;
     b.ringCd -= dt;
+    switch (b.kind) {
+      case ShmupBossKind.breaker:
+        _breaker(b);
+      case ShmupBossKind.prism:
+        _prism(b, dt);
+      case ShmupBossKind.hauler:
+        _hauler(b, dt);
+      case ShmupBossKind.maw:
+        _maw(b, dt);
+    }
+  }
+
+  /// Where each kind sits and how it sways (also during its entrance).
+  void _moveBoss(ShmupBoss b, double dt) {
+    final fast = b.phase == 3 ? 1.5 : (b.phase == 2 ? 1.2 : 1.0);
+    switch (b.kind) {
+      case ShmupBossKind.breaker:
+        b.y = height * 0.5 + math.sin(b.age * 0.75 * fast) * height * 0.2;
+      case ShmupBossKind.prism:
+        b.y = height * 0.5 + math.sin(b.age * 0.55 * fast) * height * 0.16;
+        if (b.entered) b.x = b.enterTargetX + math.sin(b.age * 0.4) * 3;
+        b.spin += dt * (b.phase == 1 ? 0.75 : 0.0);
+        final gs = b.guards;
+        for (var i = 0; i < gs.length; i++) {
+          final a = math.pi + b.spin + i * 2 * math.pi / gs.length;
+          gs[i]
+            ..dx = math.cos(a) * _facetOrbit
+            ..dy = math.sin(a) * _facetOrbit;
+        }
+      case ShmupBossKind.hauler:
+        b.y = height * 0.5 + math.sin(b.age * 0.45 * fast) * height * 0.12;
+      case ShmupBossKind.maw:
+        b.y = height * 0.5 + math.sin(b.age * 0.5 * fast) * height * 0.14;
+        if (b.entered) b.x = b.enterTargetX - b.mouth * 5; // leans in as the jaw opens
+        final gs = b.guards;
+        for (var i = 0; i < gs.length; i++) {
+          final g = gs[i];
+          g
+            ..dx = g.homeDx + math.cos(b.age * 1.3 + i * 2) * 1.5
+            ..dy = g.homeDy + math.sin(b.age * 1.7 + i * 2) * 3;
+        }
+    }
+  }
+
+  void _breaker(ShmupBoss b) {
+    final fm = _fireMul;
     if (b.phase == 1) {
       if (b.fireCd <= 0) {
         final alive = [if (b.upper.alive) b.upper, if (b.lower.alive) b.lower];
@@ -988,25 +1138,267 @@ class ShmupSim {
         }
         b.fireCd = (alive.length == 2 ? 1.7 : 1.1) * fm;
       }
-    } else {
-      if (b.fireCd <= 0) {
-        for (final a in b.phase == 3 ? const [-0.2, 0.0, 0.2] : const [-0.1, 0.1]) {
-          _aimedShot(b.x + b.core.dx - 6, b.y, ShmupTuning.fastShot, a, 1);
-        }
-        b.fireCd = (b.phase == 3 ? 1.0 : 1.5) * fm;
+      return;
+    }
+    if (b.fireCd <= 0) {
+      for (final a in b.phase == 3 ? const [-0.2, 0.0, 0.2] : const [-0.1, 0.1]) {
+        _aimedShot(b.x + b.core.dx - 6, b.y, ShmupTuning.fastShot, a, 1);
       }
-      if (b.ringCd <= 0) {
-        final n = b.phase == 3 ? 14 : 10;
-        b.ringTurn += 0.37;
-        for (var i = 0; i < n; i++) {
-          final a = b.ringTurn + i * 2 * math.pi / n;
-          enemyBullets.add(ShmupBullet(b.x + b.core.dx, b.y, math.cos(a) * 34, math.sin(a) * 34,
-              r: 1.5, style: 2, life: 7));
+      b.fireCd = (b.phase == 3 ? 1.0 : 1.5) * fm;
+    }
+    if (b.ringCd <= 0) {
+      _ring(b.x + b.core.dx, b.y, b.phase == 3 ? 14 : 10, 34, b.ringTurn += 0.37);
+      b.ringCd = (b.phase == 3 ? 1.6 : 2.3) * fm;
+    }
+  }
+
+  /// Phase 1: the facets take turns firing tight aimed fans. Then the heart
+  /// sprays beam arms (3, or 4 enraged) that sweep around it in bursts, with
+  /// an aimed pair between bursts; enraged, each burst turns the other way.
+  void _prism(ShmupBoss b, double dt) {
+    final fm = _fireMul;
+    if (b.phase == 1) {
+      if (b.fireCd <= 0) {
+        final gs = b.guards.where((g) => g.alive).toList();
+        if (gs.isNotEmpty) {
+          final g = gs[b.nextGuard++ % gs.length];
+          for (final a in const [-0.12, 0.0, 0.12]) {
+            _aimedShot(b.x + g.dx, b.y + g.dy, ShmupTuning.slowShot + 4, a, 1);
+          }
+        }
+        b.fireCd = (gs.length >= 3 ? 0.75 : 0.6) * fm;
+      }
+      return;
+    }
+    final arms = b.phase == 3 ? 4 : 3;
+    if (b.streamLeft > 0) {
+      b.streamLeft -= dt;
+      b.armTurn += dt * 0.85 * b.armDir * (b.phase == 3 ? 1.2 : 1.0);
+      b.streamCd -= dt;
+      if (b.streamCd <= 0) {
+        b.streamCd = 0.17;
+        for (var i = 0; i < arms; i++) {
+          final a = b.armTurn + i * 2 * math.pi / arms;
+          enemyBullets.add(ShmupBullet(b.x, b.y, math.cos(a) * 30, math.sin(a) * 30, r: 1.4, style: 2, life: 7));
         }
         _emit(ShmupEventKind.enemyShot, b.x, b.y);
-        b.ringCd = (b.phase == 3 ? 1.6 : 2.3) * fm;
+      }
+      if (b.streamLeft <= 0) {
+        // Rest between bursts, opened by an aimed pair.
+        for (final a in const [-0.09, 0.09]) {
+          _aimedShot(b.x - 6, b.y, ShmupTuning.fastShot, a, 1);
+        }
+        b.ringCd = (b.phase == 3 ? 1.0 : 1.4) * fm;
+      }
+    } else if (b.ringCd <= 0) {
+      b.streamLeft = b.phase == 3 ? 2.6 : 2.2;
+      b.streamCd = 0;
+      if (b.phase == 3) b.armDir = -b.armDir;
+    }
+  }
+
+  /// Phase 1: the claws take turns: the lane at the ship's height lights up
+  /// (0.85 s), the claw strikes along it to the left edge and pulls back; the
+  /// hull lobs slow scrap. Then the reactor opens and pulls the ship toward
+  /// the hull in 3 s spells (fly against it), with scrap rings while it
+  /// pulls and aimed triples between; enraged, it also drops mines.
+  void _hauler(ShmupBoss b, double dt) {
+    final fm = _fireMul;
+    for (final c in b.guards) {
+      if (!c.alive) {
+        c.state = 0;
+        continue;
+      }
+      c.stateT += dt;
+      final laneDy = c.laneY - b.y;
+      switch (c.state) {
+        case 1: // the lane is lit: the claw lines up with it
+          c.dy += (laneDy - c.dy) * math.min(1, dt * 8);
+          if (c.stateT >= 0.85) {
+            c.state = 2;
+            c.stateT = 0;
+            c.dy = laneDy;
+          }
+        case 2: // strike
+          c.dy = laneDy;
+          c.dx -= 125 * dt;
+          if (b.x + c.dx <= 6) {
+            c.state = 3;
+            c.stateT = 0;
+          }
+        case 3: // pull back
+          c.dx = math.min(c.homeDx, c.dx + 60 * dt);
+          c.dy += (c.homeDy - c.dy) * math.min(1, dt * 3);
+          if (c.dx >= c.homeDx - 0.01) {
+            c.state = 0;
+            c.stateT = 0;
+          }
+        default:
+          c.dy += (c.homeDy - c.dy) * math.min(1, dt * 4);
       }
     }
+    if (b.phase == 1) {
+      b.clawCd -= dt;
+      final idle = b.guards.where((g) => g.alive && g.state == 0).toList();
+      final busy = b.guards.any((g) => g.alive && g.state != 0);
+      if (b.clawCd <= 0 && idle.isNotEmpty && !busy) {
+        final c = idle[b.nextGuard++ % idle.length];
+        c
+          ..state = 1
+          ..stateT = 0
+          ..laneY = ship.y.clamp(8.0, height - 8.0);
+        _emit(ShmupEventKind.darterLock, b.x + c.dx, b.y + c.dy);
+        b.clawCd = 2.3 * fm;
+      }
+      if (b.fireCd <= 0) {
+        for (final a in const [-0.34, -0.11, 0.11, 0.34]) {
+          _scrapShot(b.x - 10, b.y, 30, a);
+        }
+        b.fireCd = 2.1 * fm;
+      }
+      return;
+    }
+    // Reactor: pull spells.
+    b.pullT += dt;
+    final pulling = b.pullT % 5.0 < 3.0;
+    b.pull += ((pulling ? 1.0 : 0.0) - b.pull) * math.min(1, dt * 4);
+    if (b.pull > 0.05) {
+      final dx = b.x - ship.x, dy = b.y - ship.y;
+      final d = math.max(1.0, math.sqrt(dx * dx + dy * dy));
+      final v = (b.phase == 3 ? 15.0 : 11.0) * b.pull * dt;
+      moveShipBy(dx / d * v, dy / d * v * 0.6);
+    }
+    if (pulling) {
+      if (b.ringCd <= 0) {
+        _ring(b.x + b.core.dx, b.y, b.phase == 3 ? 12 : 10, 28, b.ringTurn += 0.31, style: 3, r: 1.9);
+        b.ringCd = 1.4 * fm;
+      }
+    } else if (b.fireCd <= 0) {
+      for (final a in const [-0.14, 0.0, 0.14]) {
+        _aimedShot(b.x - 8, b.y, ShmupTuning.fastShot, a, 1);
+      }
+      b.fireCd = 0.9 * fm;
+    }
+    if (b.phase == 3) {
+      b.mineCd -= dt;
+      if (b.mineCd <= 0) {
+        b.mineCd = 4.5 * fm;
+        for (final dy in const [-14.0, 14.0]) {
+          final my = (b.y + dy).clamp(10.0, height - 10.0);
+          if (_inTerrain(b.x - 28, my)) continue;
+          enemies.add(ShmupEnemy(
+              id: _nextId++, kind: EnemyKind.mine, x: b.x - 28, y: my, hp: 2, r: 3.6,
+              points: ShmupTuning.pointsMine, locked: true));
+        }
+      }
+    }
+  }
+
+  /// Phase 1: the eyes take turns firing a stream of three aimed spores.
+  /// Then the jaw works: shut 1.5 s (the shell deflects; it spits aimed
+  /// pairs), opening 0.45 s, open 3.0 s (3.4 enraged: the throat is the
+  /// target and sprays four-shot fans with a gap in the middle), closing
+  /// 0.35 s, which bites a ring. Enraged,
+  /// each opening also releases three spore drones.
+  void _maw(ShmupBoss b, double dt) {
+    final fm = _fireMul;
+    if (b.phase == 1) {
+      if (b.burstLeft > 0) {
+        b.burstCd -= dt;
+        final from = b.burstFrom;
+        if (from == null || !from.alive) {
+          b.burstLeft = 0;
+        } else if (b.burstCd <= 0) {
+          b.burstCd = 0.13;
+          b.burstLeft--;
+          _aimedShot(b.x + from.dx, b.y + from.dy, ShmupTuning.slowShot + 2, 0, 0);
+        }
+      } else if (b.fireCd <= 0) {
+        final gs = b.guards.where((g) => g.alive).toList();
+        if (gs.isNotEmpty) {
+          b.burstFrom = gs[b.nextGuard++ % gs.length];
+          b.burstLeft = 3;
+          b.burstCd = 0;
+        }
+        b.fireCd = 1.7 * fm;
+      }
+      return;
+    }
+    b.mouthT += dt;
+    final openFor = b.phase == 3 ? 3.4 : 3.0;
+    switch (b.mouthState) {
+      case 0:
+        b.mouth = 0;
+        if (b.fireCd <= 0) {
+          for (final a in const [-0.14, 0.14]) {
+            _aimedShot(b.x - 14, b.y, ShmupTuning.slowShot + 8, a, 0);
+          }
+          b.fireCd = 1.6 * fm;
+        }
+        if (b.mouthT >= 1.5) {
+          b.mouthState = 1;
+          b.mouthT = 0;
+        }
+      case 1:
+        b.mouth = (b.mouthT / 0.45).clamp(0.0, 1.0);
+        if (b.mouthT >= 0.45) {
+          b.mouthState = 2;
+          b.mouthT = 0;
+          b.fireCd = 0.2;
+          if (b.phase == 3) {
+            for (var i = 0; i < 3; i++) {
+              final e = ShmupEnemy(
+                  id: _nextId++, kind: EnemyKind.drone, x: b.x - 12 - i * 7, y: b.y, hp: (1 * _hpMul).ceilToDouble(),
+                  r: 3.4, points: ShmupTuning.pointsDrone)
+                ..vx = -38
+                ..y0 = b.y
+                ..amp = height * (0.08 + i * 0.03)
+                ..freq = 0.09;
+              enemies.add(e);
+            }
+          }
+        }
+      case 2:
+        b.mouth = 1;
+        if (b.fireCd <= 0) {
+          // Six shots, so the middle is a gap, not a bullet: sit still in front
+          // of the throat and the fan passes either side of the ship.
+          const n = 4;
+          for (var i = 0; i < n; i++) {
+            _aimedShot(b.x + b.core.dx - 4, b.y, ShmupTuning.slowShot + 2, (i - (n - 1) / 2) * 0.3, 0);
+          }
+          b.fireCd = 1.1 * fm;
+        }
+        if (b.mouthT >= openFor) {
+          b.mouthState = 3;
+          b.mouthT = 0;
+        }
+      default:
+        b.mouth = 1 - (b.mouthT / 0.35).clamp(0.0, 1.0);
+        if (b.mouthT >= 0.35) {
+          b.mouth = 0;
+          b.mouthState = 0;
+          b.mouthT = 0;
+          _ring(b.x - 10, b.y, b.phase == 3 ? 16 : 12, 32, b.ringTurn += 0.29);
+          b.fireCd = 0.8 * fm;
+        }
+    }
+  }
+
+  /// [n] bullets in a ring around (x, y), turned by [turn].
+  void _ring(double x, double y, int n, double speed, double turn, {int style = 2, double r = 1.5}) {
+    for (var i = 0; i < n; i++) {
+      final a = turn + i * 2 * math.pi / n;
+      enemyBullets.add(ShmupBullet(x, y, math.cos(a) * speed, math.sin(a) * speed, r: r, style: style, life: 7));
+    }
+    _emit(ShmupEventKind.enemyShot, x, y);
+  }
+
+  /// A slow, big chunk of scrap (the Hauler), aimed and turned by [spread].
+  void _scrapShot(double x, double y, double speed, double spread) {
+    final a = math.atan2(ship.y - y, ship.x - x) + spread;
+    enemyBullets.add(ShmupBullet(x, y, math.cos(a) * speed, math.sin(a) * speed, r: 2.2, style: 3, life: 9));
+    _emit(ShmupEventKind.enemyShot, x, y);
   }
 
   void _killBoss(ShmupBoss b) {
@@ -1086,9 +1478,14 @@ class ShmupSim {
       }
     }
 
-    // The boss's hull.
+    // The boss's hull and its guards (claws, facets, eyes, cannons) hurt on touch.
     final bs = boss;
     if (bs != null && !bs.dying && bs.entered) {
+      for (final g in bs.guards) {
+        if (g.alive && _overlap(s.x, s.y, ShmupTuning.shipHitR, bs.x + g.dx, bs.y + g.dy, g.r * 0.85)) {
+          _hurtShip(s.x, s.y);
+        }
+      }
       final dx = s.x - bs.x, dy = s.y - bs.y;
       final d = math.sqrt(dx * dx + dy * dy);
       final minD = bs.shellR + ShmupTuning.shipHitR;

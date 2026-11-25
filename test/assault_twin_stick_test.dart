@@ -1,5 +1,5 @@
 // A2 verification: Ground Assault twin-stick. Sim-level input edge cases
-// (jump threshold/hysteresis, double jump from stick and button, aim reset on
+// (the move stick never jumps, double jump from the button, aim reset on
 // respawn, every aim angle with real bullets) and a small-phone layout test.
 import 'dart:math' as math;
 
@@ -197,78 +197,55 @@ void main() {
     });
   });
 
-  group('jump from the move stick', () {
-    test('pushing up once is one jump; releasing the stick does not trigger another', () {
+  group('the move stick never jumps', () {
+    test('pushing it up, held or flicked, never jumps', () {
       final s = make();
       run(s, 0.3);
       s.drainEvents();
       s.input.moveY = -1;
+      run(s, 1.0);
+      var i = 0;
+      run(s, 1.0, each: () => s.input.moveY = (i++ % 2 == 0) ? -1 : 0); // flicking
+      s.input
+        ..moveX = 0.7
+        ..moveY = -0.7; // diagonal up-right: runs, no hop
+      run(s, 1.0);
+      expect(jumps(s, AssaultEventKind.jump), 0);
+      expect(s.pilot.onGround, isTrue);
+      expect(s.pilot.vx, greaterThan(0), reason: 'the diagonal still runs');
+    });
+
+    test('pushing it up in the air does not spend the double jump', () {
+      final s = make();
+      run(s, 0.3);
+      s.drainEvents();
+      s.input
+        ..jumpPressed = true
+        ..jumpHeld = true;
+      run(s, 0.1);
+      s.input
+        ..jumpHeld = false
+        ..moveY = -1;
       run(s, 0.1);
       expect(jumps(s, AssaultEventKind.jump), 1);
-      s.input.moveY = 0; // let go
-      run(s, 2.0);
-      expect(jumps(s, AssaultEventKind.jump), 0);
       expect(jumps(s, AssaultEventKind.doubleJump), 0);
-      expect(s.pilot.onGround, isTrue);
-    });
-
-    test('releasing the stick on the ground never jumps (even from 0.59)', () {
-      final s = make();
-      run(s, 0.3);
-      s.drainEvents();
-      s.input.moveY = -0.59;
-      run(s, 0.3);
-      s.input.moveY = 0;
-      run(s, 0.3);
-      expect(s.pilot.onGround, isTrue);
-      expect(jumps(s, AssaultEventKind.jump), 0);
-    });
-
-    test('wobbling around 0.6 (never dropping under the release level) is ONE jump', () {
-      final s = make();
-      run(s, 0.3);
-      s.drainEvents();
-      var i = 0;
-      // 0.55 <-> 0.65 every frame for 2 seconds: crosses 0.6 repeatedly.
-      run(s, 2.0, each: () => s.input.moveY = (i++ % 2 == 0) ? -0.65 : -0.55);
-      expect(jumps(s, AssaultEventKind.jump), 1);
-      expect(jumps(s, AssaultEventKind.doubleJump), 0, reason: 'a wobble must not burn the double jump');
-    });
-
-    test('wobbling just under the threshold never jumps', () {
-      final s = make();
-      run(s, 0.3);
-      s.drainEvents();
-      var i = 0;
-      run(s, 1.0, each: () => s.input.moveY = (i++ % 2 == 0) ? -0.59 : -0.45);
-      expect(jumps(s, AssaultEventKind.jump), 0);
-      expect(s.pilot.onGround, isTrue);
-    });
-
-    test('push, drop under 0.4, push again in the air = double jump, only once', () {
-      final s = make();
-      run(s, 0.3);
-      s.drainEvents();
-      s.input.moveY = -1;
-      run(s, 0.1);
-      s.input.moveY = 0;
-      run(s, 0.1);
-      s.input.moveY = -1; // second push, mid-air
+      s.input.jumpPressed = true; // the button still has its mid-air jump
       run(s, 0.05);
       expect(jumps(s, AssaultEventKind.doubleJump), 1);
-      s.input.moveY = 0;
-      run(s, 0.1);
-      s.input.moveY = -1; // third push: nothing left
-      run(s, 0.05);
-      expect(jumps(s, AssaultEventKind.doubleJump), 0);
     });
 
-    test('holding up gives a higher jump than a tap, and a held stick re-jumps only after a release + landing', () {
-      double peak(void Function(AssaultSim) f) {
+    test('an upward stick does not keep a button jump high (only the button does)', () {
+      double peak(bool stickUp) {
         final s = make();
         run(s, 0.3);
         final ground = s.pilot.y;
-        f(s);
+        s.input
+          ..jumpPressed = true
+          ..jumpHeld = true;
+        run(s, 0.05);
+        s.input
+          ..jumpHeld = false
+          ..moveY = stickUp ? -1 : 0;
         var top = s.pilot.y;
         for (var i = 0; i < 90; i++) {
           s.step(1 / 60);
@@ -277,25 +254,10 @@ void main() {
         return ground - top;
       }
 
-      final tap = peak((s) {
-        s.input.moveY = -1;
-        run(s, 0.05);
-        s.input.moveY = 0;
-      });
-      final hold = peak((s) => s.input.moveY = -1);
-      expect(hold, greaterThan(tap + 0.3));
-
-      // Held the whole time: lands and does NOT bunny-hop by itself.
-      final s = make();
-      run(s, 0.3);
-      s.drainEvents();
-      s.input.moveY = -1;
-      run(s, 3.0);
-      expect(jumps(s, AssaultEventKind.jump), 1);
-      expect(s.pilot.onGround, isTrue);
+      expect(peak(true), closeTo(peak(false), 1e-9));
     });
 
-    test('crouch still works: stick down on the ground, and up then wins over a stale crouch', () {
+    test('crouch still works: stick down on the ground, and down-right still crouches', () {
       final s = make();
       run(s, 0.3);
       s.input.moveY = 1;
@@ -304,18 +266,21 @@ void main() {
       s.input.moveY = -1;
       run(s, 0.3);
       expect(s.pilot.crouching, isFalse);
+      expect(s.pilot.onGround, isTrue);
       s.input.moveY = 0;
       run(s, 1);
       s.input.moveY = 1;
-      s.input.moveX = 0.5; // down-right still crouches (down is dominant)
+      s.input.moveX = 0.5; // down is dominant
       run(s, 0.2);
       expect(s.pilot.crouching, isTrue);
     });
 
-    test('stick jump and aim stick together: jumping does not disturb aim', () {
+    test('button jump and aim stick together: jumping does not disturb aim', () {
       final s = make();
       aim(s, 0.8, -0.6);
-      s.input.moveY = -1;
+      s.input
+        ..jumpPressed = true
+        ..jumpHeld = true;
       run(s, 0.3);
       expect(s.pilot.onGround, isFalse);
       expect(s.pilot.aimAngle, closeTo(math.atan2(-0.6, 0.8), 1e-9));
@@ -341,25 +306,6 @@ void main() {
       tap();
       expect(jumps(s, AssaultEventKind.doubleJump), 1);
       tap();
-      expect(jumps(s, AssaultEventKind.doubleJump), 0);
-    });
-
-    test('button and stick share one double jump (stick then button)', () {
-      final s = make();
-      run(s, 0.3);
-      s.drainEvents();
-      s.input.moveY = -1;
-      run(s, 0.1);
-      s.input.moveY = 0;
-      run(s, 0.1);
-      s.input
-        ..jumpPressed = true
-        ..jumpHeld = true;
-      run(s, 0.05);
-      expect(jumps(s, AssaultEventKind.doubleJump), 1);
-      s.input.jumpHeld = false;
-      s.input.moveY = -1; // stick again: spent
-      run(s, 0.05);
       expect(jumps(s, AssaultEventKind.doubleJump), 0);
     });
 
@@ -428,7 +374,7 @@ void main() {
 
       final jumpRect = t.getRect(find.text('Jump'));
       final aimHint = t.getRect(find.text('Drag to aim'));
-      final moveHint = t.getRect(find.text('Up jumps, down crouches'));
+      final moveHint = t.getRect(find.text('Drag to run, down crouches'));
       expect(jumpRect.left, greaterThanOrEqualTo(0));
       expect(jumpRect.right, lessThanOrEqualTo(375));
       expect(jumpRect.top, greaterThanOrEqualTo(deck.top));
@@ -466,7 +412,7 @@ void main() {
       final ag2 = await t.startGesture(probe);
       await ag2.moveBy(const Offset(30, 0));
       final jg2 = await t.startGesture(jumpRect.center);
-      expect(i.moveY, lessThan(-AssaultTuning.stickJumpThreshold));
+      expect(i.moveY, lessThan(-0.6));
       expect(i.aimActive, isTrue);
       expect(i.aimX, greaterThan(0.5));
       expect(i.jumpHeld, isTrue);
@@ -480,7 +426,7 @@ void main() {
       await t.binding.setSurfaceSize(const Size(375, 667));
       addTearDown(() => t.binding.setSurfaceSize(null));
       await mount(t);
-      for (final txt in ['Drag to aim', 'Up jumps, down crouches']) {
+      for (final txt in ['Drag to aim', 'Drag to run, down crouches']) {
         final r = t.getRect(find.text(txt));
         expect(r.bottom, lessThanOrEqualTo(667), reason: '"$txt" is drawn below the screen: $r');
       }

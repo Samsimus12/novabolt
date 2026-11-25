@@ -585,9 +585,9 @@ class _StageCardState extends State<_StageCard> {
           runSpacing: NbSpace.xs,
           alignment: WrapAlignment.center,
           children: [
-            _Hint(icon: PhosphorIconsBold.joystick, text: 'Left: move, up to aim up'),
-            _Hint(icon: PhosphorIconsBold.caretDoubleUp, text: 'Right: jump, again in the air'),
-            _Hint(icon: PhosphorIconsBold.crosshair, text: 'Your gun fires straight ahead'),
+            _Hint(icon: PhosphorIconsBold.joystick, text: 'Left stick: run, down to crouch'),
+            _Hint(icon: PhosphorIconsBold.caretDoubleUp, text: 'Jump button: jump, again in the air'),
+            _Hint(icon: PhosphorIconsBold.crosshair, text: 'Right stick: aim anywhere, fires nonstop'),
           ],
         ),
       ],

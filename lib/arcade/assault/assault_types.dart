@@ -50,11 +50,6 @@ abstract final class AssaultTuning {
   /// (0..1); on release the gun keeps its last angle.
   static const double aimDeadzone = 0.3;
 
-  /// Pushing the move stick up past this (-moveY) is a jump press (an edge);
-  /// the stick stays "up" (jump held, so the jump stays high) until it falls
-  /// back under [stickJumpRelease]. A second push in mid-air is the double jump.
-  static const double stickJumpThreshold = 0.6;
-  static const double stickJumpRelease = 0.4;
 
   // ── Scoring ─────────────────────────────────────────────────────────────
   static const int clearBonus = 10;

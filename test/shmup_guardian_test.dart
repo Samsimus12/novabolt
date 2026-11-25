@@ -21,7 +21,7 @@ ShmupLevel lvl(int style) => ShmupLevel(
 /// A sim with the boss arrived. [stages] guardians in a row.
 ShmupSim bossSim({int stages = 1, int seed = 3}) {
   final s = ShmupSim(
-      height: h, seed: seed, levels: [for (var i = 0; i < stages; i++) lvl(i % 2)]);
+      height: h, seed: seed, levels: [for (var i = 0; i < stages; i++) lvl(i % 4)]);
   s.start();
   s.ship.fireCd = 1e9;
   s.ship.x = 6;
@@ -38,10 +38,10 @@ void _until(ShmupSim s, bool Function() c, double max) {
 
 void kill(BossPart p) => p.hp = 0;
 
-/// Bot ship: sits left of the boss and lines up with a living cannon, else the core.
+/// Bot ship: sits left of the boss and lines up with a living guard, else the core.
 void aim(ShmupSim s) {
   final b = s.boss!;
-  final t = b.upper.alive ? b.upper : (b.lower.alive ? b.lower : b.core);
+  final t = b.guards.firstWhere((g) => g.alive, orElse: () => b.core);
   s.ship.invuln = 999;
   s.ship.x = b.x - 70;
   s.ship.y = b.y + t.dy;
@@ -191,7 +191,7 @@ void main() {
     }
   }
 
-  test('stage clear -> next stage starts, across several guardians (both boss styles, rising HP)', () {
+  test('stage clear -> next stage starts, across several guardians (all four kinds, rising HP)', () {
     final s = bossSim(stages: 4);
     for (var stage = 1; stage <= 4; stage++) {
       expect(s.stage, stage);

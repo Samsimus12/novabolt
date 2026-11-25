@@ -330,9 +330,16 @@ Gameplay is canvas-only. The PixelLab sprite experiment (`scripts/generate_sprit
 
 ---
 
+## Rift Runner four stages + Assault jump (Nov 24, 2026)
+
+- **Ground Assault:** the move stick never jumps (stick-jump code and `stickJumpThreshold/Release` removed); only the Jump button jumps. The intro card hints describe the twin-stick controls (`test/rift_assault_ui_extra_test.dart` guards it).
+- **Rift Runner:** 4 stages (Asteroid Belt, Crystal Vein, Wreck Field, Bone Reef), a different enemy faction per theme (Raiders, Crystal, Salvage, Reef; painters in `shmup_art_factions.dart`, a `part of` shmup_art.dart) and a boss kind per stage from `bossStyle % 4`: Breaker, Prism, Hauler, Maw (`ShmupBossKind` in shmup_sim.dart; tests `shmup_bosses_test.dart`).
+- **Balance (fairness bot, `test/rift_stage_fairness_test.dart`):** Bone Reef's ribs/throat were opened (always-open lane 20.7 -> 46.6 units; bot hits before the boss ~26 vs Wreck Field ~32, stages 1-2 ~11/~5). The Maw fires fewer, faster shots (bot fight 380 s/35-49 hits -> ~145 s/8-17). The Hauler is now the longest boss fight (~185 s, 18-21 hits); retune it if players complain.
+
 ## App Store
 
 - **iOS**: v1.0.0 (build 3) — approved and live as of 2026-05-12
+- **iOS**: v1.1.0 (build 4) — submitted for review Nov 24, 2026 (everything through the Rift Runner four-stage update)
 - **Android**: AAB 1.0.0+3 in internal testing as of 2026-05-12; target production ~2026-05-18
 - To submit new build: bump `version` in `pubspec.yaml`, `flutter build ipa --release`, upload via Transporter
 - **Bundle IDs**: iOS + Android both `com.sammorrison.novabolt`

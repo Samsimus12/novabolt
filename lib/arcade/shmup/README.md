@@ -13,7 +13,7 @@ Our own design (genre only).
 | `shmup_sim.dart` | code | Pure-Dart rules: `ShmupSim`, entities, events, `ShmupTuning` |
 | `shmup_game.dart` | code | Flame game: input, steps the sim, sound/haptics, records the round |
 | `shmup_screen.dart` | code | Route (pause on background / back gesture) |
-| `shmup_art.dart` | **designer** | All drawing + `paintPreview`. PLACEHOLDER now; replace the whole file, contract in its header |
+| `shmup_art.dart` (+ its part `shmup_art_factions.dart`) | **designer** | All drawing + `paintPreview`; contract in its header. The part file holds the per-stage enemy factions and the Prism, Hauler and Maw bodies |
 | `shmup_overlays.dart` | **designer** | HUD, pause, results. PLACEHOLDER now; replace the whole file, contract in its header |
 
 ## Game structure
@@ -87,14 +87,43 @@ things (turrets, mines, pick-ups) it is where they sit in the world. Constructor
 Mines and pick-ups are fixed in the world, so keep them in open passage
 (the validator checks). Free fliers (drones, darters, gunships) ignore terrain.
 
-## The boss
+## The stages and their bosses
 
-An armored hull (bullets bounce) carrying an upper and a lower cannon and a
-core. Phase 1: the cannons fire 3-way aimed bursts; the core is covered. Phase
-2 (both cannons gone): the core fires a 10-bullet rotating ring and aimed
-pairs. Phase 3 (core under 35%): 14-bullet rings, aimed triples, faster
-bobbing. Killing it pays 30 + 5, drops 4 shards that fly to the ship, shows
-STAGE CLEAR for 3.4 s, then the next stage starts.
+Four stages, each with its own look, enemy faction (same 7 kinds and
+behaviors, new silhouettes; the threat tell is always a flare eye, heart or
+lamp) and guardian (`ShmupBossKind`, from `level.bossStyle % 4`):
+
+| # | Stage (`theme`) | Faction | Mid-boss | Guardian |
+|---|---|---|---|---|
+| 1 | Asteroid Belt (0) | Raiders: umber hulls, flare rims | Outrider | The Breaker |
+| 2 | Crystal Vein (1) | Crystal: malachite shards, copper edges | Geode | The Prism |
+| 3 | Wreck Field (2) | Salvage: gunmetal, rust, lamps | Salvager | The Hauler |
+| 4 | Bone Reef (3) | Reef: flesh, bone, rose glow | Nautilid | The Maw |
+
+Every guardian is an armored hull (bullets bounce) with guard parts; the
+core can only be hurt once every guard is gone. Phase 2 starts when the last
+guard breaks, phase 3 when the core is under 35%. Killing it pays 30 + 5,
+drops 4 shards that fly to the ship, shows STAGE CLEAR for 3.4 s, then the
+next stage starts.
+
+* **The Breaker:** two cannons fire 3-way aimed bursts; then the core fires
+  rotating rings (10, enraged 14) and aimed pairs (triples).
+* **The Prism:** three crystal facets orbit the heart and take turns firing
+  tight fans; then the heart sprays sweeping beam arms (3, enraged 4, which
+  turn the other way each burst) in bursts, an aimed pair between bursts.
+  Art tell: dashed arm lines in the last 0.7 s before a burst.
+* **The Hauler:** two claws take turns: the lane at the ship's height lights
+  up (0.85 s, a dashed flare line with chevrons), the claw strikes along it to
+  the left edge and pulls back; the hull lobs slow scrap (style 3 bullets).
+  Then the reactor opens and pulls the ship toward the hull 3 s in every 5
+  (flare arcs close in on it), with scrap rings while it pulls; enraged, it
+  also drops mines.
+* **The Maw:** two eyes on stalks take turns firing 4-spore streams; then the
+  jaw works (shut 2.4 s, opening, open 2.4 s / 2.9 enraged, closing): the
+  throat is only open to shots while the jaw is, the open jaw sprays fans,
+  closing bites a ring; enraged, each opening releases three spore drones.
+
+Guard parts hurt the ship on touch.
 
 ## Power-ups
 

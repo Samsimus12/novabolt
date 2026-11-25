@@ -12,6 +12,8 @@ import '../../game/render/trail_art.dart';
 import '../thread/thread_art.dart';
 import 'shmup_sim.dart';
 
+part 'shmup_art_factions.dart';
+
 /// Rift Runner's drawing (the designer's file). The contract with
 /// [ShmupGame]:
 ///
@@ -25,20 +27,26 @@ import 'shmup_sim.dart';
 ///   * The component fills the game: `size` = screen px; one sim unit is
 ///     `size.x / sim.width` px and the field is `sim.height` units tall.
 ///
-/// Look: a dust nebula lit by a red giant just off the right edge (warm
-/// umber, sienna, sand), so your ion ship, shots, drones and shield pop
-/// against it. Per stage (`level.theme`): 0 "Asteroid Belt" (basalt rock with
-/// a sand-lit edge), 1 "Crystal Vein" (darker, malachite bands and a copper
-/// edge); other numbers reuse these in turn. The sky is baked once per size
-/// and theme; far asteroids and dust streaks are cached pictures scrolled
-/// with `sim.traveled`; the rock bands are two paths a frame with a lit
-/// edge facing the channel. Enemies share one material (dark hull, flare rim
-/// and eye) with a silhouette per kind; hostile shots are ringed flare orbs,
-/// yours are streaks in the gun's color. The boss (`bossStyle` 0 "The
-/// Breaker", 1 "The Prism") is a plated shell with two cannon pods and an
-/// iris core that opens once both cannons are gone. Color keeps the app's
-/// meanings: flare = danger, ion = you, gold = NOVA, plasma = upgrades,
-/// mint = repairs. No per-frame blur or layers: glows are [Glow] sprites.
+/// Look, per stage (`level.theme`, see `_Look`): 0 "Asteroid Belt", a dust
+/// nebula lit by a red giant off the right edge, basalt rock with a sand-lit
+/// edge; 1 "Crystal Vein", darker, malachite bands and a copper edge;
+/// 2 "Wreck Field", a cold slate gloom with dead fleets far off, gunmetal
+/// hull plates with seams, rivets and rust, a steel edge; 3 "Bone Reef",
+/// violet-black inside a fossil, bone ribs with growth ridges and pores, far
+/// rib arches, a bone edge. The sky is baked once per size and theme; the far
+/// layer and dust streaks are cached pictures scrolled with `sim.traveled`;
+/// the rock bands are two paths a frame with a lit edge facing the channel.
+/// Enemies: one faction per stage (Raiders, Crystal, Salvage, Reef; the last
+/// three in `shmup_art_factions.dart`), each kind keeping its silhouette's job
+/// and a flare eye / heart / lamp as its threat tell. Hostile shots are ringed
+/// flare orbs (the Hauler's scrap: flare-rimmed jagged chunks); yours are
+/// streaks in the gun's color. Guardians (`ShmupBoss.kind`): the Breaker and
+/// the Prism are plated shells with an iris core (cannon pods / orbiting
+/// crystal facets and beam arms); the Hauler is a crane barge with jointed
+/// claws, lane tells and a reactor coil; the Maw is a jawed head with eyes on
+/// stalks and a glowing throat. Color keeps the app's meanings: flare =
+/// danger, ion = you, gold = NOVA, plasma = upgrades, mint = repairs. No
+/// per-frame blur or layers: glows are [Glow] sprites.
 class ShmupArt extends Component {
   ShmupArt(this.sim);
 
@@ -408,18 +416,65 @@ class ShmupArt extends Component {
       canvas.drawPath(botEdge, _stroke);
       canvas.restore();
     }
-    _stroke
-      ..strokeWidth = math.max(1, _k * 0.35)
-      ..color = look.facet;
-    final first9 = (wx0 / 9).ceil() * 9.0;
-    for (var wx = first9; wx < wx0 + w; wx += 9) {
-      final x = wx - wx0;
-      final hsh = (wx.round() * 2654435761) & 0xffff;
-      final lean = ((hsh & 31) / 31 - 0.5) * 4;
-      final c = sim.ceilingAt(x);
-      if (c > 4) canvas.drawLine(_p(x, c - 0.6), _p(x + lean, c - math.min(6, c * 0.6)), _stroke);
-      final f = h - sim.floorAt(x);
-      if (h - f > 4) canvas.drawLine(_p(x, f + 0.6), _p(x - lean, f + math.min(6, (h - f) * 0.6)), _stroke);
+    switch (look.id) {
+      case 2:
+        // Wreck Field: hull plates. Seams into the plate, rivets along the edge.
+        _stroke
+          ..strokeWidth = math.max(1, _k * 0.35)
+          ..color = look.facet;
+        final first12 = (wx0 / 12).ceil() * 12.0;
+        for (var wx = first12; wx < wx0 + w; wx += 12) {
+          final x = wx - wx0;
+          final c = sim.ceilingAt(x);
+          if (c > 4) canvas.drawLine(_p(x, c - 0.8), _p(x, math.max(0, c - 9)), _stroke);
+          final f = h - sim.floorAt(x);
+          if (h - f > 4) canvas.drawLine(_p(x, f + 0.8), _p(x, math.min(h, f + 9)), _stroke);
+        }
+        _fill.color = look.facet.withValues(alpha: 1);
+        final first4 = (wx0 / 4).ceil() * 4.0;
+        for (var wx = first4; wx < wx0 + w; wx += 4) {
+          final x = wx - wx0;
+          final c = sim.ceilingAt(x);
+          if (c > 4) canvas.drawCircle(_p(x, c - 2.2), _k * 0.4, _fill);
+          final f = h - sim.floorAt(x);
+          if (h - f > 4) canvas.drawCircle(_p(x, f + 2.2), _k * 0.4, _fill);
+          // now and then a rust run down the plate
+          if (((wx.round() * 2654435761) & 0xff) < 18) {
+            _stroke
+              ..strokeWidth = math.max(1, _k * 0.5)
+              ..color = const Color(0x55B0603A);
+            if (c > 6) canvas.drawLine(_p(x, c - 1), _p(x + 0.4, math.max(0, c - 6)), _stroke);
+            if (h - f > 6) canvas.drawLine(_p(x, f + 1), _p(x + 0.4, math.min(h, f + 6)), _stroke);
+          }
+        }
+      case 3:
+        // Bone Reef: pores in the bone between the growth ridges.
+        _fill.color = look.facet;
+        final first5 = (wx0 / 5).ceil() * 5.0;
+        for (var wx = first5; wx < wx0 + w; wx += 5) {
+          final x = wx - wx0;
+          final hsh = (wx.round() * 2654435761) & 0xffff;
+          final dd = 3.6 + (hsh & 7) / 7 * 1.6;
+          final rr = _k * (0.35 + (hsh >> 3 & 3) * 0.12);
+          final c = sim.ceilingAt(x);
+          if (c > dd + 1) canvas.drawCircle(_p(x, c - dd), rr, _fill);
+          final f = h - sim.floorAt(x);
+          if (h - f > dd + 1) canvas.drawCircle(_p(x + 2.5, f + dd), rr, _fill);
+        }
+      default:
+        _stroke
+          ..strokeWidth = math.max(1, _k * 0.35)
+          ..color = look.facet;
+        final first9 = (wx0 / 9).ceil() * 9.0;
+        for (var wx = first9; wx < wx0 + w; wx += 9) {
+          final x = wx - wx0;
+          final hsh = (wx.round() * 2654435761) & 0xffff;
+          final lean = ((hsh & 31) / 31 - 0.5) * 4;
+          final c = sim.ceilingAt(x);
+          if (c > 4) canvas.drawLine(_p(x, c - 0.6), _p(x + lean, c - math.min(6, c * 0.6)), _stroke);
+          final f = h - sim.floorAt(x);
+          if (h - f > 4) canvas.drawLine(_p(x, f + 0.6), _p(x - lean, f + math.min(6, (h - f) * 0.6)), _stroke);
+        }
     }
 
     // The lit edge facing the channel: a soft bloom and a crisp line.
@@ -557,26 +612,16 @@ class ShmupArt extends Component {
   static const _flare = Color(0xFFFF4766);
 
   void _enemies(Canvas canvas) {
+    final faction = sim.level.theme % _Look.count;
     for (final e in sim.enemies) {
       if (e.dead) continue;
       final c = _p(e.x, e.y);
       final s = e.r * _k;
       final hit = (e.flash > 0 ? 1.0 : 0.0);
-      switch (e.kind) {
-        case EnemyKind.drone:
-          _paintKite(canvas, c, s, hit, _t + e.id);
-        case EnemyKind.turret:
-          _paintTurret(canvas, c, s, e, hit);
-        case EnemyKind.darter:
-          _paintDarter(canvas, c, s, e, hit);
-        case EnemyKind.mine:
-          _paintMine(canvas, c, s, e, hit);
-        case EnemyKind.gunship:
-          _paintGunship(canvas, c, s, e, hit);
-        case EnemyKind.carrier:
-          _paintCarrier(canvas, c, s, e, hit);
-        case EnemyKind.midBoss:
-          _paintMidBoss(canvas, c, s, e, hit);
+      if (faction != 0) {
+        _factionEnemy(canvas, faction, e, c, s, hit);
+      } else {
+        _raider(canvas, e, c, s, hit);
       }
       if ((e.kind == EnemyKind.gunship || e.kind == EnemyKind.carrier) && e.hp < e.maxHp && e.hp > 0) {
         final w = s * 1.8;
@@ -586,6 +631,26 @@ class ShmupArt extends Component {
         _fill.color = _flare;
         canvas.drawRect(Rect.fromLTWH(r.left, r.top, w * e.hpFraction, r.height), _fill);
       }
+    }
+  }
+
+  /// Stage 1's raiders.
+  void _raider(Canvas canvas, ShmupEnemy e, Offset c, double s, double hit) {
+    switch (e.kind) {
+      case EnemyKind.drone:
+        _paintKite(canvas, c, s, hit, _t + e.id);
+      case EnemyKind.turret:
+        _paintTurret(canvas, c, s, e, hit);
+      case EnemyKind.darter:
+        _paintDarter(canvas, c, s, e, hit);
+      case EnemyKind.mine:
+        _paintMine(canvas, c, s, e, hit);
+      case EnemyKind.gunship:
+        _paintGunship(canvas, c, s, e, hit);
+      case EnemyKind.carrier:
+        _paintCarrier(canvas, c, s, e, hit);
+      case EnemyKind.midBoss:
+        _paintMidBoss(canvas, c, s, e, hit);
     }
   }
 
@@ -653,29 +718,8 @@ class ShmupArt extends Component {
 
   void _paintDarter(Canvas canvas, Offset c, double s, ShmupEnemy e, double hit) {
     final locking = e.stage == 1;
-    final aim = _p(e.aimX, e.aimY);
-    final a = locking ? math.atan2(aim.dy - c.dy, aim.dx - c.dx) : math.atan2(e.vy, e.vx == 0 && e.vy == 0 ? -1 : e.vx);
-    final d = Offset(math.cos(a), math.sin(a));
+    final d = _darterDir(canvas, c, s, e);
     final n = Offset(-d.dy, d.dx);
-    if (locking) {
-      // The tell: a dashed flare line to where it will dash, a reticle there.
-      final from = c + d * s * 1.4;
-      final len = (aim - from).distance;
-      final dashes = (len / (_k * 3)).floor();
-      _stroke
-        ..strokeWidth = math.max(1, _k * 0.3)
-        ..color = _flare.withValues(alpha: 0.55 + 0.35 * math.sin(_t * 18).abs());
-      for (var i = 0; i < dashes; i += 2) {
-        canvas.drawLine(from + d * (i * _k * 3), from + d * (math.min(len, (i + 1) * _k * 3)), _stroke);
-      }
-      final rr = _k * 3;
-      canvas.drawCircle(aim, rr, _stroke);
-      for (var i = 0; i < 4; i++) {
-        final q = i * math.pi / 2;
-        final u = Offset(math.cos(q), math.sin(q));
-        canvas.drawLine(aim + u * rr * 1.3, aim + u * rr * 1.9, _stroke);
-      }
-    }
     final p = Path()
       ..moveTo(c.dx + d.dx * s * 1.5, c.dy + d.dy * s * 1.5)
       ..lineTo(c.dx - d.dx * s + n.dx * s * 0.7, c.dy - d.dy * s + n.dy * s * 0.7)
@@ -834,6 +878,8 @@ class ShmupArt extends Component {
   void _boss(Canvas canvas, _Look look) {
     final b = sim.boss;
     if (b == null) return;
+    if (b.kind == ShmupBossKind.hauler) return _paintHauler(canvas, b);
+    if (b.kind == ShmupBossKind.maw) return _paintMaw(canvas, b);
     final c = _p(b.x, b.y);
     final r = b.shellR * _k;
     final fade = b.dying ? (1 - b.dyingFor / ShmupTuning.clearSeconds).clamp(0.0, 1.0) : 1.0;
@@ -854,8 +900,9 @@ class ShmupArt extends Component {
     final seam = b.phase == 1 ? 0.25 : (b.phase == 2 ? 0.6 : 0.8 + 0.2 * phase3);
     final hitShell = 0.0;
     _paintShell(canvas, c, r, 8, bl, hitShell, seam, b.age * 0.05);
-    // Cannon pods (upper / lower).
-    for (final part in [b.upper, b.lower]) {
+    if (b.kind == ShmupBossKind.prism) _prismFacets(canvas, b, c, r);
+    // Cannon pods (upper / lower): the Breaker.
+    for (final part in b.kind == ShmupBossKind.breaker ? [b.upper, b.lower] : const <BossPart>[]) {
       final pc = _p(b.x + part.dx, b.y + part.dy);
       final pr = part.r * _k;
       final hit = part.flash > 0 ? 1.0 : 0.0;
@@ -914,7 +961,7 @@ class ShmupArt extends Component {
     _stroke
       ..strokeWidth = math.max(1.2, cr * 0.08)
       ..color = bl.edge.withValues(alpha: 0.7);
-    canvas.drawCircle(cc, cr, _stroke);
+    canvas.drawCircle(cc, cr, _stroke);    if (b.kind == ShmupBossKind.prism) _prismArms(canvas, b, cc, cr);
   }
 
   void _paintShellFading(Canvas canvas, Offset c, double r, _Look look, double fade, double k) {
@@ -973,6 +1020,10 @@ class ShmupArt extends Component {
     for (final b in sim.enemyBullets) {
       if (b.dead) continue;
       final c = _p(b.x, b.y);
+      if (b.style == 3) {
+        _scrap(canvas, c, b.r * _k, b.x + b.y);
+        continue;
+      }
       final r = b.r * _k * (b.style == 2 ? 1.25 : 1.0);
       Glow.draw(canvas, c, r * 3.2, _flare.withValues(alpha: b.style == 1 ? 0.75 : 0.55));
       _stroke
@@ -982,6 +1033,26 @@ class ShmupArt extends Component {
       _fill.color = const Color(0xFFFFE0E6);
       canvas.drawCircle(c, r * 0.42, _fill);
     }
+  }
+
+  /// The Hauler's scrap: a tumbling jagged chunk, still ringed in flare and
+  /// hot in the middle so it reads as a hostile shot.
+  void _scrap(Canvas canvas, Offset c, double r, double seed) {
+    Glow.draw(canvas, c, r * 2.8, _flare.withValues(alpha: 0.5));
+    final rot = _t * 4 + seed;
+    final pts = [
+      for (var i = 0; i < 7; i++)
+        c + Offset(math.cos(rot + i * math.pi * 2 / 7), math.sin(rot + i * math.pi * 2 / 7)) * r * (i.isEven ? 1.15 : 0.78),
+    ];
+    final p = Path()..addPolygon(pts, true);
+    _fill.color = const Color(0xFF3A2A26);
+    canvas.drawPath(p, _fill);
+    _stroke
+      ..strokeWidth = math.max(1.2, r * 0.25)
+      ..color = _flare;
+    canvas.drawPath(p, _stroke);
+    _fill.color = const Color(0xFFFFE0E6);
+    canvas.drawCircle(c, r * 0.3, _fill);
   }
 
   // ── Ship ────────────────────────────────────────────────────────────────
@@ -1197,7 +1268,7 @@ class _Look {
     required this.core,
   });
 
-  static const count = 2;
+  static const count = 4;
 
   /// Asteroid Belt: basalt with a sand-lit edge; the Breaker in basalt with
   /// flare seams and a flare-hot core.
@@ -1250,7 +1321,65 @@ class _Look {
     core: Color(0xFFFF9A4A),
   );
 
-  static _Look of(int theme) => theme % count == 1 ? vein_ : belt;
+  /// Wreck Field: a cold slate gloom over drifting dead fleets; gunmetal
+  /// hull plates with rivets and rust, a steel-lit edge.
+  static const wreck = _Look(
+    id: 2,
+    skyTop: Color(0xFF06080D),
+    skyMid: Color(0xFF0D121A),
+    skyBottom: Color(0xFF080B11),
+    sun: Color(0xFF5A7898),
+    dustDeep: Color(0xFF16202C),
+    dustMid: Color(0xFF26354A),
+    dustLight: Color(0xFF6A84A0),
+    far: Color(0xFF19212B),
+    rock: Color(0xFF181D24),
+    rockDeep: Color(0xFF0A0D11),
+    edge: Color(0xFFA9C2D4),
+    bloom: Color(0x40A9C2D4),
+    facet: Color(0xFF323C48),
+    vein: Color(0x00000000),
+    veins: false,
+    shell: Color(0xFF262D36),
+    shellDeep: Color(0xFF14181E),
+    seam: Color(0xFFFF4766),
+    core: Color(0xFFFF4766),
+  );
+
+  /// Bone Reef: violet-black inside a colossal fossil; bone ribs with growth
+  /// ridges and pores, a bone-lit edge, rose bioluminescence.
+  static const reef = _Look(
+    id: 3,
+    skyTop: Color(0xFF09050C),
+    skyMid: Color(0xFF150A18),
+    skyBottom: Color(0xFF0B060E),
+    sun: Color(0xFF7A3A6A),
+    dustDeep: Color(0xFF261230),
+    dustMid: Color(0xFF40204A),
+    dustLight: Color(0xFF8A5A88),
+    far: Color(0xFF241828),
+    rock: Color(0xFF2E2622),
+    rockDeep: Color(0xFF140F0E),
+    edge: Color(0xFFE6D7C2),
+    bloom: Color(0x40E6D7C2),
+    facet: Color(0xFF17110F),
+    vein: Color(0x55E6D7C2),
+    veins: true,
+    shell: Color(0xFF3A2430),
+    shellDeep: Color(0xFF1E1018),
+    seam: Color(0xFFFF6A8A),
+    core: Color(0xFFFF6A8A),
+  );
+
+  static _Look of(int theme) => switch (theme % count) {
+        1 => vein_,
+        2 => wreck,
+        3 => reef,
+        _ => belt,
+      };
+
+  /// The Breaker's and the Prism's shell materials (the Hauler and the Maw
+  /// draw their own bodies).
   static _Look forBoss(int style) => style % count == 1 ? vein_ : belt;
 
   /// Warm black, the red giant's glow off the right edge, slow dust clouds
@@ -1293,9 +1422,27 @@ class _Look {
         Paint()..shader = Gradient.radial(cc, s.width * 0.6, const [Color(0x1A39A57A), Color(0x0039A57A)], const [0, 1]),
       );
     }
+    if (id == 2) {
+      // the cold light of a far dwarf star, high on the left
+      final cc = Offset(s.width * 0.15, s.height * 0.2);
+      c.drawCircle(
+        cc,
+        s.width * 0.7,
+        Paint()..shader = Gradient.radial(cc, s.width * 0.7, const [Color(0x226A84A0), Color(0x006A84A0)], const [0, 1]),
+      );
+    } else if (id == 3) {
+      // a faint rose haze deep in the ribcage
+      final cc = Offset(s.width * 0.5, s.height * 0.5);
+      c.drawCircle(
+        cc,
+        s.width * 0.8,
+        Paint()..shader = Gradient.radial(cc, s.width * 0.8, const [Color(0x1AFF6A8A), Color(0x00FF6A8A)], const [0, 1]),
+      );
+    }
+    final (sr, sg, sb) = switch (id) { 2 => (205, 222, 255), 3 => (240, 212, 236), _ => (255, 232, 210) };
     final star = Paint();
     for (var i = 0; i < 110; i++) {
-      star.color = Color.fromRGBO(255, 232, 210, 0.15 + rnd.nextDouble() * 0.5);
+      star.color = Color.fromRGBO(sr, sg, sb, 0.15 + rnd.nextDouble() * 0.5);
       c.drawCircle(Offset(rnd.nextDouble() * s.width, rnd.nextDouble() * s.height), 0.4 + rnd.nextDouble() * 0.8, star);
     }
   }
@@ -1303,6 +1450,8 @@ class _Look {
   /// Far asteroids: hazy, low-contrast lumps with a hairline lit rim. They
   /// never collide, and look it.
   Picture farAsteroids(Size s, double w) {
+    if (id == 2) return _farWrecks(s, w);
+    if (id == 3) return _farRibs(s, w);
     final rec = PictureRecorder();
     final c = Canvas(rec);
     final rnd = math.Random(19 + id);
@@ -1327,6 +1476,76 @@ class _Look {
       path.addPolygon(pts, true);
       c.drawPath(path, body);
       c.drawPath(Path()..addPolygon([pts[7], pts[8], pts[0], pts[1]], false), rim);
+    }
+    return rec.endRecording();
+  }
+
+  /// Far derelicts: long dead hulls with masts and a few cold lights.
+  Picture _farWrecks(Size s, double w) {
+    final rec = PictureRecorder();
+    final c = Canvas(rec);
+    final rnd = math.Random(23);
+    final body = Paint()..color = far.withValues(alpha: 0.85);
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = dustLight.withValues(alpha: 0.25);
+    final light = Paint()..color = const Color(0x667FA8D0);
+    final n = (w / (s.width * 0.45)).ceil();
+    for (var i = 0; i < n; i++) {
+      final cx = (i + rnd.nextDouble() * 0.5) * w / n;
+      final cy = s.height * (0.18 + rnd.nextDouble() * 0.64);
+      final len = s.width * (0.18 + rnd.nextDouble() * 0.2);
+      final ht = len * (0.1 + rnd.nextDouble() * 0.05);
+      final tilt = (rnd.nextDouble() - 0.5) * 0.3;
+      c.save();
+      c.translate(cx, cy);
+      c.rotate(tilt);
+      final hull = Path()
+        ..moveTo(-len * 0.5, 0)
+        ..lineTo(-len * 0.35, -ht * 0.5)
+        ..lineTo(len * 0.3, -ht * 0.5)
+        ..lineTo(len * 0.3, -ht * 0.9)
+        ..lineTo(len * 0.45, -ht * 0.9)
+        ..lineTo(len * 0.5, ht * 0.5)
+        ..lineTo(-len * 0.4, ht * 0.5)
+        ..close();
+      c.drawPath(hull, body);
+      c.drawLine(Offset(-len * 0.35, -ht * 0.5), Offset(len * 0.3, -ht * 0.5), rim);
+      // a broken mast and a gap torn out of the hull
+      c.drawLine(Offset(len * 0.05, -ht * 0.5), Offset(len * 0.09, -ht * 1.9), rim);
+      c.drawRect(Rect.fromLTWH(-len * 0.1, -ht * 0.2, len * 0.08, ht * 0.5), Paint()..color = skyMid);
+      for (var j = 0; j < 3; j++) {
+        c.drawCircle(Offset(-len * 0.3 + j * len * 0.22, ht * 0.1), 1, light);
+      }
+      c.restore();
+    }
+    return rec.endRecording();
+  }
+
+  /// Far ribs: great bone arches fading into the dark.
+  Picture _farRibs(Size s, double w) {
+    final rec = PictureRecorder();
+    final c = Canvas(rec);
+    final rnd = math.Random(31);
+    final rib = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final n = (w / (s.width * 0.3)).ceil();
+    for (var i = 0; i < n; i++) {
+      final cx = (i + rnd.nextDouble() * 0.4) * w / n;
+      final rr = s.height * (0.32 + rnd.nextDouble() * 0.18);
+      final top = rnd.nextBool();
+      final cy = top ? -rr * 0.15 : s.height + rr * 0.15;
+      rib
+        ..strokeWidth = s.width * (0.022 + rnd.nextDouble() * 0.02)
+        ..color = far.withValues(alpha: 0.9);
+      final rect = Rect.fromCenter(center: Offset(cx, cy), width: rr * 0.9, height: rr * 2);
+      c.drawArc(rect, top ? 0.2 : math.pi + 0.2, math.pi - 0.4, false, rib);
+      rib
+        ..strokeWidth = 1
+        ..color = dustLight.withValues(alpha: 0.22);
+      c.drawArc(rect.deflate(s.width * 0.012), top ? 0.25 : math.pi + 0.25, math.pi - 0.5, false, rib);
     }
     return rec.endRecording();
   }

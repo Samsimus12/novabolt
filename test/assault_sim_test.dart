@@ -436,46 +436,18 @@ void main() {
       expect(sim.pilot.aimAngle, closeTo(0, 1e-9));
     });
 
-    test('pushing the move stick up past 0.6 jumps, holding it keeps it high, a second push is the double jump', () {
+    test('pushing the move stick up never jumps (only the Jump button does)', () {
       final sim = makeSim(makeLevel());
       run(sim, 0.3);
       expect(sim.pilot.onGround, isTrue);
-      sim.input.moveY = -0.5; // under the threshold: nothing
-      run(sim, 0.2);
-      expect(sim.pilot.onGround, isTrue);
       sim.input.moveY = -1;
+      run(sim, 0.5);
+      expect(sim.pilot.onGround, isTrue);
+      sim.input
+        ..jumpPressed = true
+        ..jumpHeld = true;
       run(sim, 0.1);
       expect(sim.pilot.onGround, isFalse);
-      var peak = sim.pilot.y;
-      for (var i = 0; i < 40; i++) {
-        sim.step(1 / 60);
-        if (sim.pilot.y < peak) peak = sim.pilot.y;
-      }
-      // Compare against a tapped jump: held reaches higher.
-      final tap = makeSim(makeLevel());
-      run(tap, 0.3);
-      final ground = tap.pilot.y;
-      tap.input.moveY = -1;
-      run(tap, 0.05);
-      tap.input.moveY = 0;
-      var tapPeak = tap.pilot.y;
-      for (var i = 0; i < 60; i++) {
-        tap.step(1 / 60);
-        if (tap.pilot.y < tapPeak) tapPeak = tap.pilot.y;
-      }
-      expect(ground - peak, greaterThan(ground - tapPeak + 0.3));
-      // Release, push again mid-air: the double jump.
-      final dj = makeSim(makeLevel());
-      run(dj, 0.3);
-      dj.input.moveY = -1;
-      run(dj, 0.1);
-      dj.input.moveY = 0;
-      run(dj, 0.1);
-      final events = <AssaultEventKind>[];
-      dj.input.moveY = -1;
-      run(dj, 0.05);
-      events.addAll(dj.drainEvents().map((e) => e.kind));
-      expect(events, contains(AssaultEventKind.doubleJump));
     });
 
     test('no shooting while dead, and it resumes after respawning', () {

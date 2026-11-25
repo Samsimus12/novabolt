@@ -33,11 +33,9 @@ Twin-stick. Written each frame by the control deck (and by the keyboard in
 test builds):
 - **Left stick: move.** `moveX` -1..1 runs left/right (deadzone 0.2).
   `moveY` -1..1 (up is -1): down on the ground (past 0.6 and at least as much
-  as |moveX|) crouches (smaller hit box, can't run). Pushing it firmly **up**
-  (past `AssaultTuning.stickJumpThreshold`, 0.6) is a jump press (an edge the
-  sim takes itself); holding it up keeps the jump high (it counts as held until
-  it falls under `stickJumpRelease`, 0.4); pushing again mid-air is the double
-  jump.
+  as |moveX|) crouches (smaller hit box, can't run). **Pushing it up does
+  nothing: the stick never jumps** (Sam's call, Nov 24, 2026). Only the
+  Jump button jumps.
 - **Right stick: aim, 360 degrees.** `aimX`/`aimY` -1..1 (y down) and
   `aimActive` (true while the thumb is down). Its direction is the gun angle at
   full resolution, with a deadzone (`AssaultTuning.aimDeadzone`, 0.3 of the
@@ -46,8 +44,9 @@ test builds):
   once the aim stick has been used the run direction no longer turns the pilot
   (until a respawn). Before the aim stick is ever used the gun just points the
   way the pilot runs (`pilot.aimAngle` is 0 or pi).
-- `jumpHeld`, `jumpPressed` (one-frame edge, the sim clears it): the small Jump
-  button (top of the right half, above the aim stick), for people who prefer it.
+- `jumpHeld`, `jumpPressed` (one-frame edge, the sim clears it): the Jump
+  button (top of the right half, above the aim stick), the only jump. Lifting
+  the aim thumb to press it is fine: the gun keeps its last angle.
 - **Jump:** variable height (release cuts it), coyote time and a jump buffer.
   **One extra jump in mid-air** (press Jump again while airborne): about 85%
   of the ground jump's speed (`doubleJumpFactor`), resets on landing, emits

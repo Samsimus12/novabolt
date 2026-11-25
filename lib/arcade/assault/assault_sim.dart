@@ -111,7 +111,6 @@ class AssaultSim implements AssaultWorld {
   bool _airJumpUsed = false; // the mid-air jump has been spent this airtime
   bool _jumping = false; // rising from a jump (eligible for the variable-height cut)
   double _fireCd = 0;
-  bool _stickUp = false; // move stick is pushed up (a jump press edge was taken)
   bool _aimUsed = false; // the aim stick has been used since spawn: it, not movement, sets facing
   double _furthestX = 0;
   bool _finalDeath = false;
@@ -151,7 +150,6 @@ class AssaultSim implements AssaultWorld {
     _jumping = false;
     _airJumpUsed = false;
     _fireCd = 0;
-    _stickUp = false;
     _aimUsed = false;
     _furthestX = _start.x;
     _events.clear();
@@ -214,14 +212,7 @@ class AssaultSim implements AssaultWorld {
       _jumpBuf = AssaultTuning.jumpBuffer;
       input.jumpPressed = false;
     }
-    // Pushing the move stick firmly up is a jump press (edge).
-    final up = -input.moveY;
-    if (!_stickUp && up > AssaultTuning.stickJumpThreshold) {
-      _stickUp = true;
-      _jumpBuf = AssaultTuning.jumpBuffer;
-    } else if (_stickUp && up < AssaultTuning.stickJumpRelease) {
-      _stickUp = false;
-    }
+    // The move stick never jumps (Sam, Nov 24): only the Jump button does.
     final n = (dt / _maxSubstep).ceil();
     final h = dt / n;
     for (var i = 0; i < n; i++) {
@@ -340,7 +331,7 @@ class AssaultSim implements AssaultWorld {
       _jumping = true;
       emit(AssaultEvent(AssaultEventKind.doubleJump, p.x, p.y));
     }
-    if (_jumping && !input.jumpHeld && !_stickUp && p.vy < 0) {
+    if (_jumping && !input.jumpHeld && p.vy < 0) {
       p.vy *= AssaultTuning.jumpCutFactor;
       _jumping = false;
     }
